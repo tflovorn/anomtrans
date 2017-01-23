@@ -1,14 +1,17 @@
 #include <gtest/gtest.h>
-#include <boost/mpi.h>
+#include <petscksp.h>
 
 int main(int argc, char* argv[]) {
   ::testing::InitGoogleTest(&argc, argv);
-  mpi::environment env(argc, argv);
-  return RUN_ALL_TESTS();
+  PetscInitialize(&argc, &argv, nullptr, nullptr);
+  
+  int test_result = RUN_ALL_TESTS();
+  
+  int ierr = PetscFinalize();
+
+  return test_result;
 }
 
 TEST(BasicTest, Basic) {
-  mpi::communicator world;
-
   EXPECT_EQ(1, 1);
 }

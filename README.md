@@ -13,18 +13,19 @@ Assumes the intel/16.0.1 module is loaded on Lonestar5.
 
 Dependencies are available on Lonestar5 with
 
-    module load boost/1.5.9 petsc/3.7-cxxcomplex
+    module load cmake/3.7.2 boost/1.59 petsc/3.7-cxxcomplex
 
 for release mode or
 
-    module load boost/1.5.9 petsc/3.7-cxxcomplexdebug
+    module load cmake/3.7.2 boost/1.59 petsc/3.7-cxxcomplexdebug
 
 for debug mode.
 
-Set library paths in ~/.bashrc:
+Note that the boost/1.59 module on Lonestar5 does not include boost::mpi.
+`module help boost` references a boost-mpi module, but this does not exist.
 
-    export LIBRARY_PATH=$TACC_PETSC_LIB:$LIBRARY_PATH
-    export LD_LIBRARY_PATH=$TACC_PETSC_LIB:$LIBRARY_PATH
+On Lonestar5, it is not necessary to set LIBRARY_PATH or LD_LIBRARY_PATH for boost or petsc.
+The correct LD_LIBRARY_PATH is set by module load.
 
 TODO - support local build.
 
@@ -36,8 +37,14 @@ To build documentation:
 
 To build and run tests (should be done from the llblg root directory):
 
-    ./run_tests
+    ./build_test
+    idev
+    cd Obj_test/test
+    ctest
+    exit
 
-To build release version:
+For verbose test information, run ctest -V instead.
 
-    ./build_release
+TODO - is it possible to limit output from gtest to just one MPI process?
+
+TODO - build release version.

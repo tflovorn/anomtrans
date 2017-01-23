@@ -11,15 +11,19 @@ set(CMAKE_INSTALL_PREFIX ${CMAKE_BINARY_DIR})
 set(EIGEN3_INCLUDE_DIR "dependencies/eigen")
 set(JSON_INCLUDE_DIR "dependencies/json/src")
 set(GOOGLETEST_DIR "dependencies/googletest")
+set(GOOGLETEST_INCLUDE_DIR "dependencies/googletest/googletest/include")
 
 # Include paths on Lonestar5.
 # TODO should provide mechanism for local implementation.
-set(PETSC_INCLUDE_DIR "${TACC_PETSC_DIR}/include")
-set(BOOST_INCLUDE_DIR ${TACC_BOOST_INC})
+set(PETSC_INCLUDE_DIR "$ENV{TACC_PETSC_DIR}/include")
+set(BOOST_INCLUDE_DIR $ENV{TACC_BOOST_INC})
+set(PETSC_ARCH_INCLUDE_DIR "$ENV{TACC_PETSC_DIR}/$ENV{PETSC_ARCH}/include")
 
 add_subdirectory(${GOOGLETEST_DIR})
+include_directories(${GOOGLETEST_INCLUDE_DIR})
 include_directories(${BOOST_INCLUDE_DIR})
 include_directories(${PETSC_INCLUDE_DIR})
+include_directories(${PETSC_ARCH_INCLUDE_DIR})
 include_directories(${JSON_INCLUDE_DIR})
 
 # Lonestar5 MPI parameters:
@@ -29,22 +33,26 @@ set(MPIEXEC_NUMPROC_FLAG "-np")
 
 # TODO libraries to link.
 # MPI linking should be handled by using mpicxx.
-set(ANOMTRANS_TEST_LIBS "petsc")
+add_library(petsc SHARED IMPORTED)
+set_target_properties(petsc PROPERTIES IMPORTED_LOCATION "$ENV{TACC_PETSC_LIB}/libpetsc.so")
+set(ANOMTRANS_TEST_LIBS gtest gtest_main petsc)
+
+enable_testing()
 
 # Unit testing with MPI programs, following the approach at:
 # https://scicomp.stackexchange.com/a/8739
 function(add_mpi_test name)
   add_executable(${name} ${name}_test.cpp)
-  add_dependencies(${name} googletest)
+  add_dependencies(${name} gtest gtest_main)
   # TODO - express this in compiler-independent way?
-  # This is the set for icpc.
+  # This is the set for icpc (could also add -Wremarks).
   # For gcc 5+, would use:
   # -Wall -pedantic -std=c++14"
-  set_target_properties(all_tests PROPERTIES
-    COMPILE_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wremarks -std=c++11"
+  set_target_properties(${name} PROPERTIES
+    COMPILE_FLAGS "${CMAKE_CXX_FLAGS} -Wall -std=c++11"
   )
   target_link_libraries(${name} ${ANOMTRANS_TEST_LIBS})
-  set(test_parameters ${MPIEXEC_NUMPROC_FLAG} ${ANOMTRANS_TEST_PROCS} "./${name}")
+  set(test_parameters ${MPIEXEC_NUMPROC_FLAG} $ENV{ANOMTRANS_TEST_PROCS} "./${name}")
   add_test(NAME ${name} COMMAND ${MPIEXEC} ${test_parameters})
 endfunction(add_mpi_test)
 
