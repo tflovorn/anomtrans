@@ -1,17 +1,16 @@
-#include <gtest/gtest.h>
-#include <petscksp.h>
+#include "Teuchos_UnitTestHarness.hpp"
 
-int main(int argc, char* argv[]) {
-  ::testing::InitGoogleTest(&argc, argv);
-  PetscInitialize(&argc, &argv, nullptr, nullptr);
-  
-  int test_result = RUN_ALL_TESTS();
-  
-  int ierr = PetscFinalize();
+namespace {
 
-  return test_result;
+TEUCHOS_UNIT_TEST( Int, Basic ) {
+  int i1 = 5;
+  TEST_EQUALITY_CONST( i1, 5 );
 }
 
-TEST(BasicTest, Basic) {
-  EXPECT_EQ(1, 1);
+TEUCHOS_UNIT_TEST( Int, Assignment ) {
+  int i1 = 4;
+  int i2 = i1;
+  TEST_EQUALITY( i2, i1 );
 }
+
+} // namespace
