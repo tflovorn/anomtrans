@@ -1,0 +1,13 @@
+#!/bin/bash
+if [ ! -d "dependencies" ]; then
+    mkdir dependencies
+fi
+cd dependencies
+if [ ! -d "eigen" ]; then
+    if [ ! -f "3.3.2.tar.gz" ]; then
+        wget http://bitbucket.org/eigen/eigen/get/3.3.2.tar.gz
+    fi
+    tar -xvzf 3.3.2.tar.gz
+    mv eigen-eigen-* eigen
+    rm 3.3.2.tar.gz
+fi

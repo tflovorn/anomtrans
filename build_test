@@ -1,0 +1,7 @@
+#!/bin/bash
+#rm -r Obj_test
+mkdir Obj_test
+cd Obj_test
+CC=mpicc CXX=mpicxx ANOMTRANS_TEST_PROCS=24 cmake -DCMAKE_BUILD_TYPE=Debug ..
+make
+make install
