@@ -1,5 +1,5 @@
 #include <cfloat>
-#include "Teuchos_UnitTestHarness.hpp"
+#include <Teuchos_UnitTestHarness.hpp>
 #include "special_functions.h"
 
 namespace {
