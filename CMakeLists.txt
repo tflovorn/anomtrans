@@ -107,8 +107,8 @@ enable_testing()
 # Unit testing with MPI programs, following the approach at:
 # https://scicomp.stackexchange.com/a/8739
 # Modified for use with Trilinos testing framework.
-function(add_mpi_test name)
-  add_executable(${name} UnitTestMain.cpp ${name}_test.cpp)
+function(add_mpi_test name other_sources)
+  add_executable(${name} UnitTestMain.cpp ${name}_test.cpp ${other_sources})
   # TODO - express this in compiler-independent way?
   # This is the set for icpc (could also add -Wremarks).
   # For gcc 5+, would use:

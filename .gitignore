@@ -3,3 +3,5 @@ Obj
 Obj_test
 doc
 dependencies/eigen
+test_output.err
+slurm-*.out
