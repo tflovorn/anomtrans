@@ -7,6 +7,7 @@
 namespace anomtrans {
 
 /** @brief Natural logarith of the smallest normalized positive double.
+ *  @todo Could use std::numeric_limits<double>::min() instead of DBL_MIN.
  */
 const double LN_DBL_MIN = std::log(DBL_MIN);
 
