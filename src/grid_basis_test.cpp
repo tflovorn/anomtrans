@@ -2,16 +2,19 @@
 #include <array>
 #include <tuple>
 #include <Teuchos_UnitTestHarness.hpp>
+#include "mpi.h"
 #include "dist_vec.h"
 #include "grid_basis.h"
 
 namespace {
 
 TEUCHOS_UNIT_TEST( GridBasis, GridBasis ) {
+  anomtrans::MPIComm comm = anomtrans::get_comm();
+
   const std::size_t ncomp = 3;
   std::array<unsigned int, ncomp> sizes = {4, 4, 4};
-  anomtrans::GridBasis<ncomp> gb(sizes);
-  TEST_ASSERT( gb.max_iall == 4*4*4 );
+  anomtrans::GridBasis<ncomp> gb(sizes, comm);
+  TEST_ASSERT( gb.end_iall == 4*4*4 );
 
   anomtrans::GO iall = 0;
   for (unsigned int i2 = 0; i2 < sizes.at(2); i2++) {
@@ -39,6 +42,8 @@ TEUCHOS_UNIT_TEST( GridBasis, GridBasis ) {
 }
 
 TEUCHOS_UNIT_TEST( GridBasis, kmBasis ) {
+  anomtrans::MPIComm comm = anomtrans::get_comm();
+
   const std::size_t dim = 2;
   using kComps = anomtrans::kComps<dim>;
   using dkComps = anomtrans::dkComps<dim>;
@@ -48,8 +53,8 @@ TEUCHOS_UNIT_TEST( GridBasis, kmBasis ) {
 
   std::array<unsigned int, dim> Nk = {2, 2};
   unsigned int Nbands = 2;
-  anomtrans::kmBasis<dim> kmb(Nk, Nbands);
-  TEST_ASSERT( kmb.max_ikm == 2*2*2 );
+  anomtrans::kmBasis<dim> kmb(Nk, Nbands, comm);
+  TEST_ASSERT( kmb.end_ikm == 2*2*2 );
 
   anomtrans::GO iall = 0;
   for (unsigned int m = 0; m < Nbands; m++) {

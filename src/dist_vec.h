@@ -2,8 +2,8 @@
 #define ANOMTRANS_DIST_VEC_H
 
 #include <cstdint>
-//#include <Teuchos_ScalarTraitsDecl.hpp>
 #include <Tpetra_Vector.hpp>
+#include <Teuchos_RCP.hpp>
 
 namespace anomtrans {
 
@@ -26,12 +26,16 @@ using DistVec = Tpetra::Vector<Scalar, LO, GO>;
  */
 template <typename Scalar>
 using DistVecMag = typename DistVec<Scalar>::mag_type;
-//using DistVecMag = Teuchos::ScalarTraits<Scalar>::magnitudeType;
 
 /** @brief Tpetra mapping from vector indices to processes, using our preferred
  *         vector size.
  */
 using Map = Tpetra::Map<LO, GO>;
+
+/** @brief Teuchos reference-counted pointer.
+ */
+template <typename T>
+using RCP = Teuchos::RCP<T>;
 
 } // namespace anomtrans
 

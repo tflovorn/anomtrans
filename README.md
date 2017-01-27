@@ -31,3 +31,8 @@ To build and run tests (should be done from the anomtrans root directory):
 For verbose test information, run ctest -V instead of ctest.
 
 TODO - build release version.
+
+# Development notes
+
+For debugging purposes, inside TEUCHOS_UNIT_TEST blocks an ostream named `out`
+is available which gives access to stdout on the master MPI process.

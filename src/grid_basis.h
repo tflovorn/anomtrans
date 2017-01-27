@@ -24,12 +24,12 @@ std::array<GO, ncomp> get_coeffs(std::array<unsigned int, ncomp> sizes) {
 }
 
 template <std::size_t ncomp>
-GO get_max_iall(std::array<unsigned int, ncomp> sizes) {
-  GO max_iall = 1;
+GO get_end_iall(std::array<unsigned int, ncomp> sizes) {
+  GO end_iall = 1;
   for (std::size_t d = 0; d < ncomp; d++) {
-    max_iall *= sizes.at(d);
+    end_iall *= sizes.at(d);
   }
-  return max_iall;
+  return end_iall;
 }
 
 } // namespace
@@ -39,16 +39,29 @@ class GridBasis {
   // This class doesn't make sense for ncomp = 0.
   static_assert(ncomp > 0, "GridBasis must have at least one component");
 
+  /* @brief Size of the basis in each dimension.
+   */
   std::array<unsigned int, ncomp> sizes;
-  // Coeffs are always the same for given sizes.
-  // Precompute these so we don't have to compute on every call to compose().
+  /* @note Precompute compose() coefficients so we don't have to compute on
+   *       every call. Coefficients are always the same for given sizes.
+   */ 
   std::array<GO, ncomp> coeffs;
 
-public:
-  const GO max_iall;
+  /* @brief Teuchos Map corresponding to this basis.
+   * @note This is included inside GridBasis to ensure consistency between
+   *       the map's numGlobalElements and indexBase and the values that are
+   *       assumed here: see the invariant for this entry.
+   * @invariant This must be zero-indexed and have number of global entries
+   *            equal to get_end_iall(sizes).
+   */
+  RCP<const Map> map;
 
-  GridBasis(std::array<unsigned int, ncomp> _sizes)
-      : sizes(_sizes), max_iall(get_max_iall(_sizes)), coeffs(get_coeffs(_sizes)) {}
+public:
+  const GO end_iall;
+
+  GridBasis(std::array<unsigned int, ncomp> _sizes, MPIComm _comm)
+      : sizes(_sizes), end_iall(get_end_iall(_sizes)), coeffs(get_coeffs(_sizes)),
+        map(RCP<Map>(new Map(end_iall, 0, _comm))) {}
 
   std::array<unsigned int, ncomp> decompose(GO iall) {
     std::array<unsigned int, ncomp> comps;
@@ -81,6 +94,10 @@ public:
     }
     return compose(new_comps);
   }
+
+  RCP<const Map> get_map() {
+    return map;
+  }
 };
 
 template <std::size_t dim>
@@ -101,13 +118,13 @@ using kmVals = std::tuple<kVals<dim>, unsigned int>;
 namespace {
 
 template <std::size_t dim>
-GridBasis<dim+1> corresponding_GridBasis(kComps<dim> Nk, unsigned int Nbands) {
+GridBasis<dim+1> corresponding_GridBasis(kComps<dim> Nk, unsigned int Nbands, MPIComm comm) {
   std::array<unsigned int, dim+1> sizes;
   for (std::size_t d = 0; d < dim; d++) {
     sizes.at(d) = Nk.at(d);
   }
   sizes.at(dim) = Nbands;
-  return GridBasis<dim+1>(sizes);
+  return GridBasis<dim+1>(sizes, comm);
 }
 
 } // namespace
@@ -122,11 +139,11 @@ class kmBasis {
   GridBasis<dim+1> gb;
 
 public:
-  const GO max_ikm;
+  const GO end_ikm;
 
-  kmBasis(kComps<dim> _Nk, unsigned int _Nbands)
-      : Nk(_Nk), Nbands(_Nbands), gb(corresponding_GridBasis(_Nk, _Nbands)),
-        max_ikm(gb.max_iall) {}
+  kmBasis(kComps<dim> _Nk, unsigned int _Nbands, MPIComm _comm)
+      : Nk(_Nk), Nbands(_Nbands), gb(corresponding_GridBasis(_Nk, _Nbands, _comm)),
+        end_ikm(gb.end_iall) {}
 
   kmComps<dim> decompose(GO ikm) {
     auto all_comps = gb.decompose(ikm);
@@ -154,6 +171,10 @@ public:
     }
     Delta_km.at(dim) = 0;
     return gb.add(ikm, Delta_km);
+  }
+
+  RCP<const Map> get_map() {
+    return gb.get_map();
   }
 };
 
