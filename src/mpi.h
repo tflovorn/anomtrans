@@ -8,8 +8,8 @@ namespace anomtrans {
 
 using MPIComm = Teuchos::RCP<const Teuchos::Comm<int>>;
 
-/* @brief Get the Tpetra default communicator. This should not be called until
- *        MPI has been set up by creating a Teuchos::GlobalMPISession.
+/** @brief Get the Tpetra default communicator. This should not be called until
+ *         MPI has been set up by creating a Teuchos::GlobalMPISession.
  */
 MPIComm get_comm();
 

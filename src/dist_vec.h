@@ -21,6 +21,11 @@ using LO = int32_t;
 template <typename Scalar>
 using DistVec = Tpetra::Vector<Scalar, LO, GO>;
 
+/** @brief Global memory space for DistVec.
+ */
+template <typename Scalar>
+using DistVecMemorySpace = typename DistVec<Scalar>::node_type::memory_space;
+
 /** @brief Type that holds the magnitude of a Tpetra vector with the given
  *         scalar type.
  */

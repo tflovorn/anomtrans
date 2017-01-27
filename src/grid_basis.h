@@ -4,6 +4,8 @@
 #include <cstddef>
 #include <array>
 #include <tuple>
+#include <Tpetra_ConfigDefs.hpp>
+#include "mpi.h"
 #include "dist_vec.h"
 
 namespace anomtrans {
@@ -39,20 +41,20 @@ class GridBasis {
   // This class doesn't make sense for ncomp = 0.
   static_assert(ncomp > 0, "GridBasis must have at least one component");
 
-  /* @brief Size of the basis in each dimension.
+  /** @brief Size of the basis in each dimension.
    */
   std::array<unsigned int, ncomp> sizes;
-  /* @note Precompute compose() coefficients so we don't have to compute on
-   *       every call. Coefficients are always the same for given sizes.
+  /** @note Precompute compose() coefficients so we don't have to compute on
+   *        every call. Coefficients are always the same for given sizes.
    */ 
   std::array<GO, ncomp> coeffs;
 
-  /* @brief Teuchos Map corresponding to this basis.
-   * @note This is included inside GridBasis to ensure consistency between
+  /** @brief Teuchos Map corresponding to this basis.
+   *  @note This is included inside GridBasis to ensure consistency between
    *       the map's numGlobalElements and indexBase and the values that are
    *       assumed here: see the invariant for this entry.
-   * @invariant This must be zero-indexed and have number of global entries
-   *            equal to get_end_iall(sizes).
+   *  @invariant This must be zero-indexed and have number of global entries
+   *       equal to get_end_iall(sizes).
    */
   RCP<const Map> map;
 
@@ -61,7 +63,7 @@ public:
 
   GridBasis(std::array<unsigned int, ncomp> _sizes, MPIComm _comm)
       : sizes(_sizes), end_iall(get_end_iall(_sizes)), coeffs(get_coeffs(_sizes)),
-        map(RCP<Map>(new Map(end_iall, 0, _comm))) {}
+        map(RCP<const Map>(new Map(get_end_iall(_sizes), 0, _comm))) {}
 
   std::array<unsigned int, ncomp> decompose(GO iall) {
     std::array<unsigned int, ncomp> comps;
