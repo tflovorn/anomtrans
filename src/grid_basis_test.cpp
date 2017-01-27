@@ -62,7 +62,7 @@ TEUCHOS_UNIT_TEST( GridBasis, kmBasis ) {
 
         TEST_ASSERT( kmb.decompose(iall) == ikm_comps );
         TEST_ASSERT( kmb.compose(ikm_comps) == iall );
-        TEST_ASSERT( kmb.km_at(iall) == km_at_comps );
+        TEST_ASSERT( anomtrans::km_at(Nk, ikm_comps) == km_at_comps );
 
         for (int p1 = -Nk.at(1); p1 <= Nk.at(1); p1++) {
           for (int p0 = -Nk.at(0); p0 <= Nk.at(0); p0++) {

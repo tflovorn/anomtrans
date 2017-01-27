@@ -147,16 +147,6 @@ public:
     return gb.compose(all_comps);
   }
 
-  kmVals<dim> km_at(GO ikm) {
-    auto iks_m = decompose(ikm);
-    kVals<dim> ks;
-    for (std::size_t d = 0; d < dim; d++) {
-      ks.at(d) = std::get<0>(iks_m).at(d) / static_cast<double>(Nk.at(d));
-    }
-    kmVals<dim> km(ks, std::get<1>(iks_m));
-    return km;
-  }
-
   GO add(GO ikm, dkComps<dim> Delta_k) {
     std::array<int, dim+1> Delta_km;
     for (std::size_t d = 0; d < dim; d++) {
@@ -166,6 +156,16 @@ public:
     return gb.add(ikm, Delta_km);
   }
 };
+
+template <std::size_t dim>
+kmVals<dim> km_at(kComps<dim> Nk, kmComps<dim> ikm_comps) {
+  kVals<dim> ks;
+  for (std::size_t d = 0; d < dim; d++) {
+    ks.at(d) = std::get<0>(ikm_comps).at(d) / static_cast<double>(Nk.at(d));
+  }
+  kmVals<dim> km(ks, std::get<1>(ikm_comps));
+  return km;
+}
 
 } // namespace anomtrans
 
