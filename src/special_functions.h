@@ -23,7 +23,7 @@ const double LN_DBL_MIN = std::log(DBL_MIN);
  *        when x > 0 in the expression 1/(1 + e^{-x})? In this case the returned
  *        value is normalized, but we may have an intermediate denormal.
  */
-double fermi_dirac(double E, double beta);
+double fermi_dirac(double beta, double E);
 
 } // namespace anomtrans
 

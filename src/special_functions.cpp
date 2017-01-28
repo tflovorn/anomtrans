@@ -2,7 +2,7 @@
 
 namespace anomtrans {
 
-double fermi_dirac(double E, double beta) {
+double fermi_dirac(double beta, double E) {
   double x = -beta*E;
 
   if (x < LN_DBL_MIN) {

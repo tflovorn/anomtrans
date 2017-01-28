@@ -7,3 +7,4 @@ list(APPEND SOURCES
 add_mpi_test(special_functions "${SOURCES}")
 add_mpi_test(grid_basis "${SOURCES}")
 add_mpi_test(energy "${SOURCES}")
+add_mpi_test(vector_apply "${SOURCES}")
