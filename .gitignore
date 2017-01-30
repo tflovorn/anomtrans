@@ -3,5 +3,7 @@ Obj
 Obj_test
 doc
 dependencies/eigen
+pyanomtrans.egg-info
+*.pyc
 test_output.err
 slurm-*.out
