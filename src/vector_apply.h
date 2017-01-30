@@ -13,6 +13,7 @@ namespace anomtrans {
  *  @note The template argument out_scalar must be specified when invoking
  *        this function. The remaining template arguments can be deduced from
  *        the arguments.
+ *  @todo Should v_in be const here? This is certainly the intended behavior.
  */ 
 template <typename out_scalar, std::size_t k_dim, typename in_scalar, typename F>
 DistVec<out_scalar> vector_elem_apply(kmBasis<k_dim> kmb, DistVec<in_scalar> v_in, F f) {
