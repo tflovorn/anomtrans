@@ -117,6 +117,9 @@ using kVals = std::array<double, dim>;
 template <std::size_t dim>
 using kmVals = std::tuple<kVals<dim>, unsigned int>;
 
+template <std::size_t dim>
+using DimMatrix = std::array<std::array<double, dim>, dim>;
+
 namespace {
 
 template <std::size_t dim>
@@ -136,15 +139,17 @@ class kmBasis {
   // This class doesn't make sense for dim = 0.
   static_assert(dim > 0, "kmBasis must have spatial dimension > 0");
 
-  kComps<dim> Nk;
-  unsigned int Nbands;
+  // Note that since members are initialized in declaration order, this
+  // declaration must come before the declaration of end_ikm.
   GridBasis<dim+1> gb;
 
 public:
+  const kComps<dim> Nk;
+  const unsigned int Nbands;
   const GO end_ikm;
 
   kmBasis(kComps<dim> _Nk, unsigned int _Nbands, MPIComm _comm)
-      : Nk(_Nk), Nbands(_Nbands), gb(corresponding_GridBasis(_Nk, _Nbands, _comm)),
+      : gb(corresponding_GridBasis(_Nk, _Nbands, _comm)), Nk(_Nk), Nbands(_Nbands),
         end_ikm(gb.end_iall) {}
 
   kmComps<dim> decompose(GO ikm) {

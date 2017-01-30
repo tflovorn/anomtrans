@@ -3,6 +3,7 @@
 
 #include <cstdint>
 #include <Tpetra_Vector.hpp>
+#include <Tpetra_CrsMatrix.hpp>
 #include <Teuchos_RCP.hpp>
 
 namespace anomtrans {
@@ -41,6 +42,11 @@ using Map = Tpetra::Map<LO, GO>;
  */
 template <typename T>
 using RCP = Teuchos::RCP<T>;
+
+/** @brief Tpetra sparse matrix, compressed row storage.
+ */
+template <typename Scalar>
+using CrsMatrix = Tpetra::CrsMatrix<Scalar, LO, GO>;
 
 } // namespace anomtrans
 
