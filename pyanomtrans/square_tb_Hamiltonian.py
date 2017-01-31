@@ -8,7 +8,7 @@ class SquareTBHamiltonian:
         self.Nk = Nk
 
     def energy(self, ikm_comps):
-        k, m = km_at(ikm_comps)
+        k, m = km_at(self.Nk, ikm_comps)
         
         if m != 0:
             raise ValueError("SquareTBHamiltonian is not defined for Nbands > 1")
