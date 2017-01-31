@@ -28,7 +28,7 @@ def finite_difference(kmb, order, row_ikm, deriv_dir):
                 Delta.append(0)
 
         column_ikms.append(kmb.add(row_ikm, Delta))
-        column_vals.append(vals_1d[Delta_index] / h)
+        column_vals.append(h * vals_1d[Delta_index])
 
     return column_ikms, column_vals
 

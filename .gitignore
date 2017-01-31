@@ -5,5 +5,6 @@ doc
 dependencies/eigen
 pyanomtrans.egg-info
 *.pyc
+*.png
 test_output.err
 slurm-*.out

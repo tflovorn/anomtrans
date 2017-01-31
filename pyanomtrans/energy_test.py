@@ -20,5 +20,5 @@ class TestGetEnergies(unittest.TestCase):
             energy = H.energy(ikm_comps)
             self.assertEqual(Ekm[ikm], energy)
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     unittest.main()

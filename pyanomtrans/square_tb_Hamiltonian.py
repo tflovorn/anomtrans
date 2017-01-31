@@ -13,9 +13,10 @@ class SquareTBHamiltonian:
         if m != 0:
             raise ValueError("SquareTBHamiltonian is not defined for Nbands > 1")
 
-        kx, ky = 2*pi*cos(k[0]), 2*pi*cos(k[1])
+        kx, ky = 2*pi*k[0], 2*pi*k[1]
 
-        return -2*self.t*(cos(kx) + cos(ky)) + 4*self.tp*cos(kx)*cos(ky)
+        E = -2*self.t*(cos(kx) + cos(ky)) + 4*self.tp*cos(kx)*cos(ky)
+        return E
 
     def basis_component(self, ikm_comps, i):
         return complex(1.0, 0.0)
