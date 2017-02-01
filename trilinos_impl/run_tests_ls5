@@ -1,0 +1,11 @@
+#!/bin/bash
+#SBATCH -p development
+#SBATCH -J test_anomtrans
+#SBATCH -e test_output.err
+#SBATCH -t 0:30:00
+#SBATCH -N 1
+#SBATCH -n 24
+#SBATCH -A A-ph911
+
+cd Obj_test
+ctest -V
