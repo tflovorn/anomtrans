@@ -30,23 +30,23 @@ Vec get_energies(kmBasis<k_dim> kmb, Hamiltonian H) {
 
   std::vector<PetscInt> local_rows;
   local_rows.reserve(end - begin);
-  std::vector<PetscScalar> local_values;
-  local_values.reserve(end - begin);
+  std::vector<PetscScalar> local_vals;
+  local_vals.reserve(end - begin);
 
   for (PetscInt local_row = begin; local_row < end; local_row++) {
     auto ikm_comps = kmb.decompose(local_row);
     double energy = H.energy(ikm_comps);
 
     local_rows.push_back(local_row);
-    local_values.push_back(energy);
+    local_vals.push_back(energy);
   }
 
-  assert(local_rows.size() == local_values.size());
+  assert(local_rows.size() == local_vals.size());
 
   // TODO would we be better off adding these elements one at a time (contrary to
   // the PETSc manual's advice), since we don't have them precomputed?
   // Doing it this way uses extra memory inside this scope.
-  ierr = VecSetValues(Ekm, local_rows.size(), local_rows.data(), local_values.data(), INSERT_VALUES);CHKERRXX(ierr);
+  ierr = VecSetValues(Ekm, local_rows.size(), local_rows.data(), local_vals.data(), INSERT_VALUES);CHKERRXX(ierr);
 
   ierr = VecAssemblyBegin(Ekm);CHKERRXX(ierr);
   ierr = VecAssemblyEnd(Ekm);CHKERRXX(ierr);
