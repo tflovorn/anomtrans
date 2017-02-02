@@ -26,7 +26,7 @@ int main(int argc, char* argv[]) {
 
   int test_result = RUN_ALL_TESTS();
  
-  int ierr = PetscFinalize();
+  PetscErrorCode ierr = PetscFinalize();
 
   return test_result;
 }
@@ -54,4 +54,6 @@ TEST( Energy, Square_TB_Energy ) {
 
     ASSERT_EQ( local_vals.at(i), energy );
   }
+
+  PetscErrorCode ierr = VecDestroy(&Ekm);CHKERRXX(ierr);
 }

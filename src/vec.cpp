@@ -2,7 +2,7 @@
 
 namespace anomtrans {
 
-IndexValPair get_local_contents(Vec v) {
+IndexValPairs get_local_contents(Vec v) {
   PetscInt begin, end;
   PetscErrorCode ierr = VecGetOwnershipRange(v, &begin, &end);CHKERRXX(ierr);
   PetscInt num_local_rows = end - begin;
@@ -20,7 +20,7 @@ IndexValPair get_local_contents(Vec v) {
 
   ierr = VecGetValues(v, num_local_rows, local_rows.data(), local_vals.data());CHKERRXX(ierr);
 
-  return IndexValPair(local_rows, local_vals);
+  return IndexValPairs(local_rows, local_vals);
 }
 
 } // namespace anomtrans

@@ -10,9 +10,9 @@
 
 namespace anomtrans {
 
-using IndexValPair = std::tuple<std::vector<PetscInt>, std::vector<PetscScalar>>;
+using IndexValPairs = std::tuple<std::vector<PetscInt>, std::vector<PetscScalar>>;
 
-IndexValPair get_local_contents(Vec v);
+IndexValPairs get_local_contents(Vec v);
 
 using stdvec_size = std::vector<PetscInt>::size_type;
 

@@ -23,7 +23,7 @@ int main(int argc, char* argv[]) {
 
   int test_result = RUN_ALL_TESTS();
  
-  int ierr = PetscFinalize();
+  PetscErrorCode ierr = PetscFinalize();
 
   return test_result;
 }
@@ -39,14 +39,14 @@ TEST( Vector_Apply, Square_TB_Energy_Fermi ) {
   double t = 1.0;
   double tp = -0.3;
   anomtrans::square_tb_Hamiltonian H(t, tp, Nk);
-  double beta = 10.0;
+  double beta = 10.0*t;
 
   auto fd = [beta](double E)->double {
     return anomtrans::fermi_dirac(beta, E);
   };
 
   Vec Ekm = anomtrans::get_energies(kmb, H);
-  auto rho0_km = anomtrans::vector_elem_apply(kmb, Ekm, fd);
+  Vec rho0_km = anomtrans::vector_elem_apply(kmb, Ekm, fd);
 
   std::vector<PetscInt> local_E_rows;
   std::vector<PetscScalar> local_E_vals;
@@ -64,4 +64,7 @@ TEST( Vector_Apply, Square_TB_Energy_Fermi ) {
 
     ASSERT_EQ( local_rho0_vals.at(i), rho0 );
   }
+
+  PetscErrorCode ierr = VecDestroy(&Ekm);CHKERRXX(ierr);
+  ierr = VecDestroy(&rho0_km);CHKERRXX(ierr);
 }
