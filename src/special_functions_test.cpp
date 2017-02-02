@@ -1,7 +1,4 @@
 #include <cfloat>
-#include <cmath>
-#include <iostream>
-#include <sstream>
 #include <gtest/gtest.h>
 #include <mpi.h>
 #include <petscksp.h>
@@ -35,8 +32,8 @@ TEST( Special_Functions, Fermi_Dirac ) {
   double E_below_min = 2*anomtrans::LN_DBL_MIN/beta;
   double E_above_max = -E_below_min;
 
-  ASSERT_LT( abs(anomtrans::fermi_dirac(beta, E_below_min) - 1.0), tol );
-  ASSERT_LT( abs(anomtrans::fermi_dirac(beta, E_above_max) - 0.0), tol );
+  ASSERT_NEAR( anomtrans::fermi_dirac(beta, E_below_min), 1.0, tol );
+  ASSERT_NEAR( anomtrans::fermi_dirac(beta, E_above_max), 0.0, tol );
 
-  ASSERT_LT( abs(anomtrans::fermi_dirac(beta, 0.0) - 0.5), tol );
+  ASSERT_NEAR( anomtrans::fermi_dirac(beta, 0.0), 0.5, tol );
 }
