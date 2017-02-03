@@ -3,7 +3,7 @@ import json
 import numpy as np
 import matplotlib.cm as cm
 import matplotlib.pyplot as plt
-from pyanomtrans.grid_basis import kmBasis
+from pyanomtrans.grid_basis import kmBasis, km_at
 
 def plot_2d_bz_slice(plot_path, title, all_k0s, all_k1s, all_vals):
     xs_set, ys_set = set(), set()
@@ -68,7 +68,7 @@ def _main():
     from pathlib import Path
 
     all_data = {}
-    for fpath in Path(in_dir).glob("{}_*.json".format(args.prefix)):
+    for fpath in Path(args.in_dir).glob("{}_*.json".format(args.prefix)):
         if fpath.is_dir():
             continue
 
@@ -104,7 +104,7 @@ def _main():
 
         km_val_sorted = sorted(km_val_tuple, key=sort_fn)
         val_sorted = [kmval[2] for kmval in km_val_sorted]
-        sorted_data[k] = val_sorted
+        sorted_data[key] = val_sorted
 
     # TODO handle d != 2
     if len(Nk) != 2:
@@ -113,23 +113,27 @@ def _main():
     all_k0s, all_k1s = [], []
     for ikm, iks in enumerate(sorted_data['k_comps']):
         m = sorted_data['ms'][ikm]
-        assert([iks, m] == kmb.decompose(ikm))
-        k, m = km_at(kmb.Nk, [iks, m])
+        assert((iks, m) == kmb.decompose(ikm))
+        k, m = km_at(kmb.Nk, (iks, m))
         all_k0s.append(k[0])
         all_k1s.append(k[1])
 
     for key, val in sorted_data.items():
+        # Don't plot the keys containing indices (these aren't values to plot)
+        if key in ('k_comps', 'ms'):
+            continue
+
         if hasattr(val[0], '__getitem__'):
             # val is a list of lists
             for subval_index, subval in enumerate(val):
                 # TODO incorporate plot titles
                 title = None
-                plot_2d_bz_slice("{}_{}_{}".format(prefix, key, subval_index), title, all_k0s, all_k1s, val)
+                plot_2d_bz_slice("{}_{}_{}".format(args.prefix, key, subval_index), title, all_k0s, all_k1s, val)
         else:
             # val is a single list
             # TODO incorporate plot titles
             title = None
-            plot_2d_bz_slice("{}_{}".format(prefix, key), title, all_k0s, all_k1s, val)
+            plot_2d_bz_slice("{}_{}".format(args.prefix, key), title, all_k0s, all_k1s, val)
 
 if __name__ == '__main__':
     _main()
