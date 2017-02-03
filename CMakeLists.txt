@@ -26,7 +26,7 @@ include_directories(${GOOGLETEST_INCLUDE_DIR})
 include_directories(${BOOST_INCLUDE_DIR})
 include_directories(${PETSC_INCLUDE_DIR})
 include_directories(${PETSC_ARCH_INCLUDE_DIR})
-include_directories(${JSON_INCLUDE_DIR})
+include_directories(SYSTEM ${JSON_INCLUDE_DIR})
 
 # Libraries to link.
 add_library(petsc SHARED IMPORTED)
