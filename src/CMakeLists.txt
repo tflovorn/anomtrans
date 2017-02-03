@@ -1,5 +1,6 @@
 list(APPEND SOURCES
   MPIPrettyUnitTestResultPrinter.cpp
+  util.cpp
   special_functions.cpp
   square_tb_spectrum.cpp
   vec.cpp
