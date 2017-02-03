@@ -11,7 +11,12 @@ def plot_2d_bz_slice(plot_path, title, all_k0s, all_k1s, all_vals):
         xs_set.add(x)
         ys_set.add(y)
 
+    print(plot_path)
+    print(len(all_k0s))
+    print(len(all_k1s))
+    print(len(all_vals))
     num_xs, num_ys = len(xs_set), len(ys_set)
+    print(num_xs, num_ys)
     C_E = np.array(all_vals).reshape((num_xs, num_ys))
 
     plt.imshow(C_E, origin='lower', interpolation='none', cmap=cm.viridis)
@@ -56,6 +61,19 @@ def get_Nk(k_comps):
 def get_Nbands(ms):
     return max(ms) + 1
 
+def is_list(x):
+    return hasattr(x, '__iter__')
+
+def sorted_by_km(kmb, k_comps, ms, vals):
+    km_val_tuple = zip(k_comps, ms, vals)
+    def sort_fn(kmval):
+        ikm_comps = [kmval[0], kmval[1]]
+        return kmb.compose(ikm_comps)
+
+    km_val_sorted = sorted(km_val_tuple, key=sort_fn)
+    val_sorted = [kmval[2] for kmval in km_val_sorted]
+    return val_sorted
+
 def _main():
     parser = argparse.ArgumentParser("Plot Fermi surface as shown by |df(Emk)/dk|",
             formatter_class=argparse.ArgumentDefaultsHelpFormatter)
@@ -76,11 +94,18 @@ def _main():
             fdata = json.load(fp)
 
         for key, val in fdata.items():
-            # Assume all values are lists
+            # Assume all values are lists or lists of lists
             if key not in all_data:
                 all_data[key] = val
             else:
-                all_data[key].extend(val)
+                if is_list(val[0]) and key not in ['k_comps']:
+                    # val is a list of lists
+                    # Treat k_comps separately (the lists represent values we want to keep together)
+                    for subval_index, subval in enumerate(val):
+                        all_data[key][subval_index].extend(subval)
+                else:
+                    # val is a list or k_comps
+                    all_data[key].extend(val)
 
 
     # Sort data by k's.
@@ -97,14 +122,16 @@ def _main():
     sorted_data = {}
     for key, val in all_data.items():
         # TODO could just sort once, put all vals in one tuple
-        km_val_tuple = zip(all_data['k_comps'], all_data['ms'], val)
-        def sort_fn(kmval):
-            ikm_comps = [kmval[0], kmval[1]]
-            return kmb.compose(ikm_comps)
+        if is_list(val[0]) and key not in ['k_comps']:
+            if key not in sorted_data:
+                sorted_data[key] = []
 
-        km_val_sorted = sorted(km_val_tuple, key=sort_fn)
-        val_sorted = [kmval[2] for kmval in km_val_sorted]
-        sorted_data[key] = val_sorted
+            for subval_index, subval in enumerate(val):
+                this_sorted = sorted_by_km(kmb, all_data['k_comps'], all_data['ms'], subval)
+                sorted_data[key].append(this_sorted)
+
+        else:
+            sorted_data[key] = sorted_by_km(kmb, all_data['k_comps'], all_data['ms'], val)
 
     # TODO handle d != 2
     if len(Nk) != 2:
@@ -123,12 +150,12 @@ def _main():
         if key in ('k_comps', 'ms'):
             continue
 
-        if hasattr(val[0], '__getitem__'):
+        if is_list(val[0]):
             # val is a list of lists
             for subval_index, subval in enumerate(val):
                 # TODO incorporate plot titles
                 title = None
-                plot_2d_bz_slice("{}_{}_{}".format(args.prefix, key, subval_index), title, all_k0s, all_k1s, val)
+                plot_2d_bz_slice("{}_{}_{}".format(args.prefix, key, subval_index), title, all_k0s, all_k1s, subval)
         else:
             # val is a single list
             # TODO incorporate plot titles
