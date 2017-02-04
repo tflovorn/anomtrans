@@ -46,7 +46,9 @@ TEST( Derivative, square_TB_fermi_surface ) {
 
   const std::size_t k_dim = 2;
 
-  std::array<unsigned int, k_dim> Nk = {128, 128};
+  // This Nk value is set to keep regression test data compact.
+  // For adequate Fermi surface images, set Nk = {128, 128}.
+  std::array<unsigned int, k_dim> Nk = {8, 8};
   unsigned int Nbands = 1;
   anomtrans::kmBasis<k_dim> kmb(Nk, Nbands);
 
@@ -136,6 +138,15 @@ TEST( Derivative, square_TB_fermi_surface ) {
     }
   }
 
+  auto local_Ekm = anomtrans::get_local_contents(Ekm);
+
+  // Done with PETSc data.
+  ierr = VecDestroy(&Ekm);CHKERRXX(ierr);
+  for (std::size_t d = 0; d < k_dim; d++) {
+    ierr = MatDestroy(&(d_dk.at(d)));CHKERRXX(ierr);
+  }
+
+  // Write out the collected data for this node.
   std::vector<anomtrans::kComps<k_dim>> local_k_comps;
   std::vector<unsigned int> local_ms;
 
@@ -144,8 +155,6 @@ TEST( Derivative, square_TB_fermi_surface ) {
     local_k_comps.push_back(std::get<0>(this_km));
     local_ms.push_back(std::get<1>(this_km));
   }
-
-  auto local_Ekm = anomtrans::get_local_contents(Ekm);
 
   json j_out = {
     {"k_comps", local_k_comps},
@@ -156,17 +165,24 @@ TEST( Derivative, square_TB_fermi_surface ) {
   };
 
   std::stringstream outpath;
-  outpath << "rho0_test_out_" << rank << ".json";
+  outpath << "derivative_test_out_" << rank << ".json";
 
   std::ofstream fp_out(outpath.str());
   fp_out << j_out.dump();
   fp_out.close();
   
-  // TODO regression test: reassemble global j_out's and check that they haven't changed compared to last run.
-  // (if we can count on the distribution of rows always being the same, could just check local)
-  
-  ierr = VecDestroy(&Ekm);CHKERRXX(ierr);
-  for (std::size_t d = 0; d < k_dim; d++) {
-    ierr = MatDestroy(&(d_dk.at(d)));CHKERRXX(ierr);
+  // Check for changes from saved old result.
+  // TODO: if the number of ranks changes, this will change.
+  // Could reassemble all data on rank 0 before checking for regression.
+  boost::optional<std::string> test_data_dir = anomtrans::getenv_optional("ANOMTRANS_TEST_DATA_DIR");
+  if (not test_data_dir) {
+    throw std::runtime_error("Could not get ANOMTRANS_TEST_DATA_DIR environment variable for regression test data");
   }
+
+  // TODO could use boost::filesystem here to build path.
+  // Tried, had issue with 'undefined reference to operator/='.
+  std::stringstream known_data;
+  known_data << *test_data_dir << "/derivative_test_out_" << rank << ".json";
+
+  ASSERT_TRUE( anomtrans::check_json_equal(outpath.str(), known_data.str()) );
 }
