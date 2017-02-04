@@ -23,12 +23,12 @@ def _main():
     H = SquareTBHamiltonian(t, tp, Nk)
     Ekm = get_energies(kmb, H)
  
-    num_E_Fs = 40
-    E_Fs = np.linspace(min(Ekm), max(Ekm), num_E_Fs)
+    num_mus = 40
+    mus = np.linspace(min(Ekm), max(Ekm), num_mus)
 
     norm_d_rho0_dks = []
-    for E_F in E_Fs:
-        rho0_km = np.array(make_rho0(Ekm, beta, E_F))
+    for mu in mus:
+        rho0_km = np.array(make_rho0(Ekm, beta, mu))
         d_rho0_dk = []
         for d in range(kmb.k_dim()):
             d_rho0_dk.append(d_dk[d].dot(rho0_km))
@@ -54,10 +54,10 @@ def _main():
     plot_2d_bz_slice("energy_square_tb", "$E$", all_k0s, all_k1s, Ekm)
 
     plot_prefix = "fermi_surface_square_tb"
-    for E_F_index, E_F in enumerate(E_Fs):
-        plot_path = "{}_E_F_{}".format(plot_prefix, E_F_index)
-        title = "{}/{}".format(E_F_index, len(E_Fs))
-        plot_2d_bz_slice(plot_path, title, all_k0s, all_k1s, norm_d_rho0_dks[E_F_index])
+    for mu_index, mu in enumerate(mus):
+        plot_path = "{}_mu_{}".format(plot_prefix, mu_index)
+        title = "{}/{}".format(mu_index, len(mus))
+        plot_2d_bz_slice(plot_path, title, all_k0s, all_k1s, norm_d_rho0_dks[mu_index])
 
 if __name__ == "__main__":
     _main()

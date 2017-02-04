@@ -68,13 +68,13 @@ TEST( Derivative, square_TB_fermi_surface ) {
   const unsigned int deriv_order = 2;
   auto d_dk = anomtrans::make_d_dk_recip(kmb, deriv_order);
 
-  unsigned int num_E_Fs = 40;
-  auto E_Fs = anomtrans::linspace(Ekm_min, Ekm_max, num_E_Fs);
+  unsigned int num_mus = 40;
+  auto mus = anomtrans::linspace(Ekm_min, Ekm_max, num_mus);
 
   std::vector<std::vector<PetscScalar>> all_rho0_vals;
   std::vector<std::vector<PetscScalar>> all_norm_d_rho0_dk_vals;
-  for (auto E_F : E_Fs) {
-    Vec rho0_km = anomtrans::make_rho0(kmb, Ekm, beta, E_F);
+  for (auto mu : mus) {
+    Vec rho0_km = anomtrans::make_rho0(kmb, Ekm, beta, mu);
 
     std::array<Vec, k_dim> d_rho0_dk;
     for (std::size_t d = 0; d < k_dim; d++) {

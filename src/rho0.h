@@ -15,13 +15,13 @@ namespace anomtrans {
  *             of bands.
  *  @param energies Vector of E_m(k) values.
  *  @param beta Inverse temperature 1/(k_B T).
- *  @param E_F Fermi energy.
+ *  @param mu Chemical potential.
  */
 template <std::size_t k_dim>
 Vec make_rho0(kmBasis<k_dim> kmb, Vec energies,
-    double beta, double E_F) {
-  auto fd = [beta, E_F](double E)->double {
-    return fermi_dirac(beta, E - E_F);
+    double beta, double mu) {
+  auto fd = [beta, mu](double E)->double {
+    return fermi_dirac(beta, E - mu);
   };
 
   Vec rho0 = vector_elem_apply(kmb, energies, fd);
