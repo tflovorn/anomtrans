@@ -1,6 +1,7 @@
 #ifndef ANOMTRANS_DERIVATIVE_H
 #define ANOMTRANS_DERIVATIVE_H
 
+#include <cstddef>
 #include <array>
 #include <vector>
 #include <tuple>
@@ -11,6 +12,7 @@
 #include "constants.h"
 #include "grid_basis.h"
 #include "vec.h"
+#include "mat.h"
 
 namespace anomtrans {
 
@@ -74,57 +76,16 @@ std::array<Mat, k_dim> make_d_dk_recip(kmBasis<k_dim> kmb,
   // TODO could factor out loop body, same for each d
   // (d just used in finite_difference call and putting into array)
   for (std::size_t d = 0; d < k_dim; d++) {
-    Mat d_dk_d;
-    PetscErrorCode ierr = MatCreate(PETSC_COMM_WORLD, &d_dk_d);CHKERRXX(ierr);
-    ierr = MatSetSizes(d_dk_d, PETSC_DECIDE, PETSC_DECIDE,
-        kmb.end_ikm, kmb.end_ikm);CHKERRXX(ierr);
-
-    // TODO do we want to use MatSetFromOptions here instead?
-    ierr = MatSetType(d_dk_d, MATMPIAIJ);
-    // The two expected_elems_per_row arguments below give the elements to preallocate per
-    // row in the 'diagonal part' and 'off-diagonal part' of the matrix respectively.
-    // The diagonal part is the block (r1,r2)x(c1,c2) where rows r1->r2 belong to this
-    // process and columns c1->c2 belong to a vector owned by this process.
-    // The off-diagonal part is the remaining columns.
-    // It's not worth it here to think too hard about this distinction, so allocate enough
-    // for both cases of all elements in the diagonal part or all elements in the
-    // off-diagonal part (or any other distribution in between).
-    // TODO can/should we be more precise about this?
-    // Preallocating a bit too much here is not really a problem unless we are
-    // very tight on memory.
-    ierr = MatMPIAIJSetPreallocation(d_dk_d, expected_elems_per_row, nullptr,
-        expected_elems_per_row, nullptr);CHKERRXX(ierr);
-    // Since we specified the type MATMPIAIJ above, won't call preallocation for MatSeq also.
-    // From inspection of the implementation it looks like there would be no meaningful
-    // performance penalty for calling both (calling the Seq preallocation here would
-    // look for a method on the MPIAIJ matrix that doesn't exist, see this, and return).
-    // Should call both if we use MatSetFromOptions above instead of MatSetType.
+    Mat d_dk_d = make_Mat(kmb, expected_elems_per_row);
     
     PetscInt begin, end;
-    ierr = MatGetOwnershipRange(d_dk_d, &begin, &end);CHKERRXX(ierr);
-
-    int rank;
-    MPI_Comm_rank(PETSC_COMM_WORLD, &rank);
+    PetscErrorCode ierr = MatGetOwnershipRange(d_dk_d, &begin, &end);CHKERRXX(ierr);
 
     // TODO would it be better to group row data and only call MatSetValues once?
     for (PetscInt local_row = begin; local_row < end; local_row++) {
       std::vector<PetscInt> column_ikms;
       std::vector<PetscScalar> column_vals;
       std::tie(column_ikms, column_vals) = finite_difference(kmb, order, local_row, d);
-      
-      if (rank == 0) {
-        /*
-        std::cout << local_row << std::endl;
-        for (int i = 0; i < column_ikms.size(); i++) {
-          std::cout << column_ikms.at(i) << " ";
-        }
-        std::cout << std::endl;
-        for (int i = 0; i < column_ikms.size(); i++) {
-          std::cout << column_vals.at(i) << " ";
-        }
-        std::cout << std::endl;
-        */
-      }
       
       ierr = MatSetValues(d_dk_d, 1, &local_row, column_ikms.size(),
           column_ikms.data(), column_vals.data(), INSERT_VALUES);CHKERRXX(ierr);
@@ -139,17 +100,9 @@ std::array<Mat, k_dim> make_d_dk_recip(kmBasis<k_dim> kmb,
       std::vector<PetscScalar> column_vals;
       std::tie(column_ikms, column_vals) = finite_difference(kmb, order, local_row, d);
  
-      //std::cout << local_row << std::endl;
       std::vector<PetscScalar> set_column_vals(column_ikms.size());
       ierr = MatGetValues(d_dk_d, 1, &local_row, column_ikms.size(),
           column_ikms.data(), set_column_vals.data());CHKERRXX(ierr);
-      if (rank == 0) {
-        for (auto val : set_column_vals) {
-          //std::cout << val << " ";
-        }
-        //std::cout << std::endl;
-      }
-
     }
     
     d_dk_recip.at(d) = d_dk_d;
