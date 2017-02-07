@@ -89,21 +89,10 @@ std::array<Mat, k_dim> make_d_dk_recip(kmBasis<k_dim> kmb,
       
       ierr = MatSetValues(d_dk_d, 1, &local_row, column_ikms.size(),
           column_ikms.data(), column_vals.data(), INSERT_VALUES);CHKERRXX(ierr);
-
     }
 
     ierr = MatAssemblyBegin(d_dk_d, MAT_FINAL_ASSEMBLY);CHKERRXX(ierr);
     ierr = MatAssemblyEnd(d_dk_d, MAT_FINAL_ASSEMBLY);CHKERRXX(ierr);
-
-    for (PetscInt local_row = begin; local_row < end; local_row++) {
-      std::vector<PetscInt> column_ikms;
-      std::vector<PetscScalar> column_vals;
-      std::tie(column_ikms, column_vals) = finite_difference(kmb, order, local_row, d);
- 
-      std::vector<PetscScalar> set_column_vals(column_ikms.size());
-      ierr = MatGetValues(d_dk_d, 1, &local_row, column_ikms.size(),
-          column_ikms.data(), set_column_vals.data());CHKERRXX(ierr);
-    }
     
     d_dk_recip.at(d) = d_dk_d;
   }
