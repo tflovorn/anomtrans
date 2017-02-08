@@ -66,6 +66,12 @@ IndexValPairs finite_difference(kmBasis<k_dim> kmb,
  *         d/dk is calculated using the central derivative of the given order.
  *  @param kmb Object representing the discretization of k-space and the number
  *             of bands.
+ *  @param order Order of approximation to use for finite difference calculation.
+ *  @todo Could/should the derivative calculation be improved using Richardson
+ *        extrapolation? (i.e. consider two different k-point densities, Nk and
+ *        2*Nk, and calculate the derivative using the difference in derivative
+ *        estimates from these; see documentation of Python package numdifftools
+ *        for discussion of this technique).
  */
 template <std::size_t k_dim>
 std::array<Mat, k_dim> make_d_dk_recip(kmBasis<k_dim> kmb,

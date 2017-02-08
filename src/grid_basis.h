@@ -34,6 +34,9 @@ PetscInt get_end_iall(std::array<unsigned int, ncomp> sizes) {
 
 } // namespace
 
+/** @brief Provides translation of a composite index (represented as an array)
+ *         into an element of a linear sequence, as well as the reverse process.
+ */
 template <std::size_t ncomp>
 class GridBasis {
   // This class doesn't make sense for ncomp = 0.
@@ -53,6 +56,9 @@ public:
   GridBasis(std::array<unsigned int, ncomp> _sizes)
       : sizes(_sizes), end_iall(get_end_iall(_sizes)), coeffs(get_coeffs(_sizes)) {}
 
+  /** @brief Convert a linear sequence index `iall` into the corresponding
+   *         composite index.
+   */
   std::array<unsigned int, ncomp> decompose(PetscInt iall) {
     std::array<unsigned int, ncomp> comps;
     // Safe to access elem 0 here due to static_assert.
@@ -68,6 +74,9 @@ public:
     return comps;
   }
 
+  /** @brief Convert a composite index `components` into the corresponding
+   *         linear sequence index.
+   */
   PetscInt compose(std::array<unsigned int, ncomp> components) {
     PetscInt total = 0;
     for (std::size_t d = 0; d < ncomp; d++) {
@@ -76,6 +85,11 @@ public:
     return total;
   }
 
+  /** @brief Given a linear sequence index `iall` and a composite sequence index
+   *         difference `Delta`, return the linear sequence index corresponding to
+   *           decompose(iall) + Delta
+   *         where components are allowed to wrap around their boundaries.
+   */
   PetscInt add(PetscInt iall, std::array<int, ncomp> Delta) {
     auto comps = decompose(iall);
     std::array<unsigned int, ncomp> new_comps;
@@ -118,6 +132,9 @@ GridBasis<dim+1> corresponding_GridBasis(kComps<dim> Nk, unsigned int Nbands) {
 
 } // namespace
 
+/** @brief Provides translation of the composite (ik, m) index into an element
+ *         of a linear sequence, as well as the reverse process.
+ */
 template <std::size_t dim>
 class kmBasis {
   // This class doesn't make sense for dim = 0.
@@ -136,6 +153,9 @@ public:
       : gb(corresponding_GridBasis(_Nk, _Nbands)), Nk(_Nk), Nbands(_Nbands),
         end_ikm(gb.end_iall) {}
 
+  /** @brief Convert a linear sequence index `ikm` into the corresponding
+   *         composite index (ik, m).
+   */
   kmComps<dim> decompose(PetscInt ikm) {
     auto all_comps = gb.decompose(ikm);
     kComps<dim> iks;
@@ -146,6 +166,9 @@ public:
     return kmComps<dim>(iks, im);
   }
 
+  /** @brief Convert a composite index `ikm_comps` = (ik, m) into the
+   *         corresponding linear sequence index.
+   */
   PetscInt compose(kmComps<dim> ikm_comps) {
     std::array<unsigned int, dim+1> all_comps;
     for (std::size_t d = 0; d < dim; d++) {
@@ -155,6 +178,13 @@ public:
     return gb.compose(all_comps);
   }
 
+  /** @brief Given a linear sequence index (`ikm`) and the k part of a composite
+   *         sequence index difference (`Delta_k`), return the linear sequence
+   *         index corresponding to
+   *           decompose(ikm) + Delta_k
+   *         where k components are allowed to wrap around their boundaries
+   *         (i.e. k-space periodicity is respected).
+   */
   PetscInt add(PetscInt ikm, dkComps<dim> Delta_k) {
     std::array<int, dim+1> Delta_km;
     for (std::size_t d = 0; d < dim; d++) {
@@ -165,6 +195,10 @@ public:
   }
 };
 
+/** @brief Given a composite (ik, m) index `ikm_comps` and the number of k-points
+ *         in each direction `Nk`, return the corresponding (k, m) value (where
+ *         k is a point in reciprocal lattice coordinates).
+ */
 template <std::size_t dim>
 kmVals<dim> km_at(kComps<dim> Nk, kmComps<dim> ikm_comps) {
   kVals<dim> ks;
