@@ -7,9 +7,5 @@
 #SBATCH -n 24
 #SBATCH -A A-ph911
 
-# Discussion of accessing paths relative to a script is found at:
-# http://mywiki.wooledge.org/BashFAQ/028
-ANOMTRANS_TEST_DATA_DIR_="${PWD}/test_regression_data"
-
 cd Obj_test
-ANOMTRANS_TEST_DATA_DIR=${ANOMTRANS_TEST_DATA_DIR_} ctest -V
+ctest -V

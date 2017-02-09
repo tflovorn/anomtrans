@@ -35,7 +35,8 @@ To build and run tests (should be done from the anomtrans root directory):
 
     ./build_test
     idev
-    ./run_tests_ls5
+    cd Obj_test
+    ctest -V
     exit
 
 Or to submit a job to test:
@@ -43,7 +44,5 @@ Or to submit a job to test:
     ./build_test
     sbatch run_tests_ls5
     exit
-
-TODO - which for ctest -V -> ctest?
 
 TODO - build release version.

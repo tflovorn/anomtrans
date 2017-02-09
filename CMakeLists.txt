@@ -55,6 +55,8 @@ function(add_mpi_test name other_sources)
   target_link_libraries(${name} ${ANOMTRANS_TEST_LIBS})
   set(test_parameters ${MPIEXEC_NUMPROC_FLAG} $ENV{ANOMTRANS_TEST_PROCS} "./${name}")
   add_test(NAME ${name} COMMAND ${MPIEXEC} ${test_parameters})
+  set_property(TEST ${name} PROPERTY
+    ENVIRONMENT "ANOMTRANS_TEST_DATA_DIR=$ENV{ANOMTRANS_TEST_DATA_DIR}")
 endfunction(add_mpi_test)
 
 add_subdirectory(src)
