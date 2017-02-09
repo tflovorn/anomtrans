@@ -82,7 +82,7 @@ std::array<Mat, k_dim> make_d_dk_recip(kmBasis<k_dim> kmb,
   // TODO could factor out loop body, same for each d
   // (d just used in finite_difference call and putting into array)
   for (std::size_t d = 0; d < k_dim; d++) {
-    Mat d_dk_d = make_Mat(kmb, expected_elems_per_row);
+    Mat d_dk_d = make_Mat(kmb.end_ikm, kmb.end_ikm, expected_elems_per_row);
     
     PetscInt begin, end;
     PetscErrorCode ierr = MatGetOwnershipRange(d_dk_d, &begin, &end);CHKERRXX(ierr);
@@ -113,36 +113,34 @@ std::array<Mat, k_dim> make_d_dk_recip(kmBasis<k_dim> kmb,
  *           (in order x, y, z) of the i'th lattice vector.
  *  @param kmb Object representing the discretization of k-space and the number
  *             of bands.
+ *  @param order Order of approximation to use for finite difference calculation.
  */
-/*
 template <std::size_t k_dim>
-std::array<RCP<CrsMatrix<double>>, k_dim> make_d_dk_Cartesian(DimMatrix<k_dim> D,
-    kmBasis<k_dim> kmb, unsigned int order) {
-  auto kmb_map = kmb.get_map();
-  std::array<RCP<CrsMatrix<double>>, k_dim> d_dk_recip = make_d_dk_recip(kmb, order);
+std::array<Mat, k_dim> make_d_dk_Cartesian(DimMatrix<k_dim> D, kmBasis<k_dim> kmb,
+    unsigned int order) {
+  auto d_dk_recip = make_d_dk_recip(kmb, order);
 
-  auto kmb_map = kmb.get_map();
-  std::array<RCP<CrsMatrix<double>>, k_dim> d_dk_Cart;
-  for (std::size_t d = 0; d < k_dim; d++) {
-    d_dk_Cart.at(d) = RCP(new CrsMatrix(kmb_map, 0));
-  }
+  // Each d/dk_c could contain elements from each d/dk_i.
+  PetscInt expected_elems_per_row = order*k_dim*k_dim;
 
+  std::array<Mat, k_dim> d_dk_Cart;
   for (std::size_t dc = 0; dc < k_dim; dc++) {
+    // d_dk_Cart[dc] = \sum_i D[c, i] * d_dk[i]
+    std::array<PetscScalar, k_dim> coeffs;
     for (std::size_t di = 0; di < k_dim; di++) {
-      double Dci = D.at(c).at(i);
+      double Dci = D.at(dc).at(di);
       double coeff = Dci / (2*pi);
-      // Distributed application of: d_dk_Cart[dc] += coeff*d_dk_recip[di]
-      d_dk_Cart.at(dc) = d_dk_Cart.at(dc)->add(coeff, d_dk_recip.at(di), 1.0, kmb_map, kmb_map, nullptr);
+      coeffs.at(di) = coeff;
     }
-  }
 
-  for (std::size_t d = 0; d < k_dim; d++) {
-    d_dk_Cart.at(d)->fillComplete();
+    Mat d_dk_c = Mat_from_sum(coeffs, d_dk_recip, expected_elems_per_row);
+
+    d_dk_Cart.at(dc) = d_dk_c;
   }
 
   return d_dk_Cart;
 }
-*/
+
 } // namespace anomtrans
 
 #endif // ANOMTRANS_DERIVATIVE_H

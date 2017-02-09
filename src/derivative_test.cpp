@@ -1,4 +1,5 @@
 #include <cstddef>
+#include <cfloat>
 #include <cmath>
 #include <tuple>
 #include <array>
@@ -10,6 +11,7 @@
 #include <petscksp.h>
 #include <json.hpp>
 #include "MPIPrettyUnitTestResultPrinter.h"
+#include "constants.h"
 #include "util.h"
 #include "grid_basis.h"
 #include "square_tb_spectrum.h"
@@ -56,7 +58,11 @@ TEST( Derivative, square_TB_fermi_surface ) {
   double tp = -0.3;
   anomtrans::square_tb_Hamiltonian H(t, tp, Nk);
 
-  double beta = 10.0*t;
+  std::array<double, k_dim> a1 = {1.0, 0.0};
+  std::array<double, k_dim> a2 = {0.0, 1.0};
+  anomtrans::DimMatrix<k_dim> D = {a1, a2};
+
+  double beta = 10.0/t;
 
   Vec Ekm = anomtrans::get_energies(kmb, H);
 
@@ -69,6 +75,23 @@ TEST( Derivative, square_TB_fermi_surface ) {
 
   const unsigned int deriv_order = 2;
   auto d_dk = anomtrans::make_d_dk_recip(kmb, deriv_order);
+  auto d_dk_Cart = anomtrans::make_d_dk_Cartesian(D, kmb, deriv_order);
+
+  // Since a1 = \hat{x}, a2 = \hat{y}, we should have d_dk == 2*pi*d_dk_Cart.
+  for (std::size_t d = 0; d < k_dim; d++) {
+    Mat d_dk_Cart_d_2pi;
+    MatDuplicate(d_dk_Cart.at(d), MAT_COPY_VALUES, &d_dk_Cart_d_2pi);
+    MatScale(d_dk_Cart_d_2pi, 2*anomtrans::pi);
+
+    // Tried to use PETSc MatEqual() for this, got confusing errors about unequal
+    // matrix dimensions. Checking with MatGetSize() and MatGetOwnershipRange()
+    // showed that d_dk.at(d) and d_dk_Cart.at(d) had equal sizes and local row
+    // distributions. Not sure what the source of the error was.
+    double tol = 2*DBL_EPSILON;
+    ASSERT_TRUE( anomtrans::check_Mat_equal(d_dk.at(d), d_dk_Cart_d_2pi, tol) );
+
+    ierr = MatDestroy(&d_dk_Cart_d_2pi);CHKERRXX(ierr);
+  }
 
   unsigned int num_mus = 40;
   auto mus = anomtrans::linspace(Ekm_min, Ekm_max, num_mus);
@@ -144,6 +167,7 @@ TEST( Derivative, square_TB_fermi_surface ) {
   ierr = VecDestroy(&Ekm);CHKERRXX(ierr);
   for (std::size_t d = 0; d < k_dim; d++) {
     ierr = MatDestroy(&(d_dk.at(d)));CHKERRXX(ierr);
+    ierr = MatDestroy(&(d_dk_Cart.at(d)));CHKERRXX(ierr);
   }
 
   // Write out the collected data for this node.

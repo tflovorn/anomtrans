@@ -55,7 +55,7 @@ Mat make_collision(kmBasis<k_dim> kmb, Hamiltonian H, double spread,
   }
   PetscInt expected_elems_per_row = std::ceil(std::pow(Nk_total, static_cast<double>(k_dim - 1)/k_dim));
 
-  Mat K = make_Mat(kmb, expected_elems_per_row);
+  Mat K = make_Mat(kmb.end_ikm, kmb.end_ikm, expected_elems_per_row);
   PetscInt begin, end;
   PetscErrorCode ierr = MatGetOwnershipRange(K, &begin, &end);CHKERRXX(ierr);
 

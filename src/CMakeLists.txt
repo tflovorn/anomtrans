@@ -4,6 +4,7 @@ list(APPEND SOURCES
   special_functions.cpp
   square_tb_spectrum.cpp
   vec.cpp
+  mat.cpp
   collision.cpp
 )
 
