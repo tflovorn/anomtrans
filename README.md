@@ -72,9 +72,9 @@ Set up ~/.vimrc -- `vim ~/.vimrc`, then add:
 
 ## Dependencies
 
-Get g++, gfortran, CMake, OpenMPI, valgrind, matplotlib, boost, doxygen:
+Get g++, gfortran, CMake, OpenMPI, valgrind, boost, doxygen, matplotlib, scipy:
 
-    sudo apt-get install g++ gfortran cmake libopenmpi-dev openmpi-bin valgrind python-matplotlib python-tk libboost-all-dev doxygen graphviz
+    sudo apt-get install g++ gfortran cmake libopenmpi-dev openmpi-bin valgrind libboost-all-dev doxygen graphviz python-matplotlib python-tk python3-matplotlib python3-tk python3-setuptools python3-scipy
 
 Note that the Boost package is Boost 1.58.
 
@@ -90,6 +90,13 @@ Test PETSc:
     make PETSC_DIR=$HOME/petsc PETSC_ARCH=arch-linux2-cxx-debug test
     make PETSC_DIR=$HOME/petsc PETSC_ARCH=arch-linux2-cxx-debug streams
 
+## Setup
+
+Install pyanomtrans:
+
+    cd ~/anomtrans
+    python3 setup.py develop --user
+
 ## Usage
 
 To build documentation:
@@ -103,3 +110,8 @@ To build and run tests (should be done from the anomtrans root directory):
     ctest -V
 
 TODO - build release version.
+
+To generate plots from tests:
+
+    cd pyanomtrans
+    python3 plot_2d_bz.py "derivative_test_out" "../Obj_test/src"

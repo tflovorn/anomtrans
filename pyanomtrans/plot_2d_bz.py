@@ -11,12 +11,8 @@ def plot_2d_bz_slice(plot_path, title, all_k0s, all_k1s, all_vals):
         xs_set.add(x)
         ys_set.add(y)
 
-    print(plot_path)
-    print(len(all_k0s))
-    print(len(all_k1s))
-    print(len(all_vals))
     num_xs, num_ys = len(xs_set), len(ys_set)
-    print(num_xs, num_ys)
+
     C_E = np.array(all_vals).reshape((num_xs, num_ys))
 
     plt.imshow(C_E, origin='lower', interpolation='none', cmap=cm.viridis)
