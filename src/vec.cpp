@@ -23,4 +23,21 @@ IndexValPairs get_local_contents(Vec v) {
   return IndexValPairs(local_rows, local_vals);
 }
 
+std::vector<PetscScalar> collect_contents(Vec v) {
+  VecScatter ctx;
+  Vec collected;
+  PetscErrorCode ierr = VecScatterCreateToZero(v, &ctx, &collected);CHKERRXX(ierr);
+  ierr = VecScatterBegin(ctx, v, collected, INSERT_VALUES, SCATTER_FORWARD);CHKERRXX(ierr);
+  ierr = VecScatterEnd(ctx, v, collected, INSERT_VALUES, SCATTER_FORWARD);CHKERRXX(ierr);
+
+  auto local_collected = get_local_contents(collected);
+
+  ierr = VecScatterDestroy(&ctx);CHKERRXX(ierr);
+  ierr = VecDestroy(&collected);CHKERRXX(ierr);
+
+  // Have all the values in v on rank 0, so we don't care about keeping the rows
+  // information.
+  return std::get<1>(local_collected);
+}
+
 } // namespace anomtrans

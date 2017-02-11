@@ -16,6 +16,12 @@ IndexValPairs get_local_contents(Vec v);
 
 using stdvec_size = std::vector<PetscInt>::size_type;
 
+/** @brief Scatter the contents of `v` onto rank 0 and return a std::vector
+ *         with the local contents (which on rank 0 will be `v`'s values
+ *         and an empty std::vector on other ranks).
+ */
+std::vector<PetscScalar> collect_contents(Vec v);
+
 /** @brief Apply a function `f` to each element of the vector `v_in` and return
  *         the corresponding vector of outputs.
  *  @todo Should v_in be const here? This is certainly the intended behavior.

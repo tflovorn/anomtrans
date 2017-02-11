@@ -1,4 +1,5 @@
 import argparse
+import os.path
 import json
 import numpy as np
 import matplotlib.cm as cm
@@ -74,34 +75,29 @@ def _main():
     parser = argparse.ArgumentParser("Plot Fermi surface as shown by |df(Emk)/dk|",
             formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument("prefix", type=str,
-            help="Prefix for files giving plot data: should be in the form prefix_#.json where # is an integer")
+            help="Prefix for file giving plot data: should be in the form prefix.json")
     parser.add_argument("in_dir", type=str,
-            help="Directory containing files giving plot data")
+            help="Directory containing file giving plot data")
     args = parser.parse_args()
 
-    from pathlib import Path
+    fpath = os.path.join(args.in_dir, "{}.json".format(args.prefix))
+    with open(fpath, 'r') as fp:
+        fdata = json.load(fp)
 
     all_data = {}
-    for fpath in Path(args.in_dir).glob("{}_*.json".format(args.prefix)):
-        if fpath.is_dir():
-            continue
-
-        with fpath.open('r') as fp:
-            fdata = json.load(fp)
-
-        for key, val in fdata.items():
-            # Assume all values are lists or lists of lists
-            if key not in all_data:
-                all_data[key] = val
+    for key, val in fdata.items():
+        # Assume all values are lists or lists of lists
+        if key not in all_data:
+            all_data[key] = val
+        else:
+            if is_list(val[0]) and key not in ['k_comps']:
+                # val is a list of lists
+                # Treat k_comps separately (the lists represent values we want to keep together)
+                for subval_index, subval in enumerate(val):
+                    all_data[key][subval_index].extend(subval)
             else:
-                if is_list(val[0]) and key not in ['k_comps']:
-                    # val is a list of lists
-                    # Treat k_comps separately (the lists represent values we want to keep together)
-                    for subval_index, subval in enumerate(val):
-                        all_data[key][subval_index].extend(subval)
-                else:
-                    # val is a list or k_comps
-                    all_data[key].extend(val)
+                # val is a list or k_comps
+                all_data[key].extend(val)
 
 
     # Sort data by k's.

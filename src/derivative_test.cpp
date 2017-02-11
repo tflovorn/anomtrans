@@ -96,8 +96,8 @@ TEST( Derivative, square_TB_fermi_surface ) {
   unsigned int num_mus = 40;
   auto mus = anomtrans::linspace(Ekm_min, Ekm_max, num_mus);
 
-  std::vector<std::vector<PetscScalar>> all_rho0_vals;
-  std::vector<std::vector<PetscScalar>> all_norm_d_rho0_dk_vals;
+  std::vector<std::vector<PetscScalar>> all_rho0;
+  std::vector<std::vector<PetscScalar>> all_norm_d_rho0_dk;
   for (auto mu : mus) {
     Vec rho0_km = anomtrans::make_rho0(kmb, Ekm, beta, mu);
 
@@ -151,8 +151,11 @@ TEST( Derivative, square_TB_fermi_surface ) {
     ierr = VecAssemblyBegin(norm_d_rho0_dk);CHKERRXX(ierr);
     ierr = VecAssemblyEnd(norm_d_rho0_dk);CHKERRXX(ierr);
 
-    all_rho0_vals.push_back(std::get<1>(anomtrans::get_local_contents(rho0_km)));
-    all_norm_d_rho0_dk_vals.push_back(norm_vals);
+    auto collected_rho0 = anomtrans::collect_contents(rho0_km);
+    auto collected_norm_d_rho0_dk = anomtrans::collect_contents(norm_d_rho0_dk);
+
+    all_rho0.push_back(collected_rho0);
+    all_norm_d_rho0_dk.push_back(collected_norm_d_rho0_dk);
 
     ierr = VecDestroy(&norm_d_rho0_dk);CHKERRXX(ierr);
     ierr = VecDestroy(&rho0_km);CHKERRXX(ierr);
@@ -161,7 +164,7 @@ TEST( Derivative, square_TB_fermi_surface ) {
     }
   }
 
-  auto local_Ekm = anomtrans::get_local_contents(Ekm);
+  auto collected_Ekm = anomtrans::collect_contents(Ekm);
 
   // Done with PETSc data.
   ierr = VecDestroy(&Ekm);CHKERRXX(ierr);
@@ -170,43 +173,43 @@ TEST( Derivative, square_TB_fermi_surface ) {
     ierr = MatDestroy(&(d_dk_Cart.at(d)));CHKERRXX(ierr);
   }
 
-  // Write out the collected data for this node.
-  std::vector<anomtrans::kComps<k_dim>> local_k_comps;
-  std::vector<unsigned int> local_ms;
+  if (rank == 0) {
+    // Write out the collected data.
+    std::vector<anomtrans::kComps<k_dim>> all_k_comps;
+    std::vector<unsigned int> all_ms;
 
-  for (auto ikm : local_rows) {
-    auto this_km = kmb.decompose(ikm);
-    local_k_comps.push_back(std::get<0>(this_km));
-    local_ms.push_back(std::get<1>(this_km));
+    for (PetscInt ikm = 0; ikm < kmb.end_ikm; ikm++) {
+      auto this_km = kmb.decompose(ikm);
+      all_k_comps.push_back(std::get<0>(this_km));
+      all_ms.push_back(std::get<1>(this_km));
+    }
+
+    json j_out = {
+      {"k_comps", all_k_comps},
+      {"ms", all_ms},
+      {"Ekm", collected_Ekm},
+      {"rho0", all_rho0},
+      {"norm_d_rho0_dk", all_norm_d_rho0_dk}
+    };
+
+    std::stringstream outpath;
+    outpath << "derivative_test_out.json";
+
+    std::ofstream fp_out(outpath.str());
+    fp_out << j_out.dump();
+    fp_out.close();
+
+    // Check for changes from saved old result.
+    boost::optional<std::string> test_data_dir = anomtrans::getenv_optional("ANOMTRANS_TEST_DATA_DIR");
+    if (not test_data_dir) {
+      throw std::runtime_error("Could not get ANOMTRANS_TEST_DATA_DIR environment variable for regression test data");
+    }
+
+    // TODO could use boost::filesystem here to build path.
+    // Tried, had issue with 'undefined reference to operator/='.
+    std::stringstream known_data;
+    known_data << *test_data_dir << "/derivative_test_out.json";
+
+    ASSERT_TRUE( anomtrans::check_json_equal(outpath.str(), known_data.str()) );
   }
-
-  json j_out = {
-    {"k_comps", local_k_comps},
-    {"ms", local_ms},
-    {"Ekm", std::get<1>(local_Ekm)},
-    {"rho0", all_rho0_vals},
-    {"norm_d_rho0_dk", all_norm_d_rho0_dk_vals}
-  };
-
-  std::stringstream outpath;
-  outpath << "derivative_test_out_" << rank << ".json";
-
-  std::ofstream fp_out(outpath.str());
-  fp_out << j_out.dump();
-  fp_out.close();
-  
-  // Check for changes from saved old result.
-  // TODO: if the number of ranks changes, this will change.
-  // Could reassemble all data on rank 0 before checking for regression.
-  boost::optional<std::string> test_data_dir = anomtrans::getenv_optional("ANOMTRANS_TEST_DATA_DIR");
-  if (not test_data_dir) {
-    throw std::runtime_error("Could not get ANOMTRANS_TEST_DATA_DIR environment variable for regression test data");
-  }
-
-  // TODO could use boost::filesystem here to build path.
-  // Tried, had issue with 'undefined reference to operator/='.
-  std::stringstream known_data;
-  known_data << *test_data_dir << "/derivative_test_out_" << rank << ".json";
-
-  ASSERT_TRUE( anomtrans::check_json_equal(outpath.str(), known_data.str()) );
 }
