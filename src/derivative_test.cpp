@@ -37,7 +37,7 @@ int main(int argc, char* argv[]) {
 
   int test_result = RUN_ALL_TESTS();
  
-  int ierr = PetscFinalize();
+  int ierr = PetscFinalize();CHKERRXX(ierr);
 
   return test_result;
 }

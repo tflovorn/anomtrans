@@ -22,7 +22,7 @@ int main(int argc, char* argv[]) {
 
   int test_result = RUN_ALL_TESTS();
  
-  PetscErrorCode ierr = PetscFinalize();
+  PetscErrorCode ierr = PetscFinalize();CHKERRXX(ierr);
 
   return test_result;
 }
@@ -41,9 +41,9 @@ TEST( GridBasis, GridBasis ) {
         ASSERT_EQ( gb.decompose(iall), comps );
         ASSERT_EQ( gb.compose(comps), iall );
 
-        for (int p2 = -sizes.at(2); p2 <= sizes.at(2); p2++) {
-          for (int p1 = -sizes.at(1); p1 <= sizes.at(1); p1++) {
-            for (int p0 = -sizes.at(0); p0 <= sizes.at(0); p0++) {
+        for (int p2 = -sizes.at(2); p2 <= static_cast<int>(sizes.at(2)); p2++) {
+          for (int p1 = -sizes.at(1); p1 <= static_cast<int>(sizes.at(1)); p1++) {
+            for (int p0 = -sizes.at(0); p0 <= static_cast<int>(sizes.at(0)); p0++) {
               std::array<int, ncomp> p = {p0, p1, p2};
               std::array<unsigned int, ncomp> expect = {(i0 + p0) % sizes.at(0),
                   (i1 + p1) % sizes.at(1), (i2 + p2) % sizes.at(2)};
@@ -84,8 +84,8 @@ TEST( GridBasis, kmBasis ) {
         ASSERT_EQ( kmb.compose(ikm_comps), iall );
         ASSERT_EQ( anomtrans::km_at(Nk, ikm_comps), km_at_comps );
 
-        for (int p1 = -Nk.at(1); p1 <= Nk.at(1); p1++) {
-          for (int p0 = -Nk.at(0); p0 <= Nk.at(0); p0++) {
+        for (int p1 = -Nk.at(1); p1 <= static_cast<int>(Nk.at(1)); p1++) {
+          for (int p0 = -Nk.at(0); p0 <= static_cast<int>(Nk.at(0)); p0++) {
             dkComps Delta_k = {p0, p1};
             kComps k_expect = {(ik0 + p0) % Nk.at(0), (ik1 + p1) % Nk.at(1)};
             kmComps kmp_expect(k_expect, m);

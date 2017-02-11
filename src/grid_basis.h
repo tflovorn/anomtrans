@@ -54,7 +54,7 @@ public:
   const PetscInt end_iall;
 
   GridBasis(std::array<unsigned int, ncomp> _sizes)
-      : sizes(_sizes), end_iall(get_end_iall(_sizes)), coeffs(get_coeffs(_sizes)) {}
+      : sizes(_sizes), coeffs(get_coeffs(_sizes)), end_iall(get_end_iall(_sizes)) {}
 
   /** @brief Convert a linear sequence index `iall` into the corresponding
    *         composite index.

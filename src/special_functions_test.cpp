@@ -20,7 +20,7 @@ int main(int argc, char* argv[]) {
 
   int test_result = RUN_ALL_TESTS();
  
-  PetscErrorCode ierr = PetscFinalize();
+  PetscErrorCode ierr = PetscFinalize();CHKERRXX(ierr);
 
   return test_result;
 }
