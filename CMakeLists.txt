@@ -14,9 +14,9 @@ set(GOOGLETEST_INCLUDE_DIR "dependencies/googletest/googletest/include")
 
 # Include paths on Lonestar5.
 # TODO should provide mechanism for local implementation.
-set(PETSC_INCLUDE_DIR "$ENV{TACC_PETSC_DIR}/include")
-set(BOOST_INCLUDE_DIR $ENV{TACC_BOOST_INC})
-set(PETSC_ARCH_INCLUDE_DIR "$ENV{TACC_PETSC_DIR}/$ENV{PETSC_ARCH}/include")
+set(PETSC_INCLUDE_DIR "$ENV{PETSC_DIR}/include")
+set(BOOST_INCLUDE_DIR $ENV{BOOST_INC})
+set(PETSC_ARCH_INCLUDE_DIR "$ENV{PETSC_DIR}/$ENV{PETSC_ARCH}/include")
 
 # Build gtest.
 add_subdirectory(${GOOGLETEST_DIR})
@@ -30,13 +30,8 @@ include_directories(SYSTEM ${JSON_INCLUDE_DIR})
 
 # Libraries to link.
 add_library(petsc SHARED IMPORTED)
-set_target_properties(petsc PROPERTIES IMPORTED_LOCATION "$ENV{TACC_PETSC_LIB}/libpetsc.so")
+set_target_properties(petsc PROPERTIES IMPORTED_LOCATION "$ENV{PETSC_LIB}/libpetsc.so")
 set(ANOMTRANS_TEST_LIBS gtest gtest_main petsc)
-
-# Lonestar5 MPI parameters:
-# TODO should provide mechanism for local implementation.
-set(MPIEXEC "ibrun")
-set(MPIEXEC_NUMPROC_FLAG "-np")
 
 enable_testing()
 
@@ -46,15 +41,16 @@ enable_testing()
 function(add_mpi_test name other_sources)
   add_executable(${name} ${name}_test.cpp ${other_sources})
   # TODO - express this in compiler-independent way?
-  # This is the set for icpc (could also add -Wremarks).
+  # This is the set for icpc 16 (could also add -Wremarks).
   # For gcc 5+, would use:
-  # -Wall -pedantic -std=c++14"
+  # -Wall -pedantic -std=c++11"
+  # (or -std=c++14, but would want to keep compatibility with icpc 16)
   set_target_properties(${name} PROPERTIES
-    COMPILE_FLAGS "${CMAKE_CXX_FLAGS} -Wall -std=c++11"
+    COMPILE_FLAGS "${CMAKE_CXX_FLAGS} $ENV{ANOMTRANS_TEST_COMPILE_FLAGS}"
   )
   target_link_libraries(${name} ${ANOMTRANS_TEST_LIBS})
-  set(test_parameters ${MPIEXEC_NUMPROC_FLAG} $ENV{ANOMTRANS_TEST_PROCS} "./${name}")
-  add_test(NAME ${name} COMMAND ${MPIEXEC} ${test_parameters})
+  set(test_parameters $ENV{ANOMTRANS_TEST_MPI_NUMPROCS_PREFIX} $ENV{ANOMTRANS_TEST_MPI_NUMPROCS} "./${name}")
+  add_test(NAME ${name} COMMAND $ENV{ANOMTRANS_TEST_MPI_CMD} ${test_parameters})
   set_property(TEST ${name} PROPERTY
     ENVIRONMENT "ANOMTRANS_TEST_DATA_DIR=$ENV{ANOMTRANS_TEST_DATA_DIR}")
 endfunction(add_mpi_test)

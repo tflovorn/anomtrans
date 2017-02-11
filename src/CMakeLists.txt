@@ -5,7 +5,6 @@ list(APPEND SOURCES
   square_tb_spectrum.cpp
   vec.cpp
   mat.cpp
-  collision.cpp
 )
 
 add_mpi_test(special_functions "${SOURCES}")
