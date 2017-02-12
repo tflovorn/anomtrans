@@ -4,9 +4,9 @@
 #include <cstddef>
 #include <cmath>
 #include <stdexcept>
+#include <array>
 #include <vector>
 #include <petscksp.h>
-#include "grid_basis.h"
 
 namespace anomtrans {
 

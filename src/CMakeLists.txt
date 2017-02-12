@@ -3,6 +3,7 @@ list(APPEND SOURCES
   util.cpp
   special_functions.cpp
   square_tb_spectrum.cpp
+  rho0.cpp
   vec.cpp
   mat.cpp
 )

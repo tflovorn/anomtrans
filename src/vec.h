@@ -6,7 +6,6 @@
 #include <vector>
 #include <tuple>
 #include <petscksp.h>
-#include "grid_basis.h"
 
 namespace anomtrans {
 
@@ -24,12 +23,22 @@ std::vector<PetscScalar> collect_contents(Vec v);
 
 /** @brief Apply a function `f` to each element of the vector `v_in` and return
  *         the corresponding vector of outputs.
+ *  @param v_in The vector of function inputs.
+ *  @param f A function with the signature
+ *             PetscScalar f(PetscScalar).
+ *  @todo Should this be replaced with use of PETSc PF functions? PFApplyVec
+ *        does what we want to do here. However, creating the PF to pass to
+ *        PFApplyVec via PFCreate, PFSet seems to require a function like this
+ *        to exist.
  *  @todo Should v_in be const here? This is certainly the intended behavior.
  */ 
-template <std::size_t k_dim, typename F>
-Vec vector_elem_apply(kmBasis<k_dim> kmb, Vec v_in, F f) {
+template <typename F>
+Vec vector_elem_apply(Vec v_in, F f) {
+  PetscInt v_in_size;
+  PetscErrorCode ierr = VecGetSize(v_in, &v_in_size);CHKERRXX(ierr);
+
   Vec v_out;
-  PetscErrorCode ierr = VecCreateMPI(PETSC_COMM_WORLD, PETSC_DECIDE, kmb.end_ikm, &v_out);CHKERRXX(ierr);
+  ierr = VecCreateMPI(PETSC_COMM_WORLD, PETSC_DECIDE, v_in_size, &v_out);CHKERRXX(ierr);
 
   // This node is assigned elements in the range begin <= i < end.
   PetscInt begin_in, end_in;

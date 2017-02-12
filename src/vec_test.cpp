@@ -2,11 +2,7 @@
 #include <mpi.h>
 #include <petscksp.h>
 #include "MPIPrettyUnitTestResultPrinter.h"
-#include "grid_basis.h"
 #include "vec.h"
-#include "square_tb_spectrum.h"
-#include "energy.h"
-#include "special_functions.h"
 
 int main(int argc, char* argv[]) {
   ::testing::InitGoogleTest(&argc, argv);
@@ -28,43 +24,45 @@ int main(int argc, char* argv[]) {
   return test_result;
 }
 
-// TODO? could make this more of a unit test: remove dependencies on energy and rho0.
-TEST( Vector_Apply, Square_TB_Energy_Fermi ) {
-  const std::size_t dim = 2;
-
-  std::array<unsigned int, dim> Nk = {8, 8};
-  unsigned int Nbands = 1;
-  anomtrans::kmBasis<dim> kmb(Nk, Nbands);
-
-  double t = 1.0;
-  double tp = -0.3;
-  anomtrans::square_tb_Hamiltonian H(t, tp, Nk);
-  double beta = 10.0*t;
-
-  auto fd = [beta](double E)->double {
-    return anomtrans::fermi_dirac(beta, E);
-  };
-
-  Vec Ekm = anomtrans::get_energies(kmb, H);
-  Vec rho0_km = anomtrans::vector_elem_apply(kmb, Ekm, fd);
-
-  std::vector<PetscInt> local_E_rows;
-  std::vector<PetscScalar> local_E_vals;
-  std::tie(local_E_rows, local_E_vals) = anomtrans::get_local_contents(Ekm);
-
-  std::vector<PetscInt> local_rho0_rows;
-  std::vector<PetscScalar> local_rho0_vals;
-  std::tie(local_rho0_rows, local_rho0_vals) = anomtrans::get_local_contents(rho0_km);
-
-  ASSERT_EQ(local_E_rows, local_rho0_rows);
-
-  for (anomtrans::stdvec_size i = 0; i < local_E_rows.size(); i++) {
-    double energy = local_E_vals.at(i);
-    double rho0 = fd(energy);
-
-    ASSERT_EQ( local_rho0_vals.at(i), rho0 );
+// Map vector of values i -> i^2 and check that the result is correct.
+TEST( Vector_Apply, Square ) {
+  PetscInt v_in_size = 32;
+  std::vector<PetscInt> global_in_rows;
+  std::vector<PetscScalar> global_in_vals;
+  for (PetscInt i = 0; i < v_in_size; i++) {
+    global_in_rows.push_back(i);
+    global_in_vals.push_back(i);
   }
 
-  PetscErrorCode ierr = VecDestroy(&Ekm);CHKERRXX(ierr);
-  ierr = VecDestroy(&rho0_km);CHKERRXX(ierr);
+  Vec v_in;
+  PetscErrorCode ierr = VecCreateMPI(PETSC_COMM_WORLD, PETSC_DECIDE, v_in_size, &v_in);CHKERRXX(ierr);
+  ierr = VecSetValues(v_in, v_in_size, global_in_rows.data(), global_in_vals.data(), INSERT_VALUES);CHKERRXX(ierr);
+  ierr = VecAssemblyBegin(v_in);CHKERRXX(ierr);
+  ierr = VecAssemblyEnd(v_in);CHKERRXX(ierr);
+
+  auto f = [](PetscScalar x)->PetscScalar {
+    return x*x;
+  };
+
+  Vec v_out = anomtrans::vector_elem_apply(v_in, f);
+
+  std::vector<PetscInt> local_in_rows;
+  std::vector<PetscScalar> local_in_vals;
+  std::tie(local_in_rows, local_in_vals) = anomtrans::get_local_contents(v_in);
+
+  std::vector<PetscInt> local_out_rows;
+  std::vector<PetscScalar> local_out_vals;
+  std::tie(local_out_rows, local_out_vals) = anomtrans::get_local_contents(v_out);
+
+  ASSERT_EQ(local_in_rows, local_out_rows);
+
+  for (anomtrans::stdvec_size i = 0; i < local_in_rows.size(); i++) {
+    PetscScalar this_in = local_in_vals.at(i);
+    PetscScalar expected_out = f(this_in);
+
+    ASSERT_EQ( local_out_vals.at(i), expected_out );
+  }
+
+  ierr = VecDestroy(&v_in);CHKERRXX(ierr);
+  ierr = VecDestroy(&v_out);CHKERRXX(ierr);
 }

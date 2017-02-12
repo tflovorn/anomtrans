@@ -99,7 +99,7 @@ TEST( Derivative, square_TB_fermi_surface ) {
   std::vector<std::vector<PetscScalar>> all_rho0;
   std::vector<std::vector<PetscScalar>> all_norm_d_rho0_dk;
   for (auto mu : mus) {
-    Vec rho0_km = anomtrans::make_rho0(kmb, Ekm, beta, mu);
+    Vec rho0_km = anomtrans::make_rho0(Ekm, beta, mu);
 
     std::array<Vec, k_dim> d_rho0_dk;
     for (std::size_t d = 0; d < k_dim; d++) {
