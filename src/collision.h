@@ -20,7 +20,7 @@ namespace anomtrans {
 /** @brief Construct the collision matrix: hbar K.
  *  @param kmb Object representing the discretization of k-space and the number
  *             of bands.
- *  @param H Class giving the Hamiltonian of the system. Should have the methods
+ *  @param H Class instance giving the Hamiltonian of the system. Should have the methods
  *           double energy(kmComps<dim>)
  *           and
  *           std::complex<double> basis_component(kmComps<dim>, i).

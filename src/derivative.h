@@ -133,7 +133,7 @@ std::array<Mat, k_dim> make_d_dk_Cartesian(DimMatrix<k_dim> D, kmBasis<k_dim> km
       coeffs.at(di) = coeff;
     }
 
-    Mat d_dk_c = Mat_from_sum(coeffs, d_dk_recip, expected_elems_per_row);
+    Mat d_dk_c = Mat_from_sum_const(coeffs, d_dk_recip, expected_elems_per_row);
 
     d_dk_Cart.at(dc) = d_dk_c;
   }

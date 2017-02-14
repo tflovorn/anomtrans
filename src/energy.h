@@ -12,8 +12,8 @@ namespace anomtrans {
  *         and Hamiltonian.
  *  @param kmb Object representing the discretization of k-space and the number
  *             of bands.
- *  @param H Class giving the Hamiltonian of the system. Should have the method
- *           energy(kmComps<dim>).
+ *  @param H Class instance giving the Hamiltonian of the system. Should have
+ *           the method energy(kmComps<dim>).
  *  @note Vec is a reference type (Petsc implementation: typedef struct _p_Vec* Vec).
  *        We can safely create an object of type Vec on the stack, initialize it with
  *        VecCreate, and return it. The caller will need to call VecDestroy(&v) on

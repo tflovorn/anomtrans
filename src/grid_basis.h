@@ -10,6 +10,9 @@ namespace anomtrans {
 
 namespace {
 
+/** @brief Get coefficients to use in GridBasis::compose() for moving from a
+ *         composite grid coordinate to an integer grid index.
+ */
 template <std::size_t ncomp>
 std::array<PetscInt, ncomp> get_coeffs(std::array<unsigned int, ncomp> sizes) {
   std::array<PetscInt, ncomp> coeffs;
@@ -23,6 +26,10 @@ std::array<PetscInt, ncomp> get_coeffs(std::array<unsigned int, ncomp> sizes) {
   return coeffs;
 }
 
+/** @brief Get index which is one past the final grid index; i.e. the index end_iall
+ *         suitable for use in:
+ *         for (PetscInt i = 0; i < end_iall; i++).
+ */
 template <std::size_t ncomp>
 PetscInt get_end_iall(std::array<unsigned int, ncomp> sizes) {
   PetscInt end_iall = 1;
@@ -36,6 +43,7 @@ PetscInt get_end_iall(std::array<unsigned int, ncomp> sizes) {
 
 /** @brief Provides translation of a composite index (represented as an array)
  *         into an element of a linear sequence, as well as the reverse process.
+ *  @todo Could use constexpr if to implement member functions.
  */
 template <std::size_t ncomp>
 class GridBasis {
@@ -120,6 +128,9 @@ using DimMatrix = std::array<std::array<double, dim>, dim>;
 
 namespace {
 
+/** @brief Constuct the GridBasis with sizes = (Nk(0), Nk(1), ..., Nbands).
+ *  @todo Could use constexpr if to handle dim = 1, 2, 3.
+ */
 template <std::size_t dim>
 GridBasis<dim+1> corresponding_GridBasis(kComps<dim> Nk, unsigned int Nbands) {
   std::array<unsigned int, dim+1> sizes;
@@ -134,6 +145,7 @@ GridBasis<dim+1> corresponding_GridBasis(kComps<dim> Nk, unsigned int Nbands) {
 
 /** @brief Provides translation of the composite (ik, m) index into an element
  *         of a linear sequence, as well as the reverse process.
+ *  @todo Could use constexpr if to implement member functions.
  */
 template <std::size_t dim>
 class kmBasis {
