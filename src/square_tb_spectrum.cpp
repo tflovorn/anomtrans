@@ -39,7 +39,7 @@ std::array<double, 2> square_tb_Hamiltonian::velocity(kmComps<2> ikm_comps) {
   return v;
 }
 
-std::complex<double> basis_component(kmComps<2> ikm_comps, unsigned int i) {
+std::complex<double> square_tb_Hamiltonian::basis_component(kmComps<2> ikm_comps, unsigned int i) {
   return std::complex<double>(1.0, 0.0);
 }
 

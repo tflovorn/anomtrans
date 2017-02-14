@@ -8,6 +8,8 @@
 #include <sstream>
 #include <fstream>
 #include <tuple>
+#include <gtest/gtest.h>
+#include <mpi.h>
 #include <petscksp.h>
 #include <json.hpp>
 #include "MPIPrettyUnitTestResultPrinter.h"

@@ -17,6 +17,12 @@
 
 namespace anomtrans {
 
+/** @brief Gaussian representation of the Dirac delta function.
+ *  @param sigma Standard deviation of the Gaussian distribution.
+ *  @param x Delta function argument.
+ */
+double delta_Gaussian(double sigma, double x);
+
 /** @brief Construct the collision matrix: hbar K.
  *  @param kmb Object representing the discretization of k-space and the number
  *             of bands.
@@ -26,7 +32,7 @@ namespace anomtrans {
  *           std::complex<double> basis_component(kmComps<dim>, i).
  *  @param spread Spread parameter for Gaussian delta function representation.
  *  @param disorder_term A function with signature
- *                       double f(H, ikm1, ikm2, ikm3, ikm4)
+ *                       double f(ikm1, ikm2, ikm3, ikm4)
  *                       giving the disorder-averaged term
  *                       U_{ikm1, ikm2} U_{ikm3, ikm4}.
  *  @todo Sure that Gaussian delta function is appropriate? Lorentzian is natural
@@ -34,6 +40,9 @@ namespace anomtrans {
  *        Would cold smearing be better than Gaussian?
  *  @todo Is the expected signature of disorder_term appropriate? Could be more
  *        restrictive in the accepted ikm values.
+ *  @todo Better method for getting the sparsity structure: iterate once to obtain
+ *        the number of nonzero columns in each row, and then again to fill in the
+ *        values of these columns.
  */
 template <std::size_t k_dim, typename Hamiltonian, typename UU>
 Mat make_collision(kmBasis<k_dim> kmb, Hamiltonian H, double spread,
@@ -49,9 +58,11 @@ Mat make_collision(kmBasis<k_dim> kmb, Hamiltonian H, double spread,
   // maxtrix construction is complete?).
   // In particular, when k_dim is 1, get expected_elems_per_row = 1.
   // Clearly the appropriate value is at least this large.
+  // TODO can replace this by iterating once over the elements and obtaining the
+  // number of nonzeros in each row directly.
   PetscInt Nk_total = 1;
   for (std::size_t d = 0; d < k_dim; d++) {
-    Nk_total *= Nk.at(d);
+    Nk_total *= kmb.Nk.at(d);
   }
   PetscInt expected_elems_per_row = std::ceil(std::pow(Nk_total, static_cast<double>(k_dim - 1)/k_dim));
 
@@ -72,14 +83,14 @@ Mat make_collision(kmBasis<k_dim> kmb, Hamiltonian H, double spread,
 
   std::vector<PetscInt> all_rows;
   std::vector<PetscScalar> all_Ekm_vals;
-  std::tie(all_rows, all_Ekm_vals) = get_local_vals(Ekm_all);
+  std::tie(all_rows, all_Ekm_vals) = get_local_contents(Ekm_all);
   assert(all_rows.at(0) == 0);
   assert(all_rows.at(all_rows.size() - 1) == kmb.end_ikm - 1);
 
   for (PetscInt local_row = begin; local_row < end; local_row++) {
     std::vector<PetscInt> column_ikms;
     std::vector<PetscScalar> column_vals;
-    std::tie(column_ikms, column_vals) = collision_row(kmb, H, spread, all_Ekm_vals, local_row);
+    std::tie(column_ikms, column_vals) = collision_row(kmb, H, spread, disorder_term, all_Ekm_vals, local_row);
 
     ierr = MatSetValues(K, 1, &local_row, column_ikms.size(), column_ikms.data(),
         column_vals.data(), INSERT_VALUES);CHKERRXX(ierr);
@@ -95,6 +106,8 @@ Mat make_collision(kmBasis<k_dim> kmb, Hamiltonian H, double spread,
   return K;
 }
 
+/** @brief Construct the row of the collision matrix with the given row index.
+ */
 template <std::size_t k_dim, typename Hamiltonian, typename UU>
 IndexValPairs collision_row(kmBasis<k_dim> kmb, Hamiltonian H, double spread,
     UU disorder_term, std::vector<PetscScalar> Ekm, PetscInt row) {
@@ -107,6 +120,8 @@ IndexValPairs collision_row(kmBasis<k_dim> kmb, Hamiltonian H, double spread,
   // Don't have all the K values here, but we could collect all values in the
   // row and then filter out those that don't meet threshold
   // (maximum value in row)*DBL_EPSILON.
+  // Could use first iteration over K to get number of nonzeros in each row
+  // to also get the maximum value.
 
   for (PetscInt column = 0; column < kmb.end_ikm; column++) {
     if (column == row) {
@@ -116,7 +131,7 @@ IndexValPairs collision_row(kmBasis<k_dim> kmb, Hamiltonian H, double spread,
       PetscScalar c = 0.0;
       for (PetscInt ikm_pp = 0; ikm_pp < kmb.end_ikm; ikm_pp++) {
         double delta_fac = delta_Gaussian(spread, Ekm.at(row) - Ekm.at(ikm_pp));
-        PetscScalar contrib = 2*pi * disorder_term(kmb, H, row, ikm_pp, ikm_pp, row) * delta_fac;
+        PetscScalar contrib = 2*pi * disorder_term(row, ikm_pp, ikm_pp, row) * delta_fac;
 
         PetscScalar y = contrib - c;
         PetscScalar t = sum + y;
@@ -124,26 +139,20 @@ IndexValPairs collision_row(kmBasis<k_dim> kmb, Hamiltonian H, double spread,
         sum = t;
       }
       // TODO only add this value if magnitude above appropriate threshold
-      column_ikms.add(column);
-      column_vals.add(sum);
+      column_ikms.push_back(column);
+      column_vals.push_back(sum);
     } else {
       double delta_fac = delta_Gaussian(spread, Ekm.at(row) - Ekm.at(column));
-      PetscScalar K_elem = -2*pi * disorder_term(kmb, H, row, col, col, row) * delta_fac;
+      PetscScalar K_elem = -2*pi * disorder_term(row, column, column, row) * delta_fac;
 
       // TODO only add this value if magnitude above appropriate threshold
-      column_ikms.add(column);
-      column_vals.add(sum);
+      column_ikms.push_back(column);
+      column_vals.push_back(K_elem);
     }
   }
 
   return IndexValPairs(column_ikms, column_vals); 
 }
-
-/** @brief Gaussian representation of the Dirac delta function.
- *  @param sigma Standard deviation of the Gaussian distribution.
- *  @param x Delta function argument.
- */
-double delta_Gaussian(double sigma, double x);
 
 /** @brief Calculate the disorder-averaged on-site diagonal disorder term.
  *  @note Does not include disorder strength: this should be passed to

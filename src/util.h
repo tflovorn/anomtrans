@@ -13,8 +13,10 @@ namespace anomtrans {
 
 /** @brief Expand an array `u_in` of size `u_dim` to size `expand_dim` by filling
  *         empty spaces with zeros.
+ *  @note Using deduction of trailing template arguments, this can be called as
+ *        expand<3>(u) to expand u to size 3.
  */
-template <std::size_t u_dim, std::size_t expand_dim>
+template <std::size_t expand_dim, std::size_t u_dim>
 std::array<PetscScalar, expand_dim> expand(std::array<PetscScalar, u_dim> u_in) {
   std::array<PetscScalar, expand_dim> u;
   for (std::size_t d = 0; d < expand_dim; d++) {

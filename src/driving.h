@@ -6,6 +6,8 @@
 #include <petscksp.h>
 #include "grid_basis.h"
 #include "util.h"
+#include "derivative.h"
+#include "mat.h"
 
 namespace anomtrans {
 
@@ -34,8 +36,12 @@ Mat driving_electric(DimMatrix<k_dim> D, kmBasis<k_dim> kmb, unsigned int order,
   // Maximum number of elements expected for sum of Cartesian derivatives.
   PetscInt expected_elems_per_row = order*k_dim*k_dim*k_dim;
 
-  auto d_dk_Cart = make_d_dk_Cartesian(D, kmb, order);
+  std::array<Mat, k_dim> d_dk_Cart = make_d_dk_Cartesian(D, kmb, order);
   Mat Dbar_E = Mat_from_sum_const(Ehat, d_dk_Cart, expected_elems_per_row);
+
+  for (std::size_t d = 0; d < k_dim; d++) {
+    PetscErrorCode ierr = MatDestroy(&(d_dk_Cart.at(d)));CHKERRXX(ierr);
+  }
 
   return Dbar_E;
 }
@@ -69,8 +75,8 @@ Mat driving_magnetic(DimMatrix<k_dim> D, kmBasis<k_dim> kmb, unsigned int order,
     // Need a function Mat_from_sum(coeff_fn, Bs, expected_elems_per_for)
     // where coeff_fn gives a coefficient which is constant along a given row
     // but may vary between rows.
-    std::array<PetscScalar, k_dim> v = H.velocity(ikm);
-    coeffs.push_back(cross(v, B));
+    std::array<PetscScalar, k_dim> v = H.velocity(kmb.decompose(ikm));
+    coeffs.push_back(cross(v, Bhat));
   }
 
   auto coeff_fn = [coeffs](std::size_t d, PetscInt row, PetscInt col)->PetscScalar {
@@ -80,8 +86,12 @@ Mat driving_magnetic(DimMatrix<k_dim> D, kmBasis<k_dim> kmb, unsigned int order,
   // Maximum number of elements expected for sum of Cartesian derivatives.
   PetscInt expected_elems_per_row = order*k_dim*k_dim*k_dim;
 
-  auto d_dk_Cart = make_d_dk_Cartesian(D, kmb, order);
-  Mat Dbar_b = Mat_from_sum_fn(coeff_fn, Bs, expected_elems_per_row);
+  std::array<Mat, k_dim> d_dk_Cart = make_d_dk_Cartesian(D, kmb, order);
+  Mat Dbar_b = Mat_from_sum_fn(coeff_fn, d_dk_Cart, expected_elems_per_row);
+
+  for (std::size_t d = 0; d < k_dim; d++) {
+    PetscErrorCode ierr = MatDestroy(&(d_dk_Cart.at(d)));CHKERRXX(ierr);
+  }
 
   return Dbar_b;
 }
