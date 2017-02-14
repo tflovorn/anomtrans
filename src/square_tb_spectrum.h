@@ -30,9 +30,13 @@ public:
 
   square_tb_Hamiltonian(double _t, double _tp, kComps<2> _Nk);
 
-  /** @brief Energy at (k,m).
+  /** @brief Energy at (k,m): E_{km}.
    */
   double energy(kmComps<2> ikm_comps);
+
+  /** @brief Velocity at (k, m): v_{km} = dE_{km}/dk|_{k}
+   */
+  std::array<double, 2> velocity(kmComps<2> ikm_comps);
 
   /** @brief Value of U_{im}(k), where U is the unitary matrix which diagonalizes
    *         H(k), m is the eigenvalue index, and i is the component of the
