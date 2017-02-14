@@ -1,4 +1,4 @@
-#include <cfloat>
+#include <limits>
 #include <gtest/gtest.h>
 #include <mpi.h>
 #include <petscksp.h>
@@ -26,7 +26,7 @@ int main(int argc, char* argv[]) {
 }
 
 TEST( Special_Functions, Fermi_Dirac ) {
-  double tol = 10*DBL_EPSILON;
+  double tol = 10*std::numeric_limits<double>::epsilon();
 
   double beta = 10.0;
   double E_below_min = 2*anomtrans::LN_DBL_MIN/beta;

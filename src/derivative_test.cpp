@@ -1,6 +1,6 @@
 #include <cstddef>
-#include <cfloat>
 #include <cmath>
+#include <limits>
 #include <tuple>
 #include <array>
 #include <vector>
@@ -89,7 +89,7 @@ TEST( Derivative, square_TB_fermi_surface ) {
     // matrix dimensions. Checking with MatGetSize() and MatGetOwnershipRange()
     // showed that d_dk.at(d) and d_dk_Cart.at(d) had equal sizes and local row
     // distributions. Not sure what the source of the error was.
-    double tol = 2*DBL_EPSILON;
+    double tol = 2*std::numeric_limits<double>::epsilon();
     ASSERT_TRUE( anomtrans::check_Mat_equal(d_dk.at(d), d_dk_Cart_d_2pi, tol) );
 
     ierr = MatDestroy(&d_dk_Cart_d_2pi);CHKERRXX(ierr);
