@@ -60,4 +60,18 @@ bool check_json_equal(std::string test_path, std::string known_path) {
   return j_test == j_known;
 }
 
+template <>
+bool check_equal_within<PetscReal>(std::vector<PetscReal> xs, std::vector<PetscReal> ys, PetscReal tol) {
+  assert(tol > 0.0);
+  if (xs.size() != ys.size()) {
+    return false;
+  }
+  for (std::vector<PetscReal>::size_type i = 0; i < xs.size(); i++) {
+    if (std::abs(xs.at(i) - ys.at(i)) > tol) {
+      return false;
+    }
+  }
+  return true;
+}
+
 } // namespace anomtrans

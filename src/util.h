@@ -106,18 +106,7 @@ bool check_equal_within(std::vector<std::vector<T>> xs, std::vector<std::vector<
  *  @todo Handle PetscScalar != PetscReal.
  */
 template <>
-bool check_equal_within(std::vector<PetscReal> xs, std::vector<PetscReal> ys, PetscReal tol) {
-  assert(tol > 0.0);
-  if (xs.size() != ys.size()) {
-    return false;
-  }
-  for (std::vector<PetscReal>::size_type i = 0; i < xs.size(); i++) {
-    if (std::abs(xs.at(i) - ys.at(i)) > tol) {
-      return false;
-    }
-  }
-  return true;
-}
+bool check_equal_within<PetscReal>(std::vector<PetscReal> xs, std::vector<PetscReal> ys, PetscReal tol);
 
 } // namespace anomtrans
 
