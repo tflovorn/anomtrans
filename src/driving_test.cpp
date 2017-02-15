@@ -41,7 +41,7 @@ TEST( Driving, square_TB_Hall ) {
 
   const std::size_t k_dim = 2;
 
-  std::array<unsigned int, k_dim> Nk = {128, 128};
+  std::array<unsigned int, k_dim> Nk = {32, 32};
   unsigned int Nbands = 1;
   anomtrans::kmBasis<k_dim> kmb(Nk, Nbands);
 
@@ -55,6 +55,22 @@ TEST( Driving, square_TB_Hall ) {
 
   double beta = 10.0/t;
 
+  // U0 = how far can bands be driven from their average energy?
+  // For the disorder form used, this quantity scales out of K: the distribution
+  // of rho^(1) over k's has no dependence on it; is acts as an overall scale.
+  // (TODO - sure this is correct?)
+  double U0 = 0.1*t;
+
+  // TODO build a mechanism for choosing a useful value of spread.
+  // Choosing an appropriate value of spread is somewhat tricky:
+  // it is a balance between getting close to the spread->0 limit and
+  // choosing a value large enough that the Gaussian peaks are adequately
+  // sampled by the given k-grid. The required sampling density is
+  // related to spread and to dE/dk.
+  // The spread->0 limit can only be approached when the k-grid also becomes
+  // infinitely dense.
+  double spread = 0.5*t;
+
   // Hall effect: chage current in x, magnetic field in z --> electric field in y.
   // By Onsager reciprocity, this is equivalent to:
   // electric field in y, magnetic field in -z --> charge current in x.
@@ -65,16 +81,6 @@ TEST( Driving, square_TB_Hall ) {
   std::array<double, k_dim> Ehat = {0.0, 1.0};
   std::array<double, 3> Bhat = {0.0, 0.0, -1.0};
 
-  // TODO build a mechanism for choosing a useful value of spread.
-  // Choosing an appropriate value of spread is somewhat tricky:
-  // it is a balance between getting close to the spread->0 limit and
-  // choosing a value large enough that the Gaussian peaks are adequately
-  // sampled by the given k-grid. The required sampling density is
-  // related to spread and to dE/dk.
-  // The spread->0 limit can only be approached when the k-grid also becomes
-  // infinitely dense.
-  double spread = 0.1*t;
-
   Vec Ekm = anomtrans::get_energies(kmb, H);
 
   PetscInt Ekm_min_index, Ekm_max_index;
@@ -82,8 +88,8 @@ TEST( Driving, square_TB_Hall ) {
   PetscErrorCode ierr = VecMin(Ekm, &Ekm_min_index, &Ekm_min);CHKERRXX(ierr);
   ierr = VecMax(Ekm, &Ekm_max_index, &Ekm_max);CHKERRXX(ierr);
 
-  auto disorder_term = [kmb, H](PetscInt ikm1, PetscInt ikm2, PetscInt ikm3, PetscInt ikm4)->double {
-    return anomtrans::on_site_diagonal_disorder(kmb, H, ikm1, ikm2, ikm3, ikm4);
+  auto disorder_term = [kmb, H, U0](PetscInt ikm1, PetscInt ikm2, PetscInt ikm3, PetscInt ikm4)->double {
+    return anomtrans::on_site_diagonal_disorder(kmb, H, U0, ikm1, ikm2, ikm3, ikm4);
   };
 
   // TODO include finite disorder correlation length
@@ -93,12 +99,14 @@ TEST( Driving, square_TB_Hall ) {
   // substantially simplifies solution of the associated linear systems.
   // TODO assuming that PetscScalar is not complex here. If it is complex, we
   // should check that K is Hermitian.
-  PetscBool K_is_symmetric;
-  PetscReal tol = 1e-12;
-  ierr = MatIsSymmetric(collision, tol, &K_is_symmetric);CHKERRXX(ierr);
-  ASSERT_TRUE( K_is_symmetric );
+  // TODO do this check manually? Trying this crashes with an error that MatIsSymmetric
+  // is not supported for MATMPIAIJ.
+  //PetscBool K_is_symmetric;
+  //PetscReal tol = 1e-12;
+  //ierr = MatIsSymmetric(collision, tol, &K_is_symmetric);CHKERRXX(ierr);
+  //ASSERT_TRUE( K_is_symmetric );
 
-  ierr = MatSetOption(collision, MAT_SYMMETRIC, PETSC_TRUE);CHKERRXX(ierr);
+  //ierr = MatSetOption(collision, MAT_SYMMETRIC, PETSC_TRUE);CHKERRXX(ierr);
 
   // Create the linear solver context.
   KSP ksp;
@@ -124,18 +132,29 @@ TEST( Driving, square_TB_Hall ) {
   // For each mu, solve the pair of equations:
   // K rho1_B0 = Dbar_E rho0
   // K rho1_Bfinite = Dbar_B rho1_B0
-  for (auto mu : mus) {
+  for (std::size_t mu_index = 1; mu_index < mus.size() - 1; mu_index++) {
+    double mu = mus.at(mu_index);
+
     Vec rho0_km = anomtrans::make_rho0(Ekm, beta, mu);
+
+    // Get normalized version of rho0 to use for nullspace.
+    // TODO can we safely pass a nullptr instead of rho0_orig_norm?
+    Vec rho0_normalized;
+    PetscReal rho0_orig_norm;
+    ierr = VecDuplicate(rho0_km, &rho0_normalized);CHKERRXX(ierr);
+    ierr = VecCopy(rho0_km, rho0_normalized);CHKERRXX(ierr);
+    ierr = VecNormalize(rho0_normalized, &rho0_orig_norm);CHKERRXX(ierr);
 
     // Set nullspace of K: K rho0_km = 0.
     // Note that this is true regardless of the value of mu
     // (energies only enter K through differences).
     // It is also true for any value of beta (the Fermi-Dirac distribution
     // function does not appear in K, only energy differences).
+    // TODO does this mean that the nullspace has dimension larger than 1?
     MatNullSpace nullspace;
-    ierr = MatNullSpaceCreate(PETSC_COMM_WORLD, PETSC_FALSE, 1, &rho0_km, &nullspace);CHKERRXX(ierr);
+    ierr = MatNullSpaceCreate(PETSC_COMM_WORLD, PETSC_FALSE, 1, &rho0_normalized, &nullspace);CHKERRXX(ierr);
     ierr = MatSetNullSpace(collision, nullspace);CHKERRXX(ierr);
-    // NOTE rho0_km must not be modified after this call until we are done with nullspace.
+    // NOTE rho0_normalized must not be modified after this call until we are done with nullspace.
 
     // Need to initialize rhs_B0, but we don't care what is in it before
     // we call MatMult.

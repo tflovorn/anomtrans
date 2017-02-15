@@ -64,7 +64,7 @@ bool check_Mat_equal(Mat A, Mat B, double tol) {
     }
 
     for (PetscInt i = 0; i < ncols_A; i++) {
-      if (cols_A[i] != cols_B[i] or abs(vals_A[i] - vals_B[i]) > tol) {
+      if (cols_A[i] != cols_B[i] or std::abs(vals_A[i] - vals_B[i]) > tol) {
         ierr = MatRestoreRow(A, local_row, &ncols_A, &cols_A, &vals_A);CHKERRXX(ierr);
         ierr = MatRestoreRow(B, local_row, &ncols_B, &cols_B, &vals_B);CHKERRXX(ierr);
         return false;
