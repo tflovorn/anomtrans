@@ -88,8 +88,15 @@ TEST( Driving, square_TB_Hall ) {
   PetscErrorCode ierr = VecMin(Ekm, &Ekm_min_index, &Ekm_min);CHKERRXX(ierr);
   ierr = VecMax(Ekm, &Ekm_max_index, &Ekm_max);CHKERRXX(ierr);
 
-  auto disorder_term = [kmb, H, U0](PetscInt ikm1, PetscInt ikm2, PetscInt ikm3, PetscInt ikm4)->double {
-    return anomtrans::on_site_diagonal_disorder(kmb, H, U0, ikm1, ikm2, ikm3, ikm4);
+  PetscInt Nk_tot = 1;
+  for (std::size_t d = 0; d < k_dim; d++) {
+    Nk_tot *= kmb.Nk.at(d);
+  }
+  double U0_sq = U0*U0;
+  double disorder_coeff = U0_sq / Nk_tot;
+  auto disorder_term = [Nbands, H, disorder_coeff](PetscInt ikm1, PetscInt ikm2,
+      PetscInt ikm3, PetscInt ikm4)->double {
+    return disorder_coeff*anomtrans::on_site_diagonal_disorder(Nbands, H, ikm1, ikm2, ikm3, ikm4);
   };
 
   // TODO include finite disorder correlation length

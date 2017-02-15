@@ -250,15 +250,18 @@ PetscScalar collision_elem(kmBasis<k_dim> kmb, Hamiltonian H, double spread,
 }
 
 /** @brief Calculate the disorder-averaged on-site diagonal disorder term.
+ *  @note There is an extra factor of U0^2/Nk appearing in <UU>. This is
+ *        left out here to avoid passing the parameters.
  */
-template <std::size_t k_dim, typename Hamiltonian>
-double on_site_diagonal_disorder(kmBasis<k_dim> kmb, Hamiltonian H,
-    double U0, PetscInt ikm1, PetscInt ikm2, PetscInt ikm3, PetscInt ikm4) {
+template <typename Hamiltonian>
+double on_site_diagonal_disorder(const unsigned int Nbands, Hamiltonian H,
+    const PetscInt ikm1, const PetscInt ikm2, const PetscInt ikm3,
+    const PetscInt ikm4) {
   // Use Kahan summation for sum over band indices.
   std::complex<double> sum(0.0, 0.0);
   std::complex<double> c(0.0, 0.0);
-  for (unsigned int i1 = 0; i1 < kmb.Nbands; i1++) {
-    for (unsigned int i2 = 0; i2 < kmb.Nbands; i2++) {
+  for (unsigned int i1 = 0; i1 < Nbands; i1++) {
+    for (unsigned int i2 = 0; i2 < Nbands; i2++) {
       std::complex<double> contrib = std::conj(H.basis_component(ikm1, i1))
           * H.basis_component(ikm2, i1)
           * std::conj(H.basis_component(ikm3, i2))
@@ -279,12 +282,7 @@ double on_site_diagonal_disorder(kmBasis<k_dim> kmb, Hamiltonian H,
   // to 1.
   assert(std::abs(sum.imag()) < kmb.Nbands*std::numeric_limits<double>::epsilon());
 
-  PetscInt Nk_tot = 1;
-  for (std::size_t d = 0; d < k_dim; d++) {
-    Nk_tot *= kmb.Nk.at(d);
-  }
-
-  return U0*U0*sum.real()/Nk_tot;
+  return sum.real();
 }
 
 } // namespace anomtrans
