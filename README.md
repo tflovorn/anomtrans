@@ -115,3 +115,25 @@ To generate plots from tests:
 
     cd pyanomtrans
     python3 plot_2d_bz.py "derivative_test_out" "../Obj_test/src"
+
+## Building in Release Mode
+
+Build PETSc with:
+
+    cd ~/petsc
+    ./configure --with-cc=mpicc --with-cxx=mpicxx --with-fc=mpif90 --download-fblaslapack --with-clanguage=cxx --with-debugging=0 COPTFLAGS='-O3 -march=native -mtune=native' CXXOPTFLAGS='-O3 -march=native -mtune=native' FOPTFLAGS='-O3 -march=native -mtune=native'
+    make PETSC_DIR=$HOME/petsc PETSC_ARCH=arch-linux2-cxx-opt all
+
+Test PETSc:
+
+    make PETSC_DIR=$HOME/petsc PETSC_ARCH=arch-linux2-cxx-opt test
+    make PETSC_DIR=$HOME/petsc PETSC_ARCH=arch-linux2-cxx-opt streams
+
+Build and run tests:
+
+    cd ~/anomtrans
+    ./build_release_local
+    cd Obj
+    ctest -V
+
+TODO - MKL BLAS/LAPACK support?

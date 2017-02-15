@@ -286,8 +286,7 @@ double on_site_diagonal_disorder(kmBasis<k_dim> kmb, Hamiltonian H,
   // TODO - sure this is true?
   // TODO - what is appropriate tol value?
   // Nbands = sqrt(Nbands^2) via Kahan expected error.
-  double tol = kmb.Nbands*std::numeric_limits<double>::epsilon();
-  assert(std::abs(sum.imag()) < tol);
+  assert(std::abs(sum.imag()) < kmb.Nbands*std::numeric_limits<double>::epsilon());
 
   PetscInt Nk_tot = 1;
   for (std::size_t d = 0; d < k_dim; d++) {

@@ -1,0 +1,28 @@
+#!/bin/bash
+
+# (note - the environment variables exported here are for use in the cmake script.
+# They are not used in make and do not persist after this script is run.)
+
+# Fixed path in the repository for regression test data.
+# Discussion of accessing paths relative to a script is found at:
+# http://mywiki.wooledge.org/BashFAQ/028
+export ANOMTRANS_TEST_DATA_DIR="${PWD}/test_regression_data"
+
+export ANOMTRANS_TEST_MPI_CMD="mpiexec"
+export ANOMTRANS_TEST_MPI_NUMPROCS_PREFIX="-np"
+export ANOMTRANS_TEST_MPI_NUMPROCS="4"
+
+export PETSC_DIR="$HOME/petsc"
+export PETSC_ARCH="arch-linux2-cxx-opt"
+export PETSC_LIB="$PETSC_DIR/$PETSC_ARCH/lib"
+export BOOST_INC="/usr/include"
+
+# On g++ 5.3.1 could use -std=c++14 here, but would prefer to maintain
+# compatibility with icpc 16 which does not fully support c++14.
+export ANOMTRANS_TEST_COMPILE_FLAGS="-Wall -pedantic -std=c++11 -O3 -march=native -mtune=native"
+
+#rm -r Obj
+mkdir Obj
+cd Obj
+CC=mpicc CXX=mpicxx cmake -DCMAKE_BUILD_TYPE=Release ..
+make
