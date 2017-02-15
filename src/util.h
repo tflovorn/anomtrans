@@ -1,6 +1,7 @@
 #ifndef ANOMTRANS_UTIL_H
 #define ANOMTRANS_UTIL_H
 
+#include <cmath>
 #include <vector>
 #include <string>
 #include <fstream>
@@ -66,6 +67,57 @@ boost::optional<std::string> getenv_optional(const std::string& var);
  *         contained in j_test, and false otherwise.
  */
 bool check_json_equal(std::string test_path, std::string known_path);
+
+/** @brief Check if each member of the lists xs and ys are equal, considering
+ *         floating-point numbers to be distinct if the absolute value of their
+ *         difference is greater than tol.
+ *  @note This generic version does not do the floating-point comparison: that
+ *        is handled in the float specializations.
+ */
+template <typename T>
+bool check_equal_within(std::vector<T> xs, std::vector<T> ys, PetscReal tol) {
+  if (xs.size() != ys.size()) {
+    return false;
+  }
+  return xs == ys;
+}
+
+/** @brief Specialize check_equal_within to handle lists-of-lists.
+ */
+template <typename T>
+bool check_equal_within(std::vector<std::vector<T>> xs, std::vector<std::vector<T>> ys, PetscReal tol) {
+  if (xs.size() != ys.size()) {
+    return false;
+  }
+  // TODO better to use vector::size_type?
+  // Get error in parsing trying to use vector<vector<T>>::size_type.
+  for (std::size_t i = 0; i < xs.size(); i++) {
+    if (not check_equal_within(xs.at(i), ys.at(i), tol)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+/** @brief Specialize check_equal_within to handle floats.
+ *  @note We assume that PetscReal and PetscScalar are the same type.
+ *        An additional specialization for PetscScalar will not compile
+ *        when there are the same type.
+ *  @todo Handle PetscScalar != PetscReal.
+ */
+template <>
+bool check_equal_within(std::vector<PetscReal> xs, std::vector<PetscReal> ys, PetscReal tol) {
+  assert(tol > 0.0);
+  if (xs.size() != ys.size()) {
+    return false;
+  }
+  for (std::vector<PetscReal>::size_type i = 0; i < xs.size(); i++) {
+    if (std::abs(xs.at(i) - ys.at(i)) > tol) {
+      return false;
+    }
+  }
+  return true;
+}
 
 } // namespace anomtrans
 

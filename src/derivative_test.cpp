@@ -89,6 +89,8 @@ TEST( Derivative, square_TB_fermi_surface ) {
     // matrix dimensions. Checking with MatGetSize() and MatGetOwnershipRange()
     // showed that d_dk.at(d) and d_dk_Cart.at(d) had equal sizes and local row
     // distributions. Not sure what the source of the error was.
+    // The appropriate scale for floating-point comparison here is 1 (or more
+    // generally would be a, if we had a1 = {a, 0}, a2 = {0, a}).
     double tol = 2*std::numeric_limits<double>::epsilon();
     ASSERT_TRUE( anomtrans::check_Mat_equal(d_dk.at(d), d_dk_Cart_d_2pi, tol) );
 
@@ -209,9 +211,38 @@ TEST( Derivative, square_TB_fermi_surface ) {
 
     // TODO could use boost::filesystem here to build path.
     // Tried, had issue with 'undefined reference to operator/='.
-    std::stringstream known_data;
-    known_data << *test_data_dir << "/derivative_test_out.json";
+    std::stringstream known_path;
+    known_path << *test_data_dir << "/derivative_test_out.json";
 
-    ASSERT_TRUE( anomtrans::check_json_equal(outpath.str(), known_data.str()) );
+    json j_known;
+    std::ifstream fp_k(known_path.str());
+    if (not fp_k.good()) {
+      throw std::runtime_error("could not open file in check_json_equal");
+    }
+    fp_k >> j_known;
+    fp_k.close();
+
+    // k_comps and ms are integers and should be exactly equal.
+    // NOTE - nlohmann::json doesn't implement std::arrays. Use a std::vector
+    // here: it has the same JSON representation as the array.
+    ASSERT_TRUE( anomtrans::check_equal_within(j_out["k_comps"].get<std::vector<std::vector<unsigned int>>>(),
+          j_known["k_comps"].get<std::vector<std::vector<unsigned int>>>(), -1.0) );
+    ASSERT_TRUE( anomtrans::check_equal_within(j_out["ms"].get<std::vector<unsigned int>>(),
+        j_known["ms"].get<std::vector<unsigned int>>(), -1.0) );
+
+    // t is an appropriate scale for E.
+    ASSERT_TRUE( anomtrans::check_equal_within(j_out["Ekm"].get<std::vector<PetscScalar>>(),
+        j_known["Ekm"].get<std::vector<PetscScalar>>(),
+        100.0*t*std::numeric_limits<PetscScalar>::epsilon()) );
+
+    // 1 is an appropriate scale for rho: elements range from 0 to 1.
+    // TODO using 1 as scale for norm_d_rho0_dk also. Is this appropriate?
+    // The k here is has scale 1 (k_recip values from 0 to 1).
+    ASSERT_TRUE( anomtrans::check_equal_within(j_out["rho0"].get<std::vector<std::vector<PetscScalar>>>(),
+        j_known["rho0"].get<std::vector<std::vector<PetscScalar>>>(),
+        100.0*std::numeric_limits<PetscScalar>::epsilon()) );
+    ASSERT_TRUE( anomtrans::check_equal_within(j_out["norm_d_rho0_dk"].get<std::vector<std::vector<PetscScalar>>>(),
+        j_known["norm_d_rho0_dk"].get<std::vector<std::vector<PetscScalar>>>(),
+        100.0*std::numeric_limits<PetscScalar>::epsilon()) );
   }
 }

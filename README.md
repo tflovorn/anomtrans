@@ -43,9 +43,14 @@ Or to submit a job to test:
 
     ./build_test_ls5
     sbatch run_tests_ls5
-    exit
 
-TODO - build release version.
+To build and test in release mode:
+
+    ./build_release_ls5
+    idev
+    cd Obj
+    ctest -V
+    exit
 
 # Local setup and usage from a fresh Mint 18.1 MATE install
 
@@ -109,14 +114,12 @@ To build and run tests (should be done from the anomtrans root directory):
     cd Obj_test
     ctest -V
 
-TODO - build release version.
-
 To generate plots from tests:
 
     cd pyanomtrans
     python3 plot_2d_bz.py "derivative_test_out" "../Obj_test/src"
 
-## Building in Release Mode
+## Building in release mode
 
 Build PETSc with:
 
