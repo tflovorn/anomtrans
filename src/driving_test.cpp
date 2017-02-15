@@ -41,7 +41,7 @@ TEST( Driving, square_TB_Hall ) {
 
   const std::size_t k_dim = 2;
 
-  std::array<unsigned int, k_dim> Nk = {32, 32};
+  std::array<unsigned int, k_dim> Nk = {8, 8};
   unsigned int Nbands = 1;
   anomtrans::kmBasis<k_dim> kmb(Nk, Nbands);
 
@@ -128,7 +128,7 @@ TEST( Driving, square_TB_Hall ) {
   Mat Dbar_E = anomtrans::driving_electric(D, kmb, deriv_order, Ehat);
   Mat Dbar_B = anomtrans::driving_magnetic(D, kmb, deriv_order, H, Bhat);
 
-  unsigned int num_mus = 40;
+  unsigned int num_mus = 10;
   auto mus = anomtrans::linspace(Ekm_min, Ekm_max, num_mus);
 
   std::vector<std::vector<PetscScalar>> all_rho0;
@@ -240,17 +240,58 @@ TEST( Driving, square_TB_Hall ) {
     fp_out << j_out.dump();
     fp_out.close();
 
-    /*
     // Check for changes from saved old result.
     boost::optional<std::string> test_data_dir = anomtrans::getenv_optional("ANOMTRANS_TEST_DATA_DIR");
     if (not test_data_dir) {
       throw std::runtime_error("Could not get ANOMTRANS_TEST_DATA_DIR environment variable for regression test data");
     }
 
-    std::stringstream known_data;
-    known_data << *test_data_dir << "/driving_test_out.json";
+    std::stringstream known_path;
+    known_path << *test_data_dir << "/driving_test_out.json";
 
-    ASSERT_TRUE( anomtrans::check_json_equal(outpath.str(), known_data.str()) );
-    */
+    json j_known;
+    std::ifstream fp_k(known_path.str());
+    if (not fp_k.good()) {
+      throw std::runtime_error("could not open file in check_json_equal");
+    }
+    fp_k >> j_known;
+    fp_k.close();
+
+    // TODO clean these checks up: could replace these long calls with calls to
+    // a function template that takes a type, two jsons, a key, and a tol:
+    // ASSERT_TRUE( anomtrans::check_json_elem_equal<T>(j_out, j_known, key, tol) );
+    // This function would call check_equal_within in the same way as below.
+    //
+    // k_comps and ms are integers and should be exactly equal.
+    // NOTE - nlohmann::json doesn't implement std::arrays. Use a std::vector
+    // here: it has the same JSON representation as the array.
+    ASSERT_TRUE( anomtrans::check_equal_within(j_out["k_comps"].get<std::vector<std::vector<unsigned int>>>(),
+          j_known["k_comps"].get<std::vector<std::vector<unsigned int>>>(), -1.0) );
+    ASSERT_TRUE( anomtrans::check_equal_within(j_out["ms"].get<std::vector<unsigned int>>(),
+        j_known["ms"].get<std::vector<unsigned int>>(), -1.0) );
+
+    // t is an appropriate scale for E.
+    ASSERT_TRUE( anomtrans::check_equal_within(j_out["Ekm"].get<std::vector<PetscScalar>>(),
+        j_known["Ekm"].get<std::vector<PetscScalar>>(),
+        100.0*t*std::numeric_limits<PetscScalar>::epsilon()) );
+
+    // 1 is an appropriate scale for rho: elements range from 0 to 1.
+    // TODO using 1 as scale for norm_d_rho0_dk also. Is this appropriate?
+    // The k here is has scale 1 (k_recip values from 0 to 1).
+    ASSERT_TRUE( anomtrans::check_equal_within(j_out["rho0"].get<std::vector<std::vector<PetscScalar>>>(),
+        j_known["rho0"].get<std::vector<std::vector<PetscScalar>>>(),
+        100.0*std::numeric_limits<PetscScalar>::epsilon()) );
+    ASSERT_TRUE( anomtrans::check_equal_within(j_out["rhs_B0"].get<std::vector<std::vector<PetscScalar>>>(),
+        j_known["rhs_B0"].get<std::vector<std::vector<PetscScalar>>>(),
+        100.0*std::numeric_limits<PetscScalar>::epsilon()) );
+    ASSERT_TRUE( anomtrans::check_equal_within(j_out["rho1_B0"].get<std::vector<std::vector<PetscScalar>>>(),
+        j_known["rho1_B0"].get<std::vector<std::vector<PetscScalar>>>(),
+        100.0*std::numeric_limits<PetscScalar>::epsilon()) );
+    ASSERT_TRUE( anomtrans::check_equal_within(j_out["rhs_Bfinite"].get<std::vector<std::vector<PetscScalar>>>(),
+        j_known["rhs_Bfinite"].get<std::vector<std::vector<PetscScalar>>>(),
+        100.0*std::numeric_limits<PetscScalar>::epsilon()) );
+    ASSERT_TRUE( anomtrans::check_equal_within(j_out["rho1_Bfinite"].get<std::vector<std::vector<PetscScalar>>>(),
+        j_known["rho1_Bfinite"].get<std::vector<std::vector<PetscScalar>>>(),
+        1000.0*std::numeric_limits<PetscScalar>::epsilon()) );
   }
 }

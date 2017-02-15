@@ -280,7 +280,7 @@ double on_site_diagonal_disorder(const unsigned int Nbands, Hamiltonian H,
   // Nbands = sqrt(Nbands^2) via Kahan expected error.
   // 1 is an appropriate scale here: the basis component vectors are normalized
   // to 1.
-  assert(std::abs(sum.imag()) < kmb.Nbands*std::numeric_limits<double>::epsilon());
+  assert(std::abs(sum.imag()) < Nbands*std::numeric_limits<double>::epsilon());
 
   return sum.real();
 }
