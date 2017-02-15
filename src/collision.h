@@ -29,7 +29,7 @@ double delta_Gaussian(double sigma, double x);
  *  @param H Class instance giving the Hamiltonian of the system. Should have the methods
  *           double energy(kmComps<dim>)
  *           and
- *           std::complex<double> basis_component(kmComps<dim>, i).
+ *           std::complex<double> basis_component(ikm, i).
  *  @param spread Spread parameter for Gaussian delta function representation.
  *  @param disorder_term A function with signature
  *                       double f(ikm1, ikm2, ikm3, ikm4)
@@ -254,26 +254,15 @@ PetscScalar collision_elem(kmBasis<k_dim> kmb, Hamiltonian H, double spread,
 template <std::size_t k_dim, typename Hamiltonian>
 double on_site_diagonal_disorder(kmBasis<k_dim> kmb, Hamiltonian H,
     double U0, PetscInt ikm1, PetscInt ikm2, PetscInt ikm3, PetscInt ikm4) {
-  auto km1 = kmb.decompose(ikm1);
-  auto km4 = kmb.decompose(ikm4);
-  if (std::get<0>(km1) != std::get<0>(km4)) {
-    return 0.0;
-  }
-  auto km2 = kmb.decompose(ikm2);
-  auto km3 = kmb.decompose(ikm3);
-  if (std::get<0>(km2) != std::get<0>(km3)) {
-    return 0.0;
-  }
-
   // Use Kahan summation for sum over band indices.
   std::complex<double> sum(0.0, 0.0);
   std::complex<double> c(0.0, 0.0);
   for (unsigned int i1 = 0; i1 < kmb.Nbands; i1++) {
     for (unsigned int i2 = 0; i2 < kmb.Nbands; i2++) {
-      std::complex<double> contrib = std::conj(H.basis_component(km1, i1))
-          * H.basis_component(km2, i1)
-          * std::conj(H.basis_component(km3, i2))
-          * H.basis_component(km4, i2);
+      std::complex<double> contrib = std::conj(H.basis_component(ikm1, i1))
+          * H.basis_component(ikm2, i1)
+          * std::conj(H.basis_component(ikm3, i2))
+          * H.basis_component(ikm4, i2);
 
       std::complex<double> y = contrib - c;
       std::complex<double> t = sum + y;

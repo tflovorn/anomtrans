@@ -5,6 +5,7 @@
 #include <cmath>
 #include <tuple>
 #include <complex>
+#include <petscksp.h>
 #include "constants.h"
 #include "grid_basis.h"
 
@@ -42,7 +43,7 @@ public:
    *         H(k), m is the eigenvalue index, and i is the component of the
    *         initial basis (pseudo-atomic orbital or otherwise).
    */
-  std::complex<double> basis_component(kmComps<2> ikm_comps, unsigned int i);
+  std::complex<double> basis_component(PetscInt ikm, unsigned int i);
 };
 
 } // namespace anomtrans
