@@ -11,6 +11,7 @@ export ANOMTRANS_TEST_DATA_DIR="${PWD}/test_regression_data"
 export ANOMTRANS_TEST_MPI_CMD="ibrun"
 export ANOMTRANS_TEST_MPI_NUMPROCS_PREFIX=""
 export ANOMTRANS_TEST_MPI_NUMPROCS=""
+export ANOMTRANS_TEST_AFFINITY="tacc_affinity"
 
 export PETSC_DIR=${TACC_PETSC_DIR}
 export PETSC_ARCH=${PETSC_ARCH}
