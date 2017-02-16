@@ -42,8 +42,8 @@ double delta_Gaussian(double sigma, double x);
  *        restrictive in the accepted ikm values.
  */
 template <std::size_t k_dim, typename Hamiltonian, typename UU>
-Mat make_collision(kmBasis<k_dim> kmb, Hamiltonian H, double spread,
-    UU disorder_term) {
+Mat make_collision(const kmBasis<k_dim> &kmb, const Hamiltonian &H, const double spread,
+    const UU &disorder_term) {
   // TODO could make this an argument to avoid recomputing.
   Vec Ekm = get_energies(kmb, H);
   // We need the full contents of Ekm to construct each row of K.
@@ -119,8 +119,8 @@ Mat make_collision(kmBasis<k_dim> kmb, Hamiltonian H, double spread,
 }
 
 template <std::size_t k_dim, typename Hamiltonian, typename UU>
-PetscReal collision_max(kmBasis<k_dim> kmb, Hamiltonian H, double spread,
-    UU disorder_term, std::vector<PetscScalar> Ekm) {
+PetscReal collision_max(const kmBasis<k_dim> &kmb, const Hamiltonian &H, const double spread,
+    const UU &disorder_term, const std::vector<PetscScalar> &Ekm) {
   Vec max_vals;
   PetscErrorCode ierr = VecCreateMPI(PETSC_COMM_WORLD, PETSC_DECIDE, kmb.end_ikm, &max_vals);CHKERRXX(ierr);
 
@@ -165,9 +165,9 @@ PetscReal collision_max(kmBasis<k_dim> kmb, Hamiltonian H, double spread,
  *         of the collision matrix for the rows belonging to this process.
  */
 template <std::size_t k_dim, typename Hamiltonian, typename UU>
-std::tuple<std::vector<PetscInt>, std::vector<PetscInt>> collision_count_nonzeros(kmBasis<k_dim> kmb,
-    Hamiltonian H, double spread, UU disorder_term, std::vector<PetscScalar> Ekm,
-    PetscReal threshold, PetscInt begin, PetscInt end) {
+std::tuple<std::vector<PetscInt>, std::vector<PetscInt>> collision_count_nonzeros(const kmBasis<k_dim> &kmb,
+    const Hamiltonian &H, const double spread, const UU &disorder_term, const std::vector<PetscScalar> &Ekm,
+    const PetscReal threshold, const PetscInt begin, const PetscInt end) {
   std::vector<PetscInt> row_counts_diag;
   row_counts_diag.reserve(end - begin);
   std::vector<PetscInt> row_counts_od;
@@ -199,9 +199,9 @@ std::tuple<std::vector<PetscInt>, std::vector<PetscInt>> collision_count_nonzero
  *  @param threshold Include only elements with absolute value greater than this.
  */
 template <std::size_t k_dim, typename Hamiltonian, typename UU>
-IndexValPairs collision_row(kmBasis<k_dim> kmb, Hamiltonian H, double spread,
-    UU disorder_term, std::vector<PetscScalar> Ekm, PetscReal threshold,
-    PetscInt row_count, PetscInt row) {
+IndexValPairs collision_row(const kmBasis<k_dim> &kmb, const Hamiltonian &H, const double spread,
+    const UU &disorder_term, const std::vector<PetscScalar> &Ekm, const PetscReal threshold,
+    const PetscInt row_count, const PetscInt row) {
   std::vector<PetscInt> column_ikms;
   column_ikms.reserve(row_count);
   std::vector<PetscScalar> column_vals;
@@ -225,8 +225,8 @@ IndexValPairs collision_row(kmBasis<k_dim> kmb, Hamiltonian H, double spread,
  *         and column indices.
  */
 template <std::size_t k_dim, typename Hamiltonian, typename UU>
-PetscScalar collision_elem(kmBasis<k_dim> kmb, Hamiltonian H, double spread,
-    UU disorder_term, std::vector<PetscScalar> Ekm, PetscInt row, PetscInt column) {
+PetscScalar collision_elem(const kmBasis<k_dim> &kmb, const Hamiltonian &H, const double spread,
+    const UU &disorder_term, const std::vector<PetscScalar> &Ekm, const PetscInt row, const PetscInt column) {
   if (column == row) {
     // Diagonal term sums over all vector indices.
     // Use Kahan summation.
@@ -254,7 +254,7 @@ PetscScalar collision_elem(kmBasis<k_dim> kmb, Hamiltonian H, double spread,
  *        left out here to avoid passing the parameters.
  */
 template <typename Hamiltonian>
-double on_site_diagonal_disorder(const unsigned int Nbands, Hamiltonian H,
+double on_site_diagonal_disorder(const unsigned int Nbands, const Hamiltonian &H,
     const PetscInt ikm1, const PetscInt ikm2, const PetscInt ikm3,
     const PetscInt ikm4) {
   // Use Kahan summation for sum over band indices.

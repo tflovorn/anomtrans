@@ -5,7 +5,7 @@ namespace anomtrans {
 square_tb_Hamiltonian::square_tb_Hamiltonian(double _t, double _tp, kComps<2> _Nk)
       : t(_t), tp(_tp), Nk(_Nk) {}
 
-double square_tb_Hamiltonian::energy(kmComps<2> ikm_comps) {
+double square_tb_Hamiltonian::energy(kmComps<2> ikm_comps) const {
   kmVals<2> km = km_at(Nk, ikm_comps);
   kVals<2> k = std::get<0>(km);
   unsigned int m = std::get<1>(km);
@@ -20,7 +20,7 @@ double square_tb_Hamiltonian::energy(kmComps<2> ikm_comps) {
   return -2*t*(std::cos(kx) + std::cos(ky)) + 4*tp*std::cos(kx)*std::cos(ky);
 }
 
-std::array<double, 2> square_tb_Hamiltonian::velocity(kmComps<2> ikm_comps) {
+std::array<double, 2> square_tb_Hamiltonian::velocity(kmComps<2> ikm_comps) const {
   kmVals<2> km = km_at(Nk, ikm_comps);
   kVals<2> k = std::get<0>(km);
   unsigned int m = std::get<1>(km);
@@ -39,7 +39,7 @@ std::array<double, 2> square_tb_Hamiltonian::velocity(kmComps<2> ikm_comps) {
   return v;
 }
 
-std::complex<double> square_tb_Hamiltonian::basis_component(const PetscInt ikm, const unsigned int i) {
+std::complex<double> square_tb_Hamiltonian::basis_component(const PetscInt ikm, const unsigned int i) const {
   return std::complex<double>(1.0, 0.0);
 }
 

@@ -33,17 +33,17 @@ public:
 
   /** @brief Energy at (k,m): E_{km}.
    */
-  double energy(kmComps<2> ikm_comps);
+  double energy(kmComps<2> ikm_comps) const;
 
   /** @brief Velocity at (k, m): v_{km} = dE_{km}/dk|_{k}
    */
-  std::array<double, 2> velocity(kmComps<2> ikm_comps);
+  std::array<double, 2> velocity(kmComps<2> ikm_comps) const;
 
   /** @brief Value of U_{im}(k), where U is the unitary matrix which diagonalizes
    *         H(k), m is the eigenvalue index, and i is the component of the
    *         initial basis (pseudo-atomic orbital or otherwise).
    */
-  std::complex<double> basis_component(PetscInt ikm, unsigned int i);
+  std::complex<double> basis_component(PetscInt ikm, unsigned int i) const;
 };
 
 } // namespace anomtrans
