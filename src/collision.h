@@ -233,6 +233,9 @@ PetscScalar collision_elem(const kmBasis<k_dim> &kmb, const Hamiltonian &H, cons
     PetscScalar sum = 0.0;
     PetscScalar c = 0.0;
     for (PetscInt ikm_pp = 0; ikm_pp < kmb.end_ikm; ikm_pp++) {
+      if (ikm_pp == row) {
+        continue;
+      }
       double delta_fac = delta_Gaussian(spread, Ekm.at(row) - Ekm.at(ikm_pp));
       PetscScalar contrib = 2*pi * disorder_term(row, ikm_pp, ikm_pp, row) * delta_fac;
 
