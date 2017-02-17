@@ -2,6 +2,23 @@
 
 namespace anomtrans {
 
+PetscInt wrap(PetscInt x, PetscInt N) {
+  if (x >= 0) {
+    return x % N;
+  }
+  PetscInt abs_x = -x;
+  PetscInt m = (abs_x - 1) / N; // integer division (rounded down)
+  return N - (abs_x - m*N);
+}
+
+std::vector<PetscInt> invert_vals_indices(std::vector<std::pair<PetscScalar, PetscInt>> xs) {
+  std::vector<PetscInt> ys(xs.size());
+  for (std::size_t i = 0; i < xs.size(); i++) {
+    ys.at(xs.at(i).second) = i;
+  }
+  return ys;
+}
+
 std::vector<double> linspace(double start, double stop, unsigned int num) {
   std::vector<double> v;
   v.reserve(num);

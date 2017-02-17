@@ -9,6 +9,10 @@
 
 namespace anomtrans {
 
+/** @brief Pair of indices and corresponding vector values.
+ *  @todo Would this be better as std::vector<std::pair<PetscInt, PetscScalar>>?
+ *        This alternate type is required by collision.
+ */
 using IndexValPairs = std::tuple<std::vector<PetscInt>, std::vector<PetscScalar>>;
 
 IndexValPairs get_local_contents(Vec v);

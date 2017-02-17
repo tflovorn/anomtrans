@@ -3,6 +3,7 @@
 
 #include <cmath>
 #include <vector>
+#include <utility>
 #include <string>
 #include <fstream>
 #include <stdexcept>
@@ -46,6 +47,20 @@ std::array<PetscScalar, 3> cross(std::array<PetscScalar, u_dim> u_in, std::array
 
   return cross;
 }
+
+/** @brief Given a vector `xs` where `xs.at(i).second` is a vector index,
+ *         return the corresponding vector which inverts indices and values.
+ *  @return A vector `ys` where ys.at(xs.at(i).second) == i.
+ */
+std::vector<PetscInt> invert_vals_indices(std::vector<std::pair<PetscScalar, PetscInt>> xs);
+
+/** @brief Wrap x to a range of values [0, 1, ..., N-1].
+ *         Negative values of x are wrapped starting from the right-hand side
+ *         of the range.
+ *  @note If x >= 0, then wrap(x, N) == x % N.
+ *        wrap(-1, N) = N-1; wrap(-N, N) = 0; wrap(-(N+1), N) = N-1.
+ */
+PetscInt wrap(PetscInt x, PetscInt N);
 
 /** @brief Return evenly space numbers over the interval from start to stop,
  *         including both endpoints. If num == 1, only start is included.
@@ -98,6 +113,9 @@ bool check_equal_within(std::vector<std::vector<T>> xs, std::vector<std::vector<
   }
   return true;
 }
+
+static_assert(std::is_same<PetscScalar, PetscReal>::value,
+    "The implementation of check_equal_within assumes that PetscScalar is a real-valued type.");
 
 /** @brief Specialize check_equal_within to handle floats.
  *  @note We assume that PetscReal and PetscScalar are the same type.
