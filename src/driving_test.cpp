@@ -12,6 +12,7 @@
 #include "rho0.h"
 #include "collision.h"
 #include "driving.h"
+#include "conductivity.h"
 
 using json = nlohmann::json;
 
@@ -41,7 +42,7 @@ TEST( Driving, square_TB_Hall ) {
 
   const std::size_t k_dim = 2;
 
-  std::array<unsigned int, k_dim> Nk = {8, 8};
+  std::array<unsigned int, k_dim> Nk = {64, 64};
   unsigned int Nbands = 1;
   anomtrans::kmBasis<k_dim> kmb(Nk, Nbands);
 
@@ -128,7 +129,7 @@ TEST( Driving, square_TB_Hall ) {
   Mat Dbar_E = anomtrans::driving_electric(D, kmb, deriv_order, Ehat);
   Mat Dbar_B = anomtrans::driving_magnetic(D, kmb, deriv_order, H, Bhat);
 
-  unsigned int num_mus = 10;
+  unsigned int num_mus = 40;
   auto mus = anomtrans::linspace(Ekm_min, Ekm_max, num_mus);
 
   std::vector<std::vector<PetscScalar>> all_rho0;
@@ -136,6 +137,7 @@ TEST( Driving, square_TB_Hall ) {
   std::vector<std::vector<PetscScalar>> all_rho1_B0;
   std::vector<std::vector<PetscScalar>> all_rhs_Bfinite;
   std::vector<std::vector<PetscScalar>> all_rho1_Bfinite;
+  std::vector<PetscScalar> all_Hall_conductivities;
   // For each mu, solve the pair of equations:
   // K rho1_B0 = Dbar_E rho0
   // K rho1_Bfinite = Dbar_B rho1_B0
@@ -183,6 +185,8 @@ TEST( Driving, square_TB_Hall ) {
     ierr = VecDuplicate(rho0_km, &rho1_Bfinite);CHKERRXX(ierr);
     ierr = KSPSolve(ksp, rhs_Bfinite, rho1_Bfinite);CHKERRXX(ierr);
 
+    PetscScalar sigma_Hall = calculate_Hall_conductivity(kmb, H, rho1_Bfinite);
+
     auto collected_rho0 = anomtrans::collect_contents(rho0_km);
     all_rho0.push_back(collected_rho0);
     auto collected_rhs_B0 = anomtrans::collect_contents(rhs_B0);
@@ -193,6 +197,8 @@ TEST( Driving, square_TB_Hall ) {
     all_rhs_Bfinite.push_back(collected_rhs_Bfinite);
     auto collected_rho1_Bfinite = anomtrans::collect_contents(rho1_Bfinite);
     all_rho1_Bfinite.push_back(collected_rho1_Bfinite);
+
+    all_Hall_conductivities.push_back(sigma_Hall);
 
     ierr = VecDestroy(&rho1_Bfinite);CHKERRXX(ierr);
     ierr = VecDestroy(&rhs_Bfinite);CHKERRXX(ierr);
@@ -230,7 +236,8 @@ TEST( Driving, square_TB_Hall ) {
       {"rhs_B0", all_rhs_B0},
       {"rho1_B0", all_rho1_B0},
       {"rhs_Bfinite", all_rhs_Bfinite},
-      {"rho1_Bfinite", all_rho1_Bfinite}
+      {"rho1_Bfinite", all_rho1_Bfinite},
+      {"_series_Hall_conductivity", all_Hall_conductivities}
     };
 
     std::stringstream outpath;

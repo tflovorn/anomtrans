@@ -67,7 +67,7 @@ public:
   /** @brief Convert a linear sequence index `iall` into the corresponding
    *         composite index.
    */
-  std::array<unsigned int, ncomp> decompose(PetscInt iall) {
+  std::array<unsigned int, ncomp> decompose(PetscInt iall) const {
     std::array<unsigned int, ncomp> comps;
     // Safe to access elem 0 here due to static_assert.
     comps.at(0) = iall % sizes.at(0);
@@ -85,7 +85,7 @@ public:
   /** @brief Convert a composite index `components` into the corresponding
    *         linear sequence index.
    */
-  PetscInt compose(std::array<unsigned int, ncomp> components) {
+  PetscInt compose(std::array<unsigned int, ncomp> components) const {
     PetscInt total = 0;
     for (std::size_t d = 0; d < ncomp; d++) {
       total += coeffs.at(d) * components.at(d);
@@ -98,7 +98,7 @@ public:
    *           decompose(iall) + Delta
    *         where components are allowed to wrap around their boundaries.
    */
-  PetscInt add(PetscInt iall, std::array<int, ncomp> Delta) {
+  PetscInt add(PetscInt iall, std::array<int, ncomp> Delta) const {
     auto comps = decompose(iall);
     std::array<unsigned int, ncomp> new_comps;
     for (std::size_t d = 0; d < ncomp; d++) {
@@ -168,7 +168,7 @@ public:
   /** @brief Convert a linear sequence index `ikm` into the corresponding
    *         composite index (ik, m).
    */
-  kmComps<dim> decompose(PetscInt ikm) {
+  kmComps<dim> decompose(PetscInt ikm) const {
     auto all_comps = gb.decompose(ikm);
     kComps<dim> iks;
     for (std::size_t d = 0; d < dim; d++) {
@@ -181,7 +181,7 @@ public:
   /** @brief Convert a composite index `ikm_comps` = (ik, m) into the
    *         corresponding linear sequence index.
    */
-  PetscInt compose(kmComps<dim> ikm_comps) {
+  PetscInt compose(kmComps<dim> ikm_comps) const {
     std::array<unsigned int, dim+1> all_comps;
     for (std::size_t d = 0; d < dim; d++) {
       all_comps.at(d) = std::get<0>(ikm_comps).at(d);
@@ -197,7 +197,7 @@ public:
    *         where k components are allowed to wrap around their boundaries
    *         (i.e. k-space periodicity is respected).
    */
-  PetscInt add(PetscInt ikm, dkComps<dim> Delta_k) {
+  PetscInt add(PetscInt ikm, dkComps<dim> Delta_k) const {
     std::array<int, dim+1> Delta_km;
     for (std::size_t d = 0; d < dim; d++) {
       Delta_km.at(d) = Delta_k.at(d);

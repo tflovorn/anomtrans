@@ -71,6 +71,14 @@ def sorted_by_km(kmb, k_comps, ms, vals):
     val_sorted = [kmval[2] for kmval in km_val_sorted]
     return val_sorted
 
+def _ignore_key(key):
+    ignore_key_prefix = ["_series"]
+    for key_prefix in ignore_key_prefix:
+        if key.startswith(ignore_key_prefix):
+            return True
+
+    return False
+
 def _main():
     parser = argparse.ArgumentParser("Plot Fermi surface as shown by |df(Emk)/dk|",
             formatter_class=argparse.ArgumentDefaultsHelpFormatter)
@@ -86,6 +94,9 @@ def _main():
 
     all_data = {}
     for key, val in fdata.items():
+        if _ignore_key(key):
+            continue
+
         # Assume all values are lists or lists of lists
         if key not in all_data:
             all_data[key] = val
