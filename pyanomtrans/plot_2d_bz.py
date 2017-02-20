@@ -74,7 +74,7 @@ def sorted_by_km(kmb, k_comps, ms, vals):
 def _ignore_key(key):
     ignore_key_prefix = ["_series"]
     for key_prefix in ignore_key_prefix:
-        if key.startswith(ignore_key_prefix):
+        if key.startswith(key_prefix):
             return True
 
     return False
