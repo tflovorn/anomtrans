@@ -75,9 +75,10 @@ TEST( Derivative, square_TB_fermi_surface ) {
 
   std::vector<PetscInt> local_rows = std::get<0>(anomtrans::get_local_contents(Ekm));
 
-  const unsigned int deriv_order = 2;
-  auto d_dk = anomtrans::make_d_dk_recip(kmb, deriv_order);
-  auto d_dk_Cart = anomtrans::make_d_dk_Cartesian(D, kmb, deriv_order);
+  const unsigned int deriv_approx_order = 2;
+  anomtrans::DerivStencil<1> stencil(anomtrans::DerivApproxType::central, deriv_approx_order);
+  auto d_dk = anomtrans::make_d_dk_recip(kmb, stencil);
+  auto d_dk_Cart = anomtrans::make_d_dk_Cartesian(D, kmb, stencil);
 
   // Since a1 = \hat{x}, a2 = \hat{y}, we should have d_dk == 2*pi*d_dk_Cart.
   for (std::size_t d = 0; d < k_dim; d++) {

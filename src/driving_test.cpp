@@ -125,9 +125,9 @@ TEST( Driving, square_TB_Hall ) {
   // Could use KSPSetFromOptions here. In this case, prefer to keep options
   // hard-coded to have identical output from each test run.
 
-  const unsigned int deriv_order = 2;
-  Mat Dbar_E = anomtrans::driving_electric(D, kmb, deriv_order, Ehat);
-  Mat Dbar_B = anomtrans::driving_magnetic(D, kmb, deriv_order, H, Bhat);
+  const unsigned int deriv_approx_order = 2;
+  Mat Dbar_E = anomtrans::driving_electric(D, kmb, deriv_approx_order, Ehat);
+  Mat Dbar_B = anomtrans::driving_magnetic(D, kmb, deriv_approx_order, H, Bhat);
 
   unsigned int num_mus = 10;
   auto mus = anomtrans::linspace(Ekm_min, Ekm_max, num_mus);

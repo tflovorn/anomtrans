@@ -31,12 +31,14 @@ namespace anomtrans {
  *        here?
  */
 template <std::size_t k_dim>
-Mat driving_electric(DimMatrix<k_dim> D, kmBasis<k_dim> kmb, unsigned int order,
-    std::array<double, k_dim> Ehat) {
-  // Maximum number of elements expected for sum of Cartesian derivatives.
-  PetscInt expected_elems_per_row = order*k_dim*k_dim*k_dim;
+Mat driving_electric(DimMatrix<k_dim> D, kmBasis<k_dim> kmb,
+    unsigned int deriv_approx_order, std::array<double, k_dim> Ehat) {
+  DerivStencil<1> stencil(DerivApproxType::central, deriv_approx_order);
 
-  std::array<Mat, k_dim> d_dk_Cart = make_d_dk_Cartesian(D, kmb, order);
+  // Maximum number of elements expected for sum of Cartesian derivatives.
+  PetscInt expected_elems_per_row = stencil.approx_order*k_dim*k_dim*k_dim;
+
+  std::array<Mat, k_dim> d_dk_Cart = make_d_dk_Cartesian(D, kmb, stencil);
   Mat Dbar_E = Mat_from_sum_const(Ehat, d_dk_Cart, expected_elems_per_row);
 
   for (std::size_t d = 0; d < k_dim; d++) {
@@ -68,8 +70,8 @@ Mat driving_electric(DimMatrix<k_dim> D, kmBasis<k_dim> kmb, unsigned int order,
  *  @todo Could use constexpr if here.
  */
 template <std::size_t k_dim, typename Hamiltonian>
-Mat driving_magnetic(DimMatrix<k_dim> D, kmBasis<k_dim> kmb, unsigned int order,
-    Hamiltonian H, std::array<double, 3> Bhat) {
+Mat driving_magnetic(DimMatrix<k_dim> D, kmBasis<k_dim> kmb,
+    unsigned int deriv_approx_order, Hamiltonian H, std::array<double, 3> Bhat) {
   std::vector<std::array<PetscScalar, 3>> coeffs;
   for (PetscInt ikm = 0; ikm < kmb.end_ikm; ikm++) {
     // Need a function Mat_from_sum(coeff_fn, Bs, expected_elems_per_for)
@@ -83,10 +85,12 @@ Mat driving_magnetic(DimMatrix<k_dim> D, kmBasis<k_dim> kmb, unsigned int order,
     return coeffs.at(row).at(d);
   };
 
-  // Maximum number of elements expected for sum of Cartesian derivatives.
-  PetscInt expected_elems_per_row = order*k_dim*k_dim*k_dim;
+  DerivStencil<1> stencil(DerivApproxType::central, deriv_approx_order);
 
-  std::array<Mat, k_dim> d_dk_Cart = make_d_dk_Cartesian(D, kmb, order);
+  // Maximum number of elements expected for sum of Cartesian derivatives.
+  PetscInt expected_elems_per_row = stencil.approx_order*k_dim*k_dim*k_dim;
+
+  std::array<Mat, k_dim> d_dk_Cart = make_d_dk_Cartesian(D, kmb, stencil);
   Mat Dbar_b = Mat_from_sum_fn(coeff_fn, d_dk_Cart, expected_elems_per_row);
 
   for (std::size_t d = 0; d < k_dim; d++) {
