@@ -10,34 +10,7 @@ namespace anomtrans {
 
 namespace {
 
-/** @brief Get coefficients to use in GridBasis::compose() for moving from a
- *         composite grid coordinate to an integer grid index.
- */
-template <std::size_t ncomp>
-std::array<PetscInt, ncomp> get_coeffs(std::array<unsigned int, ncomp> sizes) {
-  std::array<PetscInt, ncomp> coeffs;
-  for (std::size_t d = 0; d < ncomp; d++) {
-    PetscInt coeff = 1;
-    for (std::size_t dc = 0; dc < d; dc++) {
-      coeff *= sizes.at(dc);
-    }
-    coeffs.at(d) = coeff;
-  }
-  return coeffs;
-}
 
-/** @brief Get index which is one past the final grid index; i.e. the index end_iall
- *         suitable for use in:
- *         for (PetscInt i = 0; i < end_iall; i++).
- */
-template <std::size_t ncomp>
-PetscInt get_end_iall(std::array<unsigned int, ncomp> sizes) {
-  PetscInt end_iall = 1;
-  for (std::size_t d = 0; d < ncomp; d++) {
-    end_iall *= sizes.at(d);
-  }
-  return end_iall;
-}
 
 } // namespace
 
@@ -49,6 +22,33 @@ template <std::size_t ncomp>
 class GridBasis {
   // This class doesn't make sense for ncomp = 0.
   static_assert(ncomp > 0, "GridBasis must have at least one component");
+
+  /** @brief Get coefficients to use in GridBasis::compose() for moving from a
+   *         composite grid coordinate to an integer grid index.
+   */
+  static std::array<PetscInt, ncomp> get_coeffs(std::array<unsigned int, ncomp> sizes) {
+    std::array<PetscInt, ncomp> coeffs;
+    for (std::size_t d = 0; d < ncomp; d++) {
+      PetscInt coeff = 1;
+      for (std::size_t dc = 0; dc < d; dc++) {
+        coeff *= sizes.at(dc);
+      }
+      coeffs.at(d) = coeff;
+    }
+    return coeffs;
+  }
+
+  /** @brief Get index which is one past the final grid index; i.e. the index end_iall
+   *         suitable for use in:
+   *         for (PetscInt i = 0; i < end_iall; i++).
+   */
+  static PetscInt get_end_iall(std::array<unsigned int, ncomp> sizes) {
+    PetscInt end_iall = 1;
+    for (std::size_t d = 0; d < ncomp; d++) {
+      end_iall *= sizes.at(d);
+    }
+    return end_iall;
+  }
 
   /** @brief Size of the basis in each dimension.
    */
@@ -126,23 +126,6 @@ using kmVals = std::tuple<kVals<dim>, unsigned int>;
 template <std::size_t dim>
 using DimMatrix = std::array<std::array<double, dim>, dim>;
 
-namespace {
-
-/** @brief Constuct the GridBasis with sizes = (Nk(0), Nk(1), ..., Nbands).
- *  @todo Could use constexpr if to handle dim = 1, 2, 3.
- */
-template <std::size_t dim>
-GridBasis<dim+1> corresponding_GridBasis(kComps<dim> Nk, unsigned int Nbands) {
-  std::array<unsigned int, dim+1> sizes;
-  for (std::size_t d = 0; d < dim; d++) {
-    sizes.at(d) = Nk.at(d);
-  }
-  sizes.at(dim) = Nbands;
-  return GridBasis<dim+1>(sizes);
-}
-
-} // namespace
-
 /** @brief Provides translation of the composite (ik, m) index into an element
  *         of a linear sequence, as well as the reverse process.
  *  @todo Could use constexpr if to implement member functions.
@@ -151,6 +134,18 @@ template <std::size_t dim>
 class kmBasis {
   // This class doesn't make sense for dim = 0.
   static_assert(dim > 0, "kmBasis must have spatial dimension > 0");
+
+  /** @brief Constuct the GridBasis with sizes = (Nk(0), Nk(1), ..., Nbands).
+   *  @todo Could use constexpr if to handle dim = 1, 2, 3.
+   */
+  static GridBasis<dim+1> corresponding_GridBasis(kComps<dim> Nk, unsigned int Nbands) {
+    std::array<unsigned int, dim+1> sizes;
+    for (std::size_t d = 0; d < dim; d++) {
+      sizes.at(d) = Nk.at(d);
+    }
+    sizes.at(dim) = Nbands;
+    return GridBasis<dim+1>(sizes);
+  }
 
   // Note that since members are initialized in declaration order, this
   // declaration must come before the declaration of end_ikm.
