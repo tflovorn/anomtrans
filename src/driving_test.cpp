@@ -42,7 +42,7 @@ TEST( Driving, square_TB_Hall ) {
 
   const std::size_t k_dim = 2;
 
-  std::array<unsigned int, k_dim> Nk = {64, 64};
+  std::array<unsigned int, k_dim> Nk = {8, 8};
   unsigned int Nbands = 1;
   anomtrans::kmBasis<k_dim> kmb(Nk, Nbands);
 
@@ -129,7 +129,7 @@ TEST( Driving, square_TB_Hall ) {
   Mat Dbar_E = anomtrans::driving_electric(D, kmb, deriv_order, Ehat);
   Mat Dbar_B = anomtrans::driving_magnetic(D, kmb, deriv_order, H, Bhat);
 
-  unsigned int num_mus = 40;
+  unsigned int num_mus = 10;
   auto mus = anomtrans::linspace(Ekm_min, Ekm_max, num_mus);
 
   std::vector<std::vector<PetscScalar>> all_rho0;
