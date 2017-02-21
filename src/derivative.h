@@ -67,6 +67,9 @@ public:
   const unsigned int approx_order;
   const DeltaValPairs Delta_vals;
 
+  /** @brief Create a DerivStencil with the given derivative approximation
+   *         type (backward, central, forward) and approximation order.
+   */
   DerivStencil(DerivApproxType _approx_type, unsigned int _approx_order)
       : approx_type(_approx_type), approx_order(_approx_order),
         Delta_vals(get_Delta_vals(_approx_type, _approx_order)) {}

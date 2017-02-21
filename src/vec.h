@@ -80,6 +80,39 @@ Vec vector_elem_apply(Vec v_in, F f) {
   return v_out;
 }
 
+/** @brief Construct a Vec by applying a function `f` to each index of the
+ *         vector of length N.
+ *  @param N The global length of the desired vector.
+ *  @param f A function with the signature
+ *           PetscScalar f(PetscInt).
+ */
+template <typename F>
+Vec vector_index_apply(PetscInt N, const F &f) {
+  Vec v;
+  PetscErrorCode ierr = VecCreateMPI(PETSC_COMM_WORLD, PETSC_DECIDE, N, &v);CHKERRXX(ierr);
+
+  PetscInt begin, end;
+  ierr = VecGetOwnershipRange(v, &begin, &end);CHKERRXX(ierr);
+
+  std::vector<PetscInt> rows;
+  rows.reserve(end - begin);
+  std::vector<PetscScalar> vals;
+  vals.reserve(end - begin);
+
+  for (PetscInt i = begin; i < end; i++) {
+    rows.push_back(i);
+    vals.push_back(f(i));
+  }
+  assert(rows.size() == vals.size());
+
+  ierr = VecSetValues(v, rows.size(), rows.data(), vals.data(), INSERT_VALUES);CHKERRXX(ierr);
+
+  ierr = VecAssemblyBegin(v);CHKERRXX(ierr);
+  ierr = VecAssemblyEnd(v);CHKERRXX(ierr);
+
+  return v;
+}
+
 } // namespace anomtrans
 
 #endif // ANOMTRANS_VEC_H

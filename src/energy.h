@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <vector>
 #include <petscksp.h>
+#include "vec.h"
 #include "grid_basis.h"
 
 namespace anomtrans {
@@ -21,37 +22,14 @@ namespace anomtrans {
  */
 template <std::size_t k_dim, typename Hamiltonian>
 Vec get_energies(kmBasis<k_dim> kmb, Hamiltonian H) {
-  Vec Ekm;
-  PetscErrorCode ierr = VecCreateMPI(PETSC_COMM_WORLD, PETSC_DECIDE, kmb.end_ikm, &Ekm);CHKERRXX(ierr);
+  // TODO may want to just pass ikm to H: look up precomputed v without
+  // conversion to ikm_comps and back.
+  auto E_elem = [kmb, H](PetscInt ikm)->PetscScalar {
+    auto ikm_comps = kmb.decompose(ikm);
+    return H.energy(ikm_comps);
+  };
 
-  // This node is assigned elements in the range begin <= i < end.
-  PetscInt begin, end;
-  ierr = VecGetOwnershipRange(Ekm, &begin, &end);CHKERRXX(ierr);
-
-  std::vector<PetscInt> local_rows;
-  local_rows.reserve(end - begin);
-  std::vector<PetscScalar> local_vals;
-  local_vals.reserve(end - begin);
-
-  for (PetscInt local_row = begin; local_row < end; local_row++) {
-    auto ikm_comps = kmb.decompose(local_row);
-    double energy = H.energy(ikm_comps);
-
-    local_rows.push_back(local_row);
-    local_vals.push_back(energy);
-  }
-
-  assert(local_rows.size() == local_vals.size());
-
-  // TODO would we be better off adding these elements one at a time (contrary to
-  // the PETSc manual's advice), since we don't have them precomputed?
-  // Doing it this way uses extra memory inside this scope.
-  ierr = VecSetValues(Ekm, local_rows.size(), local_rows.data(), local_vals.data(), INSERT_VALUES);CHKERRXX(ierr);
-
-  ierr = VecAssemblyBegin(Ekm);CHKERRXX(ierr);
-  ierr = VecAssemblyEnd(Ekm);CHKERRXX(ierr);
-
-  return Ekm;
+  return vector_index_apply(kmb.end_ikm, E_elem);
 }
 
 } // namespace anomtrans

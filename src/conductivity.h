@@ -22,39 +22,35 @@ namespace anomtrans {
 template <std::size_t k_dim, typename Hamiltonian>
 PetscScalar calculate_Hall_conductivity(const kmBasis<k_dim> &kmb,
     const Hamiltonian &H, Vec rho1_B) {
-  Vec vx;
-  PetscErrorCode ierr = VecCreateMPI(PETSC_COMM_WORLD, PETSC_DECIDE, kmb.end_ikm, &vx);CHKERRXX(ierr);
+  // TODO may want to just pass ikm to H: look up precomputed v without
+  // conversion to ikm_comps and back.
+  auto vx_elem = [kmb, H](PetscInt ikm)->PetscScalar {
+    auto ikm_comps = kmb.decompose(ikm);
+    auto velocity = H.velocity(ikm_comps);
+    return std::get<0>(velocity);
+  };
 
-  PetscInt begin, end;
-  ierr = VecGetOwnershipRange(vx, &begin, &end);CHKERRXX(ierr);
+  Vec vx = vector_index_apply(kmb.end_ikm, vx_elem);
+
+  // Make sure vx and rho1_B have the same local row distribution.
+  // TODO this full check would not be necessary if we could assume that vx and
+  // rho1_B were created with the same row distribution (which they would
+  // be if they have the same number of global elements and were created
+  // with local elements set by PETSC_DECIDE). This would be a benefit
+  // of wrapping Vec in a class (can just check if instances of the Vec
+  // class have the same number of global rows, and always create with
+  // PETSC_DECIDE setting local rows).
+  PetscInt begin_vx, end_vx;
+  PetscErrorCode ierr = VecGetOwnershipRange(vx, &begin_vx, &end_vx);CHKERRXX(ierr);
 
   PetscInt begin_rho, end_rho;
   ierr = VecGetOwnershipRange(rho1_B, &begin_rho, &end_rho);CHKERRXX(ierr);
-  if (begin != begin_rho or end != end_rho) {
+  if (begin_vx != begin_rho or end_vx != end_rho) {
     ierr = VecDestroy(&vx);CHKERRXX(ierr);
     throw std::runtime_error("got different row distribution for vx and rho");
   }
 
-  std::vector<PetscInt> local_rows;
-  local_rows.reserve(end - begin);
-  std::vector<PetscScalar> local_vals;
-  local_vals.reserve(end - begin);
-
-  for (PetscInt local_row = begin; local_row < end; local_row++) {
-    auto ikm_comps = kmb.decompose(local_row);
-    auto velocity = H.velocity(ikm_comps);
-
-    local_rows.push_back(local_row);
-    local_vals.push_back(std::get<0>(velocity));
-  }
-
-  assert(local_rows.size() == local_vals.size());
-
-  ierr = VecSetValues(vx, local_rows.size(), local_rows.data(), local_vals.data(), INSERT_VALUES);CHKERRXX(ierr);
-
-  ierr = VecAssemblyBegin(vx);CHKERRXX(ierr);
-  ierr = VecAssemblyEnd(vx);CHKERRXX(ierr);
-
+  // Get Hall conductivity: sigma_Hall = -e vx^T rho1_B
   PetscScalar sigma_Hall;
   // VecDot(u, v) = v^{\dagger} u
   ierr = VecDot(rho1_B, vx, &sigma_Hall);
