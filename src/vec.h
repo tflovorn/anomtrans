@@ -19,6 +19,13 @@ IndexValPairs get_local_contents(Vec v);
 
 using stdvec_size = std::vector<PetscInt>::size_type;
 
+/** @brief Get the largest absolute value of any element in v.
+ *  @todo Could pass in a vector, which is used internally to hold the
+ *        absolute value of each element. Passing in the vector prevents it from
+ *        being allocated on each call if this function is called repeatedly.
+ */
+PetscReal get_Vec_MaxAbs(Vec v);
+
 /** @brief Scatter the contents of `v` onto rank 0 and return a std::vector
  *         with the local contents (which on rank 0 will be `v`'s values
  *         and an empty std::vector on other ranks).

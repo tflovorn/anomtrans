@@ -6,6 +6,7 @@
 #include <petscksp.h>
 #include "vec.h"
 #include "grid_basis.h"
+#include "derivative.h"
 
 namespace anomtrans {
 
@@ -30,6 +31,36 @@ Vec get_energies(kmBasis<k_dim> kmb, Hamiltonian H) {
   };
 
   return vector_index_apply(kmb.end_ikm, E_elem);
+}
+
+/** @brief Find the maximum value of |E_{k+dk_i, m} - E_{k, m}| where dk_i is
+ *         a step in one direction in reciprocal space, with the step distance
+ *         given by the minimum step in that direction (1/kmb.Nk.at(i)).
+ */
+template <std::size_t k_dim, typename Hamiltonian>
+PetscReal find_max_energy_difference(kmBasis<k_dim> kmb, Hamiltonian H) {
+  Vec Ekm = get_energies(kmb, H);
+
+  // First-order approximant for foward difference first derivative
+  // = (E_{k+dk_i, m} - E_{k,m})/kmb.Nk.at(i)
+  DerivStencil<1> stencil(DerivApproxType::forward, 1);
+
+  std::array<Mat, k_dim> d_dk = make_d_dk_recip(kmb, stencil);
+
+  Vec dE_dk;
+  PetscErrorCode ierr = VecDuplicate(Ekm, &dE_dk);CHKERRXX(ierr);
+
+  PetscScalar dE_dk_max = 0.0;
+  for (std::size_t d = 0; d < k_dim; d++) {
+    ierr = MatMult(d_dk.at(d), Ekm, dE_dk);CHKERRXX(ierr);
+    PetscReal dE_dk_d_max = get_Vec_MaxAbs(dE_dk) * kmb.Nk.at(d);
+
+    if (dE_dk_d_max > dE_dk_max) {
+      dE_dk_max = dE_dk_d_max;
+    }
+  }
+
+  return dE_dk_max;
 }
 
 } // namespace anomtrans

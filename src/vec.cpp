@@ -2,6 +2,18 @@
 
 namespace anomtrans {
 
+PetscReal get_Vec_MaxAbs(Vec v) {
+  Vec v_abs;
+  PetscErrorCode ierr = VecDuplicate(v, &v_abs);CHKERRXX(ierr);
+  ierr = VecCopy(v, v_abs);CHKERRXX(ierr);
+  ierr = VecAbs(v);CHKERRXX(ierr);
+
+  PetscReal v_abs_max;
+  ierr = VecMax(v_abs, nullptr, &v_abs_max);CHKERRXX(ierr);
+
+  return v_abs_max;
+}
+
 IndexValPairs get_local_contents(Vec v) {
   PetscInt begin, end;
   PetscErrorCode ierr = VecGetOwnershipRange(v, &begin, &end);CHKERRXX(ierr);
