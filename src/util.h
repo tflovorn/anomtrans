@@ -41,9 +41,9 @@ std::array<PetscScalar, 3> cross(std::array<PetscScalar, u_dim> u_in, std::array
   std::array<PetscScalar, 3> v = expand<3>(v_in);
 
   std::array<PetscScalar, 3> cross;
-  cross.at(0) = v.at(1) * u.at(2) - v.at(2) * u.at(1);
-  cross.at(1) = -v.at(0) * u.at(2) + v.at(2) * u.at(0);
-  cross.at(2) = v.at(0) * u.at(1) - v.at(1) * u.at(0);
+  cross.at(0) = u.at(1) * v.at(2) - u.at(2) * v.at(1);
+  cross.at(1) = -u.at(0) * v.at(2) + u.at(2) * v.at(0);
+  cross.at(2) = u.at(0) * v.at(1) - u.at(1) * v.at(0);
 
   return cross;
 }
