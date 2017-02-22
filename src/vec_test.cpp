@@ -1,3 +1,5 @@
+#include <cstddef>
+#include <tuple>
 #include <gtest/gtest.h>
 #include <mpi.h>
 #include <petscksp.h>
@@ -65,4 +67,39 @@ TEST( Vector_Apply, Square ) {
 
   ierr = VecDestroy(&v_in);CHKERRXX(ierr);
   ierr = VecDestroy(&v_out);CHKERRXX(ierr);
+}
+
+// Create vectors of values -n, -n + 1, -n + 2, ..., n - 1 and
+// -n + 1, -n + 2, ..., n - 1, n and look for the maximum absolute value.
+// Should be n for both vectors.
+TEST( Vector_Index_Apply_Get_MaxAbs, IntSequence ) {
+  PetscInt n = 10;
+  PetscInt num_rows = 2*n;
+  auto f1 = [n](PetscInt i)->PetscScalar {
+    return -n + i;
+  };
+  auto f2 = [n](PetscInt i)->PetscScalar {
+    return -n + i + 1;
+  };
+  Vec v1 = anomtrans::vector_index_apply(num_rows, f1);
+  Vec v2 = anomtrans::vector_index_apply(num_rows, f2);
+
+  PetscScalar tol = 1e-12;
+  ASSERT_NEAR( anomtrans::get_Vec_MaxAbs(v1), n, tol );
+  ASSERT_NEAR( anomtrans::get_Vec_MaxAbs(v2), n, tol );
+
+  auto rv1 = anomtrans::get_local_contents(v1);
+  for (std::size_t i = 0; i < std::get<0>(rv1).size(); i++) {
+    PetscInt global_index = std::get<0>(rv1).at(i);
+    ASSERT_NEAR( std::get<1>(rv1).at(i), f1(global_index), tol );
+  }
+
+  auto rv2 = anomtrans::get_local_contents(v2);
+  for (std::size_t i = 0; i < std::get<0>(rv2).size(); i++) {
+    PetscInt global_index = std::get<0>(rv2).at(i);
+    ASSERT_NEAR( std::get<1>(rv2).at(i), f2(global_index), tol );
+  }
+
+  PetscErrorCode ierr = VecDestroy(&v1);CHKERRXX(ierr);
+  ierr = VecDestroy(&v2);CHKERRXX(ierr);
 }
