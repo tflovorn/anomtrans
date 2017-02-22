@@ -8,12 +8,6 @@
 
 namespace anomtrans {
 
-namespace {
-
-
-
-} // namespace
-
 /** @brief Provides translation of a composite index (represented as an array)
  *         into an element of a linear sequence, as well as the reverse process.
  *  @todo Could use constexpr if to implement member functions.
