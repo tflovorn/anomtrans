@@ -1,3 +1,4 @@
+#include <utility>
 #include <gtest/gtest.h>
 #include <mpi.h>
 #include <petscksp.h>
@@ -71,5 +72,14 @@ TEST( wrap, correct_wrapping ) {
   }
   for (PetscInt x = -(N+1); x > -(2*N+1); x--) {
     ASSERT_EQ( anomtrans::wrap(x, N), N + (x + N) );
+  }
+}
+
+TEST( invert_vals_indices, short_list ) {
+  using SIPair = std::pair<PetscScalar, PetscInt>;
+  std::vector<SIPair> xs = {SIPair{1.0, 3}, SIPair{2.0, 0}, SIPair{10.0, 2}, SIPair{3.0, 1}};
+  std::vector<PetscInt> ys = anomtrans::invert_vals_indices(xs);
+  for (std::size_t i = 0; i < ys.size(); i++) {
+    ASSERT_EQ( ys.at(xs.at(i).second), static_cast<PetscInt>(i) );
   }
 }
