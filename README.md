@@ -9,21 +9,29 @@ Get Google Test:
 
 Assumes the intel/16.0.1 module is loaded on Lonestar5.
 
-Dependencies are available on Lonestar5 with
-
-    module load cmake boost petsc/3.7-cxx
-
-for release mode or
+Add module dependencies to `~/.bashrc` just under "PLACE MODULE COMMANDS HERE and ONLY HERE.":
 
     module load cmake boost petsc/3.7-cxxdebug
 
-for debug mode.
+Replace `petsc/3.7-cxxdebug` with `petsc/3.7-cxx` for release mode.
 
 Note that the boost/1.59 module on Lonestar5 does not include boost::mpi.
 `module help boost` references a boost-mpi module, but this does not exist.
 
+Also add to `~/.bashrc` just under "PLACE Environment Variables including PATH here.":
+
+    export PATH=$HOME/bin:$PATH
+
 On Lonestar5, it is not necessary to set `LIBRARY_PATH` or `LD_LIBRARY_PATH` for boost or petsc.
 The correct `LD_LIBRARY_PATH` is set by module load.
+
+anomtrans regression test data is stored in [Git LFS](https://github.com/git-lfs/git-lfs/releases). Install this:
+
+    cd ~
+    curl -L -o git-lfs-linux-amd64-1.5.6.tar.gz https://github.com/git-lfs/git-lfs/releases/download/v1.5.6/git-lfs-linux-amd64-1.5.6.tar.gz
+    tar -xvzf git-lfs-linux-amd64-1.5.6.tar.gz
+    cd git-lfs-1.5.6
+    PREFIX=$HOME ./install.sh
 
 ## Usage
 
@@ -94,6 +102,14 @@ Test PETSc:
 
     make PETSC_DIR=$HOME/petsc PETSC_ARCH=arch-linux2-cxx-debug test
     make PETSC_DIR=$HOME/petsc PETSC_ARCH=arch-linux2-cxx-debug streams
+
+anomtrans regression test data is stored in [Git LFS](https://github.com/git-lfs/git-lfs/releases). Install this:
+
+    cd ~
+    curl -L -o git-lfs-linux-amd64-1.5.6.tar.gz https://github.com/git-lfs/git-lfs/releases/download/v1.5.6/git-lfs-linux-amd64-1.5.6.tar.gz
+    tar -xvzf git-lfs-linux-amd64-1.5.6.tar.gz
+    cd git-lfs-1.5.6
+    PREFIX=$HOME ./install.sh
 
 ## Setup
 
