@@ -10,6 +10,7 @@
 #include "energy.h"
 #include "vec.h"
 #include "rho0.h"
+#include "disorder.h"
 #include "collision.h"
 #include "driving.h"
 #include "conductivity.h"
