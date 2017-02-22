@@ -11,7 +11,12 @@ double delta_Gaussian(double sigma, double x) {
   return coeff * std::exp(exp_arg);
 }
 
-bool collision_count_nonzeros_elem(const double spread,
+double get_sigma_min(PetscReal max_energy_difference) {
+  double coeff = 1.0 / std::pow(-2*LN_DBL_EPS, 0.5);
+  return coeff * max_energy_difference;
+}
+
+bool collision_count_nonzeros_elem(const double sigma,
     const std::vector<std::pair<PetscScalar, PetscInt>> &sorted_Ekm,
     const PetscReal threshold, const PetscInt begin, const PetscInt end,
     const PetscScalar E_row, const PetscInt sorted_col_index,
@@ -19,7 +24,7 @@ bool collision_count_nonzeros_elem(const double spread,
   PetscScalar E_col = sorted_Ekm.at(sorted_col_index).first;
   PetscInt column = sorted_Ekm.at(sorted_col_index).second;
 
-  double delta_fac = delta_Gaussian(spread, E_row - E_col);
+  double delta_fac = delta_Gaussian(sigma, E_row - E_col);
 
   // If this element is over threshold, we will store it.
   // TODO could assume delta_fac is always positive.

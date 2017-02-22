@@ -11,4 +11,8 @@ Vec make_rho0(Vec energies, double beta, double mu) {
   return rho0;
 }
 
+double get_beta_max(PetscReal max_energy_difference) {
+  return 2.0 / max_energy_difference;
+}
+
 } // namespace anomtrans

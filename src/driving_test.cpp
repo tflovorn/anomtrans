@@ -54,7 +54,12 @@ TEST( Driving, square_TB_Hall ) {
   std::array<double, k_dim> a2 = {0.0, 1.0};
   anomtrans::DimMatrix<k_dim> D = {a1, a2};
 
+  PetscReal max_energy_difference = anomtrans::find_max_energy_difference(kmb, H);
+  double beta_max = anomtrans::get_beta_max(max_energy_difference);
   double beta = 10.0/t;
+  if (beta > beta_max) {
+    PetscPrintf(PETSC_COMM_WORLD, "Warning: beta > beta_max: beta = %e ; beta_max = %e\n", beta, beta_max);
+  }
 
   // U0 = how far can bands be driven from their average energy?
   // For the disorder form used, this quantity scales out of K: the distribution
@@ -62,15 +67,11 @@ TEST( Driving, square_TB_Hall ) {
   // (TODO - sure this is correct?)
   double U0 = 0.1*t;
 
-  // TODO build a mechanism for choosing a useful value of spread.
-  // Choosing an appropriate value of spread is somewhat tricky:
-  // it is a balance between getting close to the spread->0 limit and
-  // choosing a value large enough that the Gaussian peaks are adequately
-  // sampled by the given k-grid. The required sampling density is
-  // related to spread and to dE/dk.
-  // The spread->0 limit can only be approached when the k-grid also becomes
-  // infinitely dense.
-  double spread = 0.5*t;
+  double sigma_min = anomtrans::get_sigma_min(max_energy_difference);
+  double sigma = 0.5*t;
+  if (sigma < sigma_min) {
+    PetscPrintf(PETSC_COMM_WORLD, "Warning: sigma < sigma_min: sigma = %e ; sigma_min = %e\n", sigma, sigma_min);
+  }
 
   // Hall effect: chage current in x, magnetic field in z --> electric field in y.
   // By Onsager reciprocity, this is equivalent to:
@@ -101,7 +102,7 @@ TEST( Driving, square_TB_Hall ) {
   };
 
   // TODO include finite disorder correlation length
-  Mat collision = anomtrans::make_collision(kmb, H, spread, disorder_term);
+  Mat collision = anomtrans::make_collision(kmb, H, sigma, disorder_term);
 
   // The collision matrix K should be symmetric. Knowing that this is the case
   // substantially simplifies solution of the associated linear systems.

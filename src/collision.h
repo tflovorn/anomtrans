@@ -23,12 +23,26 @@ namespace anomtrans {
 
 static_assert(std::is_same<PetscScalar, PetscReal>::value,
     "The implementation of the collision matrix assumes that PetscScalar is a real-valued type.");
+static_assert(std::is_same<PetscReal, double>::value,
+    "The implementation of sigma_min assumes that PetscReal is the same as double.");
 
 /** @brief Gaussian representation of the Dirac delta function.
  *  @param sigma Standard deviation of the Gaussian distribution.
  *  @param x Delta function argument.
+ *  @todo Probably should use PetscReal here.
  */
 double delta_Gaussian(double sigma, double x);
+
+/** @brief Gives the minimum sigma value that can be expected to allow adequate
+ *         sampling of energy differences.
+ *  @note This is obtained by enforcing the condition that
+ *        delta_{sigma}(E_{km} - E_{k+dk_i,m}) > delta_{sigma}(0)*DBL_EPSILON,
+ *        i.e. that nearest-neighbor k-points with the same band index always
+ *        have finite 'overlap' as measured by the delta function.
+ *  @todo Probably should use output PetscReal and epsilon appropriate for
+ *        PetscReal here.
+ */
+double get_sigma_min(PetscReal max_energy_difference);
 
 /** @brief Construct the collision matrix: hbar K.
  *  @param kmb Object representing the discretization of k-space and the number
@@ -37,7 +51,7 @@ double delta_Gaussian(double sigma, double x);
  *           double energy(kmComps<dim>)
  *           and
  *           std::complex<double> basis_component(ikm, i).
- *  @param spread Spread parameter for Gaussian delta function representation.
+ *  @param sigma Standard deviation for Gaussian delta function representation.
  *  @param disorder_term A function with signature
  *                       double f(ikm1, ikm2, ikm3, ikm4)
  *                       giving the disorder-averaged term
@@ -50,7 +64,7 @@ double delta_Gaussian(double sigma, double x);
  *        ikm4 == ikm1).
  */
 template <std::size_t k_dim, typename Hamiltonian, typename UU>
-Mat make_collision(const kmBasis<k_dim> &kmb, const Hamiltonian &H, const double spread,
+Mat make_collision(const kmBasis<k_dim> &kmb, const Hamiltonian &H, const double sigma,
     const UU &disorder_term) {
   // TODO could make this an argument to avoid recomputing.
   Vec Ekm = get_energies(kmb, H);
@@ -89,7 +103,7 @@ Mat make_collision(const kmBasis<k_dim> &kmb, const Hamiltonian &H, const double
   // TODO is this an appropriate scale?
   // Is it sufficient to compare delta_fac value to determine if above
   // threshold, or should UU play a role in comparison and threshold?
-  PetscReal threshold = delta_Gaussian(spread, 0.0) * std::numeric_limits<PetscReal>::epsilon();
+  PetscReal threshold = delta_Gaussian(sigma, 0.0) * std::numeric_limits<PetscReal>::epsilon();
 
   // Assume Ekm has the same local distribution as K.
   // This should be true since K is N x N and Ekm is length N, and local distributions
@@ -103,7 +117,7 @@ Mat make_collision(const kmBasis<k_dim> &kmb, const Hamiltonian &H, const double
   // off-diagonal portion (the rest).
   std::vector<PetscInt> row_counts_diag;
   std::vector<PetscInt> row_counts_od;
-  std::tie(row_counts_diag, row_counts_od) = collision_count_nonzeros(kmb, spread,
+  std::tie(row_counts_diag, row_counts_od) = collision_count_nonzeros(kmb, sigma,
       sorted_Ekm, ikm_to_sorted, threshold, begin, end);
   assert(static_cast<PetscInt>(row_counts_diag.size()) == end - begin);
   assert(static_cast<PetscInt>(row_counts_od.size()) == end - begin);
@@ -141,7 +155,7 @@ Mat make_collision(const kmBasis<k_dim> &kmb, const Hamiltonian &H, const double
 
     std::vector<PetscInt> column_ikms;
     std::vector<PetscScalar> column_vals;
-    std::tie(column_ikms, column_vals) = collision_row(kmb, H, spread, disorder_term,
+    std::tie(column_ikms, column_vals) = collision_row(kmb, H, sigma, disorder_term,
         sorted_Ekm, ikm_to_sorted, threshold, row_count, local_row);
 
     ierr = MatSetValues(K, 1, &local_row, column_ikms.size(), column_ikms.data(),
@@ -165,7 +179,7 @@ Mat make_collision(const kmBasis<k_dim> &kmb, const Hamiltonian &H, const double
  *        and row_od and instead communicate what needs to update by the return
  *        value (a boost::optional<std::pair<PetscInt, PetscInt>>, for example).
  */
-bool collision_count_nonzeros_elem(const double spread,
+bool collision_count_nonzeros_elem(const double sigma,
     const std::vector<std::pair<PetscScalar, PetscInt>> &sorted_Ekm,
     const PetscReal threshold, const PetscInt begin, const PetscInt end,
     const PetscScalar E_row, const PetscInt sorted_col_index,
@@ -177,7 +191,7 @@ bool collision_count_nonzeros_elem(const double spread,
  */
 template <std::size_t k_dim>
 std::pair<std::vector<PetscInt>, std::vector<PetscInt>> collision_count_nonzeros(const kmBasis<k_dim> &kmb,
-    const double spread, const std::vector<std::pair<PetscScalar, PetscInt>> &sorted_Ekm,
+    const double sigma, const std::vector<std::pair<PetscScalar, PetscInt>> &sorted_Ekm,
     const std::vector<PetscInt> &ikm_to_sorted, const PetscReal threshold,
     const PetscInt begin, const PetscInt end) {
   std::vector<PetscInt> row_counts_diag;
@@ -201,7 +215,7 @@ std::pair<std::vector<PetscInt>, std::vector<PetscInt>> collision_count_nonzeros
       PetscInt sorted_col_index = wrap(sorted_row_index + di, kmb.end_ikm);
 
       // Process this element: add it to row_diag or row_od if applicable.
-      bool more_elems = collision_count_nonzeros_elem(spread, sorted_Ekm,
+      bool more_elems = collision_count_nonzeros_elem(sigma, sorted_Ekm,
           threshold, begin, end, E_row, sorted_col_index, row_diag, row_od);
 
       if (not more_elems) {
@@ -213,7 +227,7 @@ std::pair<std::vector<PetscInt>, std::vector<PetscInt>> collision_count_nonzeros
       PetscInt sorted_col_index = wrap(sorted_row_index - di, kmb.end_ikm);
 
       // Process this element: add it to row_diag or row_od if applicable.
-      bool more_elems = collision_count_nonzeros_elem(spread, sorted_Ekm,
+      bool more_elems = collision_count_nonzeros_elem(sigma, sorted_Ekm,
           threshold, begin, end, E_row, sorted_col_index, row_diag, row_od);
 
       if (not more_elems) {
@@ -236,7 +250,7 @@ std::pair<std::vector<PetscInt>, std::vector<PetscInt>> collision_count_nonzeros
  *        value (a boost::optional<std::pair<PetscInt, PetscScalar>>, for example).
  */
 template <typename UU>
-bool collision_row_elem(const double spread, const UU &disorder_term,
+bool collision_row_elem(const double sigma, const UU &disorder_term,
     const std::vector<std::pair<PetscScalar, PetscInt>> &sorted_Ekm,
     const PetscReal threshold, const PetscScalar E_row, const PetscInt row,
     const PetscInt sorted_col_index, std::vector<PetscInt> &column_ikms,
@@ -244,7 +258,7 @@ bool collision_row_elem(const double spread, const UU &disorder_term,
   PetscScalar E_col = sorted_Ekm.at(sorted_col_index).first;
   PetscInt column = sorted_Ekm.at(sorted_col_index).second;
 
-  double delta_fac = delta_Gaussian(spread, E_row - E_col);
+  double delta_fac = delta_Gaussian(sigma, E_row - E_col);
 
   // If this element is over threshold, we will store it.
   // TODO could assume delta_fac is always positive.
@@ -268,7 +282,7 @@ bool collision_row_elem(const double spread, const UU &disorder_term,
  */
 template <std::size_t k_dim, typename Hamiltonian, typename UU>
 IndexValPairs collision_row(const kmBasis<k_dim> &kmb, const Hamiltonian &H,
-    const double spread, const UU &disorder_term,
+    const double sigma, const UU &disorder_term,
     const std::vector<std::pair<PetscScalar, PetscInt>> &sorted_Ekm,
     const std::vector<PetscInt> &ikm_to_sorted, const PetscReal threshold,
     const PetscInt row_count, const PetscInt row) {
@@ -288,7 +302,7 @@ IndexValPairs collision_row(const kmBasis<k_dim> &kmb, const Hamiltonian &H,
     PetscInt sorted_col_index = wrap(sorted_row_index + di, kmb.end_ikm);
 
     // Process this element: add it to column_ikms and column_vals if applicable.
-    bool more_elems = collision_row_elem(spread, disorder_term, sorted_Ekm,
+    bool more_elems = collision_row_elem(sigma, disorder_term, sorted_Ekm,
         threshold, E_row, row, sorted_col_index, column_ikms, column_vals);
 
     if (not more_elems) {
@@ -300,7 +314,7 @@ IndexValPairs collision_row(const kmBasis<k_dim> &kmb, const Hamiltonian &H,
     PetscInt sorted_col_index = wrap(sorted_row_index - di, kmb.end_ikm);
 
     // Process this element: add it to column_ikms and column_vals if applicable.
-    bool more_elems = collision_row_elem(spread, disorder_term, sorted_Ekm,
+    bool more_elems = collision_row_elem(sigma, disorder_term, sorted_Ekm,
         threshold, E_row, row, sorted_col_index, column_ikms, column_vals);
 
     if (not more_elems) {

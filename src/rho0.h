@@ -15,6 +15,21 @@ namespace anomtrans {
  */
 Vec make_rho0(Vec energies, double beta, double mu);
 
+/** @brief Gives the maximum beta value that can be expected to allow an
+ *         adequate sampling of the Fermi surface.
+ *  @note This is obtained by enforcing the condition that
+ *        |f_{FD}(E_{k,m}, beta) - f_{FD}(E_{k+dk_i,m}, beta)| < 1/2
+ *        for all km (where dk_i is the minimum step in the i'th reciprocal
+ *        lattice coordinate direction); i.e. that it takes at least two
+ *        dk steps to go from f_{FD}(E_{km} - mu, beta) = 1 to
+ *        f_{FD}(E_{k'm} - mu, beta) = 0. Under this condiction, the 'Fermi
+ *        surface' of transition from fully-occupied to unoccupied states
+ *        contains at least one k-space unit.
+ *        The condition is obtained by expanding f_{FD} to leading order in
+ *        E - mu.
+ */
+double get_beta_max(PetscReal max_energy_difference);
+
 } // namespace anomtrans
 
 #endif // ANOMTRANS_RHO0_H

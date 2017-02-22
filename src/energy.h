@@ -38,7 +38,7 @@ Vec get_energies(kmBasis<k_dim> kmb, Hamiltonian H) {
  *         given by the minimum step in that direction (1/kmb.Nk.at(i)).
  */
 template <std::size_t k_dim, typename Hamiltonian>
-PetscReal find_max_energy_difference(kmBasis<k_dim> kmb, Hamiltonian H) {
+PetscReal find_max_energy_difference(const kmBasis<k_dim> &kmb, const Hamiltonian &H) {
   Vec Ekm = get_energies(kmb, H);
 
   // First-order approximant for foward difference first derivative
