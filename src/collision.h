@@ -52,9 +52,9 @@ double get_sigma_min(PetscReal max_energy_difference);
  *           std::complex<double> basis_component(ikm, i).
  *  @param sigma Standard deviation for Gaussian delta function representation.
  *  @param disorder_term A function with signature
- *                       double f(ikm1, ikm2, ikm3, ikm4)
+ *                       double f(ikm1, ikm2)
  *                       giving the disorder-averaged term
- *                       U_{ikm1, ikm2} U_{ikm3, ikm4}.
+ *                       U_{ikm1, ikm2} U_{ikm2, ikm1}.
  *  @todo Sure that Gaussian delta function is appropriate? Lorentzian is natural
  *        given the origin of the term but a poor fit for generating sparsity.
  *        Would cold smearing be better than Gaussian?
@@ -263,7 +263,7 @@ bool collision_row_elem(const double sigma, const UU &disorder_term,
   // TODO could assume delta_fac is always positive.
   // For Gaussian delta, this is true.
   if (std::abs(delta_fac) > threshold) {
-    PetscScalar K_elem = -2*pi * delta_fac * disorder_term(row, column, column, row);
+    PetscScalar K_elem = -2*pi * delta_fac * disorder_term(row, column);
     column_ikms.push_back(column);
     column_vals.push_back(K_elem);
     return true;

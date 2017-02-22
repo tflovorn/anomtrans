@@ -13,8 +13,7 @@ namespace anomtrans {
  */
 template <typename Hamiltonian>
 double on_site_diagonal_disorder(const unsigned int Nbands, const Hamiltonian &H,
-    const PetscInt ikm1, const PetscInt ikm2, const PetscInt ikm3,
-    const PetscInt ikm4) {
+    const PetscInt ikm1, const PetscInt ikm2) {
   // Use Kahan summation for sum over band indices.
   std::complex<double> sum(0.0, 0.0);
   std::complex<double> c(0.0, 0.0);
@@ -22,8 +21,8 @@ double on_site_diagonal_disorder(const unsigned int Nbands, const Hamiltonian &H
     for (unsigned int i2 = 0; i2 < Nbands; i2++) {
       std::complex<double> contrib = std::conj(H.basis_component(ikm1, i1))
           * H.basis_component(ikm2, i1)
-          * std::conj(H.basis_component(ikm3, i2))
-          * H.basis_component(ikm4, i2);
+          * std::conj(H.basis_component(ikm2, i2))
+          * H.basis_component(ikm1, i2);
 
       std::complex<double> y = contrib - c;
       std::complex<double> t = sum + y;
