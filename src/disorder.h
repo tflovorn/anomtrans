@@ -249,7 +249,7 @@ public:
 
 template <typename Hamiltonian, typename spatial_correlation>
 double spatially_correlated_diagonal_disorder(const unsigned int Nbands,
-    const Hamiltonian &H, const spatial_correlation ULambda,
+    const Hamiltonian &H, const spatial_correlation &ULambda,
     const PetscInt ikm1, const PetscInt ikm2) {
   return on_site_diagonal_disorder(Nbands, H, ikm1, ikm2) * ULambda(ikm1, ikm2);
 }
