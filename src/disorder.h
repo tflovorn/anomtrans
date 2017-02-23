@@ -7,6 +7,7 @@
 #include <utility>
 #include <tuple>
 #include <petscksp.h>
+#include "vec.h"
 #include "constants.h"
 #include "util.h"
 
@@ -69,20 +70,25 @@ class SpatialDisorderCorrelation {
     std::tie(L_lats, L_Carts_norm2) = get_L_values(kmb, D, Lambda);
     assert(L_lats.size() == L_Carts_norm2.size());
 
-    // TODO could parallelize this: make a Vec on the kb_diff row space.
-    // Then scatter values so each processor has a full local copy and make that
-    // a std::vector.
-    std::vector<double> ULambda_vals_collect;
-    ULambda_vals_collect.reserve(kb_diff.end_ikm);
-
     auto dks = get_dks(kmb, kb_diff);
-    for (PetscInt ik_diff = 0; ik_diff < kb_diff.end_ikm; ik_diff++) {
+    auto ULambda_elem = [D, Lambda, L_lats, L_Carts_norm2, dks](PetscInt ik_diff)->PetscScalar {
       auto dk = dks.at(ik_diff);
-      ULambda_vals_collect.push_back(get_one_ULambda_val(D, Lambda, L_lats,
-          L_Carts_norm2, dk));
-    }
+      return get_one_ULambda_val(D, Lambda, L_lats, L_Carts_norm2, dk);
+    };
 
-    return ULambda_vals_collect;
+    Vec ULambda_vals_dist = vector_index_apply(kb_diff.end_ikm, ULambda_elem);
+
+    VecScatter ctx;
+    Vec ULambda_vals_all;
+    PetscErrorCode ierr = VecScatterCreateToAll(ULambda_vals_dist, &ctx, &ULambda_vals_all);CHKERRXX(ierr);
+    ierr = VecScatterBegin(ctx, ULambda_vals_dist, ULambda_vals_all, INSERT_VALUES, SCATTER_FORWARD);CHKERRXX(ierr);
+    ierr = VecScatterEnd(ctx, ULambda_vals_dist, ULambda_vals_all, INSERT_VALUES, SCATTER_FORWARD);CHKERRXX(ierr);
+
+    std::vector<PetscInt> all_rows;
+    std::vector<PetscScalar> ULambda_vals_stdvec;
+    std::tie(all_rows, ULambda_vals_stdvec) = get_local_contents(ULambda_vals_all);
+
+    return ULambda_vals_stdvec;
   }
 
   /** @brief Collect all L values such that e^{-|L|^2/(2 Lambda^2)} > DBL_EPS.
