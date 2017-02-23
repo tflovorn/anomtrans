@@ -195,7 +195,7 @@ class SpatialDisorderCorrelation {
    *        enforce this while also cutting number of L_lats in half.
    */
   static double get_one_ULambda_val(DimMatrix<k_dim> D, double Lambda,
-      std::vector<LatVec<k_dim>> L_lats, std::vector<double> L_Carts_norm2,
+      const std::vector<LatVec<k_dim>> &L_lats, const std::vector<double> &L_Carts_norm2,
       dkComps<k_dim> dk) {
     std::complex<double> sum(0.0, 0.0);
     std::complex<double> c(0.0, 0.0);
