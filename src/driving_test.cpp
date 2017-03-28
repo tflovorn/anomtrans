@@ -80,20 +80,13 @@ TEST( Driving, square_TB_Hall ) {
   double U0 = 0.1*t;
 
   double sigma_min = anomtrans::get_sigma_min(max_energy_difference);
-  double sigma = 0.5*t;
+
   if (sigma < sigma_min) {
     PetscPrintf(PETSC_COMM_WORLD, "Warning: sigma < sigma_min: sigma = %e ; sigma_min = %e\n", sigma, sigma_min);
   }
 
-  // Hall effect: chage current in x, magnetic field in z --> electric field in y.
-  // By Onsager reciprocity, this is equivalent to:
-  // electric field in y, magnetic field in -z --> charge current in x.
-  // We will calculate the current linear response to these fields, i.e. the
-  // Hall conductivity.
-  // TODO is this correct? Is it true that there is a sign change in B in the
-  // reciprocal system?
   std::array<double, k_dim> Ehat = {0.0, 1.0};
-  std::array<double, 3> Bhat = {0.0, 0.0, -1.0};
+  std::array<double, 3> Bhat = {0.0, 0.0, 1.0};
 
   Vec Ekm = anomtrans::get_energies(kmb, H);
 
@@ -159,10 +152,8 @@ TEST( Driving, square_TB_Hall ) {
   std::vector<PetscScalar> all_Hall_conductivities;
   // For each mu, solve the pair of equations:
   // K rho1_B0 = Dbar_E rho0
-  // K rho1_Bfinite = Dbar_B rho1_B0
-  for (std::size_t mu_index = 1; mu_index < mus.size() - 1; mu_index++) {
-    double mu = mus.at(mu_index);
-
+  // K rho1_Bfinite = -Dbar_B rho1_B0
+  for (auto mu : mus) {
     Vec rho0_km = anomtrans::make_rho0(Ekm, beta, mu);
 
     // Get normalized version of rho0 to use for nullspace.
@@ -199,6 +190,7 @@ TEST( Driving, square_TB_Hall ) {
     Vec rhs_Bfinite;
     ierr = VecDuplicate(rho0_km, &rhs_Bfinite);CHKERRXX(ierr);
     ierr = MatMult(Dbar_B, rho1_B0, rhs_Bfinite);CHKERRXX(ierr);
+    ierr = VecScale(rhs_Bfinite, -1.0);CHKERRXX(ierr);
 
     Vec rho1_Bfinite;
     ierr = VecDuplicate(rho0_km, &rho1_Bfinite);CHKERRXX(ierr);
@@ -248,6 +240,7 @@ TEST( Driving, square_TB_Hall ) {
     }
 
     json j_out = {
+      {"mus", mus},
       {"k_comps", all_k_comps},
       {"ms", all_ms},
       {"Ekm", collected_Ekm},
