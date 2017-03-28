@@ -43,12 +43,23 @@ TEST( Driving, square_TB_Hall ) {
 
   const std::size_t k_dim = 2;
 
+  double t = 1.0;
+  double tp = -0.3;
+
+  // Parameters for result plots.
+  //std::array<unsigned int, k_dim> Nk = {256, 256};
+  //unsigned int num_mus = 40;
+  //double beta = 10.0/t;
+  //double sigma = 0.01*t;
+  // Parameters for regression test.
   std::array<unsigned int, k_dim> Nk = {8, 8};
+  unsigned int num_mus = 5;
+  double beta = 0.2/t;
+  double sigma = 0.5*t;
+
   unsigned int Nbands = 1;
   anomtrans::kmBasis<k_dim> kmb(Nk, Nbands);
 
-  double t = 1.0;
-  double tp = -0.3;
   anomtrans::square_tb_Hamiltonian H(t, tp, Nk);
 
   std::array<double, k_dim> a1 = {1.0, 0.0};
@@ -57,7 +68,7 @@ TEST( Driving, square_TB_Hall ) {
 
   PetscReal max_energy_difference = anomtrans::find_max_energy_difference(kmb, H);
   double beta_max = anomtrans::get_beta_max(max_energy_difference);
-  double beta = 10.0/t;
+
   if (beta > beta_max) {
     PetscPrintf(PETSC_COMM_WORLD, "Warning: beta > beta_max: beta = %e ; beta_max = %e\n", beta, beta_max);
   }
@@ -137,7 +148,7 @@ TEST( Driving, square_TB_Hall ) {
   Mat Dbar_E = anomtrans::driving_electric(D, kmb, deriv_approx_order, Ehat);
   Mat Dbar_B = anomtrans::driving_magnetic(D, kmb, deriv_approx_order, H, Bhat);
 
-  unsigned int num_mus = 10;
+
   auto mus = anomtrans::linspace(Ekm_min, Ekm_max, num_mus);
 
   std::vector<std::vector<PetscScalar>> all_rho0;
