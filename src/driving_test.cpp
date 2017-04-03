@@ -47,10 +47,12 @@ TEST( Driving, square_TB_Hall ) {
   double tp = -0.3;
 
   // Parameters for result plots.
-  //std::array<unsigned int, k_dim> Nk = {256, 256};
-  //unsigned int num_mus = 40;
-  //double beta = 10.0/t;
-  //double sigma = 0.01*t;
+  /*
+  std::array<unsigned int, k_dim> Nk = {256, 256};
+  unsigned int num_mus = 40;
+  double beta = 10.0/t;
+  double sigma = 0.01*t;
+  */
   // Parameters for regression test.
   std::array<unsigned int, k_dim> Nk = {8, 8};
   unsigned int num_mus = 5;
@@ -150,6 +152,7 @@ TEST( Driving, square_TB_Hall ) {
   std::vector<std::vector<PetscScalar>> all_rhs_Bfinite;
   std::vector<std::vector<PetscScalar>> all_rho1_Bfinite;
   std::vector<PetscScalar> all_Hall_conductivities;
+  std::vector<std::vector<PetscScalar>> all_Hall_conductivity_components;
   // For each mu, solve the pair of equations:
   // K rho1_B0 = Dbar_E rho0
   // K rho1_Bfinite = -Dbar_B rho1_B0
@@ -196,7 +199,9 @@ TEST( Driving, square_TB_Hall ) {
     ierr = VecDuplicate(rho0_km, &rho1_Bfinite);CHKERRXX(ierr);
     ierr = KSPSolve(ksp, rhs_Bfinite, rho1_Bfinite);CHKERRXX(ierr);
 
-    PetscScalar sigma_Hall = calculate_Hall_conductivity(kmb, H, rho1_Bfinite);
+    PetscScalar sigma_Hall;
+    Vec sigma_Hall_components;
+    std::tie(sigma_Hall, sigma_Hall_components) = calculate_Hall_conductivity(kmb, H, rho1_Bfinite);
 
     auto collected_rho0 = anomtrans::collect_contents(rho0_km);
     all_rho0.push_back(collected_rho0);
@@ -210,7 +215,10 @@ TEST( Driving, square_TB_Hall ) {
     all_rho1_Bfinite.push_back(collected_rho1_Bfinite);
 
     all_Hall_conductivities.push_back(sigma_Hall);
+    auto collected_sigma_Hall_components = anomtrans::collect_contents(sigma_Hall_components);
+    all_Hall_conductivity_components.push_back(collected_sigma_Hall_components);
 
+    ierr = VecDestroy(&sigma_Hall_components);CHKERRXX(ierr);
     ierr = VecDestroy(&rho1_Bfinite);CHKERRXX(ierr);
     ierr = VecDestroy(&rhs_Bfinite);CHKERRXX(ierr);
     ierr = VecDestroy(&rho1_B0);CHKERRXX(ierr);
@@ -249,7 +257,8 @@ TEST( Driving, square_TB_Hall ) {
       {"rho1_B0", all_rho1_B0},
       {"rhs_Bfinite", all_rhs_Bfinite},
       {"rho1_Bfinite", all_rho1_Bfinite},
-      {"_series_Hall_conductivity", all_Hall_conductivities}
+      {"_series_Hall_conductivity", all_Hall_conductivities},
+      {"Hall_conductivity_components", all_Hall_conductivity_components}
     };
 
     std::stringstream outpath;

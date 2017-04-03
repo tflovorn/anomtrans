@@ -20,7 +20,7 @@ namespace anomtrans {
  *        consider difference between dH/dk and dE/dk?
  */
 template <std::size_t k_dim, typename Hamiltonian>
-PetscScalar calculate_Hall_conductivity(const kmBasis<k_dim> &kmb,
+std::tuple<PetscScalar, Vec> calculate_Hall_conductivity(const kmBasis<k_dim> &kmb,
     const Hamiltonian &H, Vec rho1_B) {
   // TODO may want to just pass ikm to H: look up precomputed v without
   // conversion to ikm_comps and back.
@@ -55,9 +55,13 @@ PetscScalar calculate_Hall_conductivity(const kmBasis<k_dim> &kmb,
   // VecDot(u, v) = v^{\dagger} u
   ierr = VecDot(rho1_B, vx, &sigma_Hall);
 
+  Vec sigma_Hall_components;
+  ierr = VecDuplicate(rho1_B, &sigma_Hall_components);CHKERRXX(ierr);
+  ierr = VecPointwiseMult(sigma_Hall_components, rho1_B, vx);CHKERRXX(ierr);
+
   ierr = VecDestroy(&vx);CHKERRXX(ierr);
 
-  return sigma_Hall;
+  return std::make_tuple(sigma_Hall, sigma_Hall_components);
 }
 
 } // namespace anomtrans
