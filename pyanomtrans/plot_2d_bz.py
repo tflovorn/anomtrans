@@ -72,7 +72,7 @@ def sorted_by_km(kmb, k_comps, ms, vals):
     return val_sorted
 
 def _ignore_key(key):
-    ignore_key_prefix = ["_series"]
+    ignore_key_prefix = ["_series", "mus"]
     for key_prefix in ignore_key_prefix:
         if key.startswith(key_prefix):
             return True
@@ -86,6 +86,8 @@ def _main():
             help="Prefix for file giving plot data: should be in the form prefix.json")
     parser.add_argument("in_dir", type=str,
             help="Directory containing file giving plot data")
+    parser.add_argument("--only", type=str, default=None,
+            help="If specified, plot only the series with the specified name")
     args = parser.parse_args()
 
     fpath = os.path.join(args.in_dir, "{}.json".format(args.prefix))
@@ -151,6 +153,9 @@ def _main():
     for key, val in sorted_data.items():
         # Don't plot the keys containing indices (these aren't values to plot)
         if key in ('k_comps', 'ms'):
+            continue
+
+        if args.only is not None and key != args.only:
             continue
 
         if is_list(val[0]):
