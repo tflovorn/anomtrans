@@ -224,6 +224,7 @@ TEST( Driving, square_TB_Hall ) {
     ierr = VecDestroy(&rho1_B0);CHKERRXX(ierr);
     ierr = VecDestroy(&rhs_B0);CHKERRXX(ierr);
     ierr = MatNullSpaceDestroy(&nullspace);CHKERRXX(ierr);
+    ierr = VecDestroy(&rho0_normalized);CHKERRXX(ierr);
     ierr = VecDestroy(&rho0_km);CHKERRXX(ierr);
   }
 
