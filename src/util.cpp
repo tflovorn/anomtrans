@@ -78,13 +78,14 @@ bool check_json_equal(std::string test_path, std::string known_path) {
 }
 
 template <>
-bool check_equal_within<PetscReal>(std::vector<PetscReal> xs, std::vector<PetscReal> ys, PetscReal tol) {
-  assert(tol > 0.0);
+bool check_equal_within<PetscReal>(std::vector<PetscReal> xs, std::vector<PetscReal> ys, PetscReal eps_abs, PetscReal eps_rel) {
+  assert(eps_abs > 0.0);
+  assert(eps_rel > 0.0);
   if (xs.size() != ys.size()) {
     return false;
   }
   for (std::vector<PetscReal>::size_type i = 0; i < xs.size(); i++) {
-    if (std::abs(xs.at(i) - ys.at(i)) > tol) {
+    if (!scalars_approx_equal(xs.at(i), ys.at(i), eps_abs, eps_rel)) {
       return false;
     }
   }

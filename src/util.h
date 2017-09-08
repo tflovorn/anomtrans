@@ -134,7 +134,7 @@ bool check_json_equal(std::string test_path, std::string known_path);
  *        is handled in the float specializations.
  */
 template <typename T>
-bool check_equal_within(std::vector<T> xs, std::vector<T> ys, PetscReal tol) {
+bool check_equal_within(std::vector<T> xs, std::vector<T> ys, PetscReal eps_abs, PetscReal eps_rel) {
   if (xs.size() != ys.size()) {
     return false;
   }
@@ -144,14 +144,14 @@ bool check_equal_within(std::vector<T> xs, std::vector<T> ys, PetscReal tol) {
 /** @brief Specialize check_equal_within to handle lists-of-lists.
  */
 template <typename T>
-bool check_equal_within(std::vector<std::vector<T>> xs, std::vector<std::vector<T>> ys, PetscReal tol) {
+bool check_equal_within(std::vector<std::vector<T>> xs, std::vector<std::vector<T>> ys, PetscReal eps_abs, PetscReal eps_rel) {
   if (xs.size() != ys.size()) {
     return false;
   }
   // TODO better to use vector::size_type?
   // Get error in parsing trying to use vector<vector<T>>::size_type.
   for (std::size_t i = 0; i < xs.size(); i++) {
-    if (not check_equal_within(xs.at(i), ys.at(i), tol)) {
+    if (not check_equal_within(xs.at(i), ys.at(i), eps_abs, eps_rel)) {
       return false;
     }
   }
@@ -166,9 +166,26 @@ static_assert(std::is_same<PetscScalar, PetscReal>::value,
  *        An additional specialization for PetscScalar will not compile
  *        when there are the same type.
  *  @todo Handle PetscScalar != PetscReal.
+ *  @todo Only checks absolute error. Check (absolute or relative).
  */
 template <>
-bool check_equal_within<PetscReal>(std::vector<PetscReal> xs, std::vector<PetscReal> ys, PetscReal tol);
+bool check_equal_within<PetscReal>(std::vector<PetscReal> xs, std::vector<PetscReal> ys, PetscReal eps_abs, PetscReal eps_rel);
+
+/** @brief Check if x and y are approximately equal, up to given absolute
+ *         and relative tolerances.
+ *  @note Returns true if |x - y| < eps_abs or
+ *                        |x - y| < eps_rel * max(|x|, |y|).
+ *        Here |...| is std::abs(T) and max(...) is std::max(|T|, |T|).
+ */
+template <typename T>
+bool scalars_approx_equal(T x, T y, PetscReal eps_abs, PetscReal eps_rel) {
+  auto diff = std::abs(x - y);
+  if (diff < eps_abs) {
+    return true;
+  }
+  auto max_norm = std::max(std::abs(x), std::abs(y));
+  return diff < eps_rel * max_norm;
+}
 
 } // namespace anomtrans
 
