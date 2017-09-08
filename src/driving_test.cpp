@@ -152,7 +152,9 @@ TEST( Driving, square_TB_Hall ) {
   std::vector<std::vector<PetscScalar>> all_rhs_Bfinite;
   std::vector<std::vector<PetscScalar>> all_rho1_Bfinite;
   std::vector<PetscScalar> all_Hall_conductivities;
+  std::vector<PetscScalar> all_sigma_yys;
   std::vector<std::vector<PetscScalar>> all_Hall_conductivity_components;
+  std::vector<std::vector<PetscScalar>> all_sigma_yy_components;
   // For each mu, solve the pair of equations:
   // K rho1_B0 = Dbar_E rho0
   // K rho1_Bfinite = -Dbar_B rho1_B0
@@ -178,17 +180,25 @@ TEST( Driving, square_TB_Hall ) {
     ierr = MatSetNullSpace(collision, nullspace);CHKERRXX(ierr);
     // NOTE rho0_normalized must not be modified after this call until we are done with nullspace.
 
-    // Need to initialize rhs_B0, but we don't care what is in it before
-    // we call MatMult.
+    // (Need to initialize rhs_B0, but we don't care what is in it before
+    // we call MatMult.)
     Vec rhs_B0;
     ierr = VecDuplicate(rho0_km, &rhs_B0);CHKERRXX(ierr);
+
     ierr = MatMult(Dbar_E, rho0_km, rhs_B0);CHKERRXX(ierr);
 
-    // Need to initialize rho1_B0, but we don't care what is in it before
-    // we call KSPSolve.
+    // (Need to initialize rho1_B0, but we don't care what is in it before
+    // we call KSPSolve.)
     Vec rho1_B0;
     ierr = VecDuplicate(rho0_km, &rho1_B0);CHKERRXX(ierr);
+
     ierr = KSPSolve(ksp, rhs_B0, rho1_B0);CHKERRXX(ierr);
+
+    // Have obtained linear response to electric field. Can calculate this
+    // part of the longitudinal conductivity.
+    PetscScalar sigma_yy;
+    Vec sigma_yy_components;
+    std::tie(sigma_yy, sigma_yy_components) = calculate_longitudinal_conductivity(kmb, H, rho1_B0);
 
     Vec rhs_Bfinite;
     ierr = VecDuplicate(rho0_km, &rhs_Bfinite);CHKERRXX(ierr);
@@ -199,6 +209,8 @@ TEST( Driving, square_TB_Hall ) {
     ierr = VecDuplicate(rho0_km, &rho1_Bfinite);CHKERRXX(ierr);
     ierr = KSPSolve(ksp, rhs_Bfinite, rho1_Bfinite);CHKERRXX(ierr);
 
+    // Have obtained linear response to E_y B_z. Can calculate this part of
+    // the transverse conductivity.
     PetscScalar sigma_Hall;
     Vec sigma_Hall_components;
     std::tie(sigma_Hall, sigma_Hall_components) = calculate_Hall_conductivity(kmb, H, rho1_Bfinite);
@@ -218,9 +230,14 @@ TEST( Driving, square_TB_Hall ) {
     auto collected_sigma_Hall_components = anomtrans::collect_contents(sigma_Hall_components);
     all_Hall_conductivity_components.push_back(collected_sigma_Hall_components);
 
+    all_sigma_yys.push_back(sigma_yy);
+    auto collected_sigma_yy_components = anomtrans::collect_contents(sigma_yy_components);
+    all_sigma_yy_components.push_back(collected_sigma_yy_components);
+
     ierr = VecDestroy(&sigma_Hall_components);CHKERRXX(ierr);
     ierr = VecDestroy(&rho1_Bfinite);CHKERRXX(ierr);
     ierr = VecDestroy(&rhs_Bfinite);CHKERRXX(ierr);
+    ierr = VecDestroy(&sigma_yy_components);CHKERRXX(ierr);
     ierr = VecDestroy(&rho1_B0);CHKERRXX(ierr);
     ierr = VecDestroy(&rhs_B0);CHKERRXX(ierr);
     ierr = MatNullSpaceDestroy(&nullspace);CHKERRXX(ierr);
@@ -259,7 +276,9 @@ TEST( Driving, square_TB_Hall ) {
       {"rhs_Bfinite", all_rhs_Bfinite},
       {"rho1_Bfinite", all_rho1_Bfinite},
       {"_series_Hall_conductivity", all_Hall_conductivities},
-      {"Hall_conductivity_components", all_Hall_conductivity_components}
+      {"_series_sigma_yy", all_sigma_yys},
+      {"Hall_conductivity_components", all_Hall_conductivity_components},
+      {"sigma_yy_components", all_sigma_yy_components}
     };
 
     std::stringstream outpath;

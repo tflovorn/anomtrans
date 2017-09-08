@@ -51,7 +51,12 @@ def _main():
             '_series_Hall_conductivity': {
                     'xs': 'mus',
                     'xlabel': "$\\mu$",
-                    'ylabel': "$\\sigma^{Hall}_{xy}$"
+                    'ylabel': "$\\sigma^{(EB)}_{xy}$"
+            },
+            '_series_sigma_yy': {
+                    'xs': 'mus',
+                    'xlabel': "$\\mu$",
+                    'ylabel': "$\\sigma^{(E)}_{yy}$"
             }
     }
 
@@ -64,6 +69,11 @@ def _main():
             plot_series("{}_{}".format(args.prefix, key), ys, xs=xs, xlabel=xlabel, ylabel=ylabel)
         else:
             plot_series("{}_{}".format(args.prefix, key), ys)
+
+    n_H_ys = [sigma_yy**2 / sigma_xy for sigma_xy, sigma_yy in
+            zip(series_data['_series_Hall_conductivity'], series_data['_series_sigma_yy'])]
+    plot_series("{}_{}".format(args.prefix, "n_H"), n_H_ys, xs=fdata['mus'],
+            xlabel="$\\mu$", ylabel="$n_H$")
 
 if __name__ == '__main__':
     _main()
