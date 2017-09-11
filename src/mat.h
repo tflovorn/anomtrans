@@ -2,6 +2,7 @@
 #define ANOMTRANS_MAT_H
 
 #include <cstddef>
+#include <cassert>
 #include <cmath>
 #include <stdexcept>
 #include <array>
@@ -20,6 +21,10 @@ namespace anomtrans {
  *                                memory.
  */
 Mat make_Mat(PetscInt m, PetscInt n, PetscInt expected_elems_per_row);
+
+/** @brief Create a diagonal PETSC matrix, with diagonal elements given by `v`.
+ */
+Mat make_diag_Mat(Vec v);
 
 /** @brief Return true iff each element of A and B is equal to within tol.
  *  @pre A and B should have the same global sizes and same local row

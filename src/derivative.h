@@ -191,6 +191,74 @@ std::array<Mat, k_dim> make_d_dk_Cartesian(DimMatrix<k_dim> D, kmBasis<k_dim> km
   return d_dk_Cart;
 }
 
+/** @brief Apply the derivative operator `deriv` to the k-diagonal matrix `x`.
+ *  @note [apply_deriv(d, x)]_{km, km'} = \sum_{k'} [d]_{km, k'm} [x]_{k'm, k'm'}
+ *           = \sum_{k'} [d x]_{km, k'm'}.
+ */
+template <std::size_t k_dim>
+Mat apply_deriv(kmBasis<k_dim> kmb, Mat deriv, Mat rho) {
+  PetscInt size_m, size_n;
+  PetscErrorCode ierr = MatGetSize(deriv, &size_m, &size_n);CHKERRXX(ierr);
+  assert(size_m == size_n);
+
+  Mat prod;
+  ierr = MatMatMult(deriv, rho, MAT_INITIAL_MATRIX, PETSC_DEFAULT, &prod);CHKERRXX(ierr);
+
+  PetscInt expected_elems_per_row = kmb.Nbands;
+  Mat result = make_Mat(size_m, size_m, expected_elems_per_row);
+
+  PetscInt begin, end;
+  ierr = MatGetOwnershipRange(deriv, &begin, &end);CHKERRXX(ierr);
+
+  for (PetscInt km = begin; km < end; km++) {
+    kComps<k_dim> k = std::get<0>(kmb.decompose(km));
+
+    PetscInt prod_ncols;
+    const PetscInt *prod_cols;
+    const PetscScalar *prod_vals;
+    ierr = MatGetRow(prod, km, &prod_ncols, &prod_cols, &prod_vals);CHKERRXX(ierr);
+
+    std::map<PetscInt, PetscScalar> result_row;
+
+    for (PetscInt prod_cols_index = 0; prod_cols_index < prod_ncols; prod_cols_index++) {
+      PetscInt kpmp = prod_cols[prod_cols_index];
+      PetscScalar val = prod_vals[prod_cols_index];
+
+      unsigned int mp = std::get<1>(kmb.decompose(kpmp));
+      PetscInt kmp = kmb.compose(std::make_tuple(k, mp));
+
+      if (result_row.count(kmp) != 0) {
+        result_row[kmp] += val;
+      } else {
+        result_row[kmp] = val;
+      }
+    }
+
+    ierr = MatRestoreRow(prod, km, &prod_ncols, &prod_cols, &prod_vals);CHKERRXX(ierr);
+
+    std::vector<PetscInt> result_row_cols;
+    std::vector<PetscScalar> result_row_vals;
+    result_row_cols.reserve(result_row.size());
+    result_row_vals.reserve(result_row.size());
+
+    for (auto it = result_row.begin(); it != result_row.end(); ++it) {
+      result_row_cols.push_back(it->first);
+      result_row_vals.push_back(it->second);
+    }
+
+    ierr = MatSetValues(result, 1, &km, result_row_cols.size(),
+        result_row_cols.data(), result_row_vals.data(), INSERT_VALUES);CHKERRXX(ierr);
+  }
+
+  ierr = MatAssemblyBegin(result, MAT_FINAL_ASSEMBLY);CHKERRXX(ierr);
+  ierr = MatAssemblyEnd(result, MAT_FINAL_ASSEMBLY);CHKERRXX(ierr);
+
+  ierr = MatDestroy(&prod);CHKERRXX(ierr);
+
+  return result;
+}
+
+
 } // namespace anomtrans
 
 #endif // ANOMTRANS_DERIVATIVE_H

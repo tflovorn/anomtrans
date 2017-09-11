@@ -33,6 +33,41 @@ Mat make_Mat(PetscInt m, PetscInt n, PetscInt expected_elems_per_row) {
   return A;
 }
 
+Mat make_diag_Mat(Vec v) {
+  PetscInt size;
+  PetscErrorCode ierr = VecGetSize(v, &size);CHKERRXX(ierr);
+
+  Mat result = make_Mat(size, size, 1);
+
+  // Would like to just call MatDiagonalSet here to set diagonal elements.
+  // However, documentation there claims that diagonal elements must already
+  // have a value in order for MatDiagonalSet to operate efficiently.
+  // Instead of setting zeros then setting the diagonal elements we want, just
+  // go ahead and set the values we want.
+
+  PetscInt begin, end;
+  ierr = VecGetOwnershipRange(v, &begin, &end);CHKERRXX(ierr);
+
+  PetscScalar *local_values;
+  ierr = VecGetArray(v, &local_values);CHKERRXX(ierr);
+
+  for (PetscInt local_row = begin; local_row < end; local_row++) {
+    std::size_t value_index = local_row - begin;
+    assert(value_index >= 0);
+    assert(static_cast<int>(value_index) < end - begin);
+
+    PetscScalar value = local_values[value_index];
+    ierr = MatSetValue(result, local_row, local_row, value, INSERT_VALUES);
+  }
+
+  ierr = VecRestoreArray(v, &local_values);CHKERRXX(ierr);
+
+  ierr = MatAssemblyBegin(result, MAT_FINAL_ASSEMBLY);CHKERRXX(ierr);
+  ierr = MatAssemblyEnd(result, MAT_FINAL_ASSEMBLY);CHKERRXX(ierr);
+
+  return result;
+}
+
 bool check_Mat_equal(Mat A, Mat B, double tol) {
   PetscInt A_m, A_n, B_m, B_n;
   PetscErrorCode ierr = MatGetSize(A, &A_m, &A_n);CHKERRXX(ierr);

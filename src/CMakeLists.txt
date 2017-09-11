@@ -10,6 +10,7 @@ list(APPEND SOURCES
 )
 
 add_mpi_test(vec "${SOURCES}")
+add_mpi_test(mat "${SOURCES}")
 add_mpi_test(util "${SOURCES}")
 add_mpi_test(special_functions "${SOURCES}")
 add_mpi_test(grid_basis "${SOURCES}")

@@ -11,7 +11,8 @@
 
 namespace anomtrans {
 
-/** @brief Electric field driving term hbar/e * Dbar_E.
+/** @brief Applies the electric field driving term:
+ *         given <rho>, output: hbar/(e * |E|) * Dbar_E(<rho>).
  *  @param D Matrix with elements [D]_{ci} giving the c'th Cartesian component
  *           (in order x, y, z) of the i'th lattice vector.
  *  @param kmb Object representing the discretization of k-space and the number
@@ -20,32 +21,20 @@ namespace anomtrans {
  *               of derivative.
  *  @param Ehat Unit vector giving the direction of the electric field in
  *              the Cartesian basis.
- *  @todo Implement correct calculation for multi-band case (superoperator
- *        representation?).
+ *  @todo Implement Berry curvature contribution.
  *  @todo Is it appropriate for E to have the same dimension as k?
  *        Term E dot d<rho>/dk has vanishing contributions from E components
  *        where there are no corresponding k components.
  *        Possibly some interesting situations where E is perpendicular to a
  *        surface, though.
- *  @todo Pass in derivative/energies to avoid calculating calculating them
- *        here?
+ *  @todo Determine appropriate fill ratio for MatMatMult in apply_deriv.
  */
 template <std::size_t k_dim>
-Mat driving_electric(DimMatrix<k_dim> D, kmBasis<k_dim> kmb,
-    unsigned int deriv_approx_order, std::array<double, k_dim> Ehat) {
-  DerivStencil<1> stencil(DerivApproxType::central, deriv_approx_order);
+Mat apply_driving_electric(kmBasis<k_dim> kmb, std::array<double, k_dim> Ehat,
+    Mat Ehat_dot_grad_k, Mat rho) {
+  Mat result = apply_deriv(kmb, Ehat_dot_grad_k, rho);
 
-  // Maximum number of elements expected for sum of Cartesian derivatives.
-  PetscInt expected_elems_per_row = stencil.approx_order*k_dim*k_dim*k_dim;
-
-  std::array<Mat, k_dim> d_dk_Cart = make_d_dk_Cartesian(D, kmb, stencil);
-  Mat Dbar_E = Mat_from_sum_const(Ehat, d_dk_Cart, expected_elems_per_row);
-
-  for (std::size_t d = 0; d < k_dim; d++) {
-    PetscErrorCode ierr = MatDestroy(&(d_dk_Cart.at(d)));CHKERRXX(ierr);
-  }
-
-  return Dbar_E;
+  return result;
 }
 
 /** @brief Magnetic field driving term hbar^2/e * Dbar_B.

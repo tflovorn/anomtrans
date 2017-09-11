@@ -9,6 +9,7 @@
 #include "square_tb_spectrum.h"
 #include "energy.h"
 #include "vec.h"
+#include "mat.h"
 #include "rho0.h"
 #include "disorder.h"
 #include "collision.h"
@@ -140,9 +141,15 @@ TEST( Driving, square_TB_Hall ) {
   // hard-coded to have identical output from each test run.
 
   const unsigned int deriv_approx_order = 2;
-  Mat Dbar_E = anomtrans::driving_electric(D, kmb, deriv_approx_order, Ehat);
-  Mat Dbar_B = anomtrans::driving_magnetic(D, kmb, deriv_approx_order, H, Bhat);
+  anomtrans::DerivStencil<1> stencil(anomtrans::DerivApproxType::central, deriv_approx_order);
+  auto d_dk_Cart = anomtrans::make_d_dk_Cartesian(D, kmb, stencil);
 
+  // Maximum number of elements expected for sum of Cartesian derivatives.
+  PetscInt Ehat_grad_expected_elems_per_row = stencil.approx_order*k_dim*k_dim*k_dim;
+
+  Mat Ehat_dot_grad_k = anomtrans::Mat_from_sum_const(Ehat, d_dk_Cart, Ehat_grad_expected_elems_per_row);
+
+  Mat Dbar_B = anomtrans::driving_magnetic(D, kmb, deriv_approx_order, H, Bhat);
 
   auto mus = anomtrans::linspace(Ekm_min, Ekm_max, num_mus);
 
@@ -156,7 +163,7 @@ TEST( Driving, square_TB_Hall ) {
   std::vector<std::vector<PetscScalar>> all_Hall_conductivity_components;
   std::vector<std::vector<PetscScalar>> all_sigma_yy_components;
   // For each mu, solve the pair of equations:
-  // K rho1_B0 = Dbar_E rho0
+  // K rho1_B0 = Dbar_E(rho0)
   // K rho1_Bfinite = -Dbar_B rho1_B0
   for (auto mu : mus) {
     Vec rho0_km = anomtrans::make_rho0(Ekm, beta, mu);
@@ -180,12 +187,19 @@ TEST( Driving, square_TB_Hall ) {
     ierr = MatSetNullSpace(collision, nullspace);CHKERRXX(ierr);
     // NOTE rho0_normalized must not be modified after this call until we are done with nullspace.
 
-    // (Need to initialize rhs_B0, but we don't care what is in it before
-    // we call MatMult.)
+    Mat rho0_km_Mat = anomtrans::make_diag_Mat(rho0_km);
+
+    Mat rhs_B0_Mat = anomtrans::apply_driving_electric(kmb, Ehat, Ehat_dot_grad_k, rho0_km_Mat);
+    ierr = MatDestroy(&rho0_km_Mat);CHKERRXX(ierr);
+
     Vec rhs_B0;
     ierr = VecDuplicate(rho0_km, &rhs_B0);CHKERRXX(ierr);
+    ierr = MatGetDiagonal(rhs_B0_Mat, rhs_B0);CHKERRXX(ierr);
 
-    ierr = MatMult(Dbar_E, rho0_km, rhs_B0);CHKERRXX(ierr);
+    // TODO - for calculation of <S_E>, will use off-diagonal parts of rhs_B0_Mat.
+    // For now, only need diagonal part, so destroy the matrix here after we have extracted
+    // diagonal part.
+    ierr = MatDestroy(&rhs_B0_Mat);CHKERRXX(ierr);
 
     // (Need to initialize rho1_B0, but we don't care what is in it before
     // we call KSPSolve.)
@@ -248,8 +262,12 @@ TEST( Driving, square_TB_Hall ) {
   auto collected_Ekm = anomtrans::collect_contents(Ekm);
 
   // Done with PETSc data.
-  ierr = MatDestroy(&Dbar_E);CHKERRXX(ierr);
   ierr = MatDestroy(&Dbar_B);CHKERRXX(ierr);
+
+  for (std::size_t dc = 0; dc < k_dim; dc++) {
+    ierr = MatDestroy(&(d_dk_Cart[dc]));CHKERRXX(ierr);
+  }
+
   ierr = KSPDestroy(&ksp);CHKERRXX(ierr);
   ierr = MatDestroy(&collision);CHKERRXX(ierr);
   ierr = VecDestroy(&Ekm);CHKERRXX(ierr);
