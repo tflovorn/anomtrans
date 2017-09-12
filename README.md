@@ -11,9 +11,9 @@ Assumes the intel/16.0.1 module is loaded on Lonestar5.
 
 Add module dependencies to `~/.bashrc` just under "PLACE MODULE COMMANDS HERE and ONLY HERE.":
 
-    module load cmake boost petsc/3.7-cxxdebug
+    module load cmake boost petsc/3.7-cxxcomplexdebug
 
-Replace `petsc/3.7-cxxdebug` with `petsc/3.7-cxx` for release mode.
+Replace `petsc/3.7-cxxcomplexdebug` with `petsc/3.7-cxxcomplex` for release mode.
 
 Note that the boost/1.59 module on Lonestar5 does not include boost::mpi.
 `module help boost` references a boost-mpi module, but this does not exist.
@@ -95,13 +95,13 @@ PETSc 3.7 is not available from the package manager. We'll need to build it. [(d
 
     cd ~
     git clone -b maint https://bitbucket.org/petsc/petsc petsc
-    ./configure --with-cc=mpicc --with-cxx=mpicxx --with-fc=mpif90 --download-fblaslapack --with-clanguage=cxx
-    make PETSC_DIR=$HOME/petsc PETSC_ARCH=arch-linux2-cxx-debug all
+    ./configure PETSC_ARCH=arch-linux2-cxx-complex-debug --with-cc=mpicc --with-cxx=mpicxx --with-fc=mpif90 --download-fblaslapack --with-clanguage=cxx --with-scalar-type=complex
+    make PETSC_DIR=$HOME/petsc PETSC_ARCH=arch-linux2-cxx-complex-debug all
 
 Test PETSc:
 
-    make PETSC_DIR=$HOME/petsc PETSC_ARCH=arch-linux2-cxx-debug test
-    make PETSC_DIR=$HOME/petsc PETSC_ARCH=arch-linux2-cxx-debug streams
+    make PETSC_DIR=$HOME/petsc PETSC_ARCH=arch-linux2-cxx-complex-debug test
+    make PETSC_DIR=$HOME/petsc PETSC_ARCH=arch-linux2-cxx-complex-debug streams
 
 anomtrans regression test data is stored in [Git LFS](https://github.com/git-lfs/git-lfs/releases). Install this:
 
@@ -140,13 +140,13 @@ To generate plots from tests:
 Build PETSc with:
 
     cd ~/petsc
-    ./configure --with-cc=mpicc --with-cxx=mpicxx --with-fc=mpif90 --download-fblaslapack --with-clanguage=cxx --with-debugging=0 COPTFLAGS='-O3 -march=native -mtune=native' CXXOPTFLAGS='-O3 -march=native -mtune=native' FOPTFLAGS='-O3 -march=native -mtune=native'
-    make PETSC_DIR=$HOME/petsc PETSC_ARCH=arch-linux2-cxx-opt all
+    ./configure PETSC_ARCH=arch-linux2-cxx-complex-opt --with-cc=mpicc --with-cxx=mpicxx --with-fc=mpif90 --download-fblaslapack --with-clanguage=cxx --with-scalar-type=complex --with-debugging=0 COPTFLAGS='-O3 -march=native -mtune=native' CXXOPTFLAGS='-O3 -march=native -mtune=native' FOPTFLAGS='-O3 -march=native -mtune=native'
+    make PETSC_DIR=$HOME/petsc PETSC_ARCH=arch-linux2-cxx-complex-opt all
 
 Test PETSc:
 
-    make PETSC_DIR=$HOME/petsc PETSC_ARCH=arch-linux2-cxx-opt test
-    make PETSC_DIR=$HOME/petsc PETSC_ARCH=arch-linux2-cxx-opt streams
+    make PETSC_DIR=$HOME/petsc PETSC_ARCH=arch-linux2-cxx-complex-opt test
+    make PETSC_DIR=$HOME/petsc PETSC_ARCH=arch-linux2-cxx-complex-opt streams
 
 Build and run tests:
 

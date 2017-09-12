@@ -50,7 +50,7 @@ PetscReal find_max_energy_difference(const kmBasis<k_dim> &kmb, const Hamiltonia
   Vec dE_dk;
   PetscErrorCode ierr = VecDuplicate(Ekm, &dE_dk);CHKERRXX(ierr);
 
-  PetscScalar dE_dk_max = 0.0;
+  PetscReal dE_dk_max = 0.0;
   for (std::size_t d = 0; d < k_dim; d++) {
     ierr = MatMult(d_dk.at(d), Ekm, dE_dk);CHKERRXX(ierr);
     PetscReal dE_dk_d_max = get_Vec_MaxAbs(dE_dk) * kmb.Nk.at(d);

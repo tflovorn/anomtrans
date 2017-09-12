@@ -11,6 +11,7 @@
 #include "vec.h"
 #include "mat.h"
 #include "rho0.h"
+#include "hamiltonian.h"
 #include "disorder.h"
 #include "collision.h"
 #include "driving.h"
@@ -147,21 +148,20 @@ TEST( Driving, square_TB_Hall ) {
   // Maximum number of elements expected for sum of Cartesian derivatives.
   PetscInt Ehat_grad_expected_elems_per_row = stencil.approx_order*k_dim*k_dim*k_dim;
 
-  Mat Ehat_dot_grad_k = anomtrans::Mat_from_sum_const(Ehat, d_dk_Cart, Ehat_grad_expected_elems_per_row);
-
-  Mat Dbar_B = anomtrans::driving_magnetic(D, kmb, deriv_approx_order, H, Bhat);
+  Mat Ehat_dot_grad_k = anomtrans::Mat_from_sum_const(anomtrans::make_complex_array(Ehat), d_dk_Cart, Ehat_grad_expected_elems_per_row);
+  auto DH0_cross_Bhat = anomtrans::make_DH0_cross_Bhat(kmb, H, Bhat);
 
   auto mus = anomtrans::linspace(Ekm_min, Ekm_max, num_mus);
 
-  std::vector<std::vector<PetscScalar>> all_rho0;
-  std::vector<std::vector<PetscScalar>> all_rhs_B0;
-  std::vector<std::vector<PetscScalar>> all_rho1_B0;
-  std::vector<std::vector<PetscScalar>> all_rhs_Bfinite;
-  std::vector<std::vector<PetscScalar>> all_rho1_Bfinite;
-  std::vector<PetscScalar> all_Hall_conductivities;
-  std::vector<PetscScalar> all_sigma_yys;
-  std::vector<std::vector<PetscScalar>> all_Hall_conductivity_components;
-  std::vector<std::vector<PetscScalar>> all_sigma_yy_components;
+  std::vector<std::vector<PetscReal>> all_rho0;
+  std::vector<std::vector<PetscReal>> all_rhs_B0;
+  std::vector<std::vector<PetscReal>> all_rho1_B0;
+  std::vector<std::vector<PetscReal>> all_rhs_Bfinite;
+  std::vector<std::vector<PetscReal>> all_rho1_Bfinite;
+  std::vector<PetscReal> all_Hall_conductivities;
+  std::vector<PetscReal> all_sigma_yys;
+  std::vector<std::vector<PetscReal>> all_Hall_conductivity_components;
+  std::vector<std::vector<PetscReal>> all_sigma_yy_components;
   // For each mu, solve the pair of equations:
   // K rho1_B0 = Dbar_E(rho0)
   // K rho1_Bfinite = -Dbar_B rho1_B0
@@ -189,7 +189,7 @@ TEST( Driving, square_TB_Hall ) {
 
     Mat rho0_km_Mat = anomtrans::make_diag_Mat(rho0_km);
 
-    Mat rhs_B0_Mat = anomtrans::apply_driving_electric(kmb, Ehat, Ehat_dot_grad_k, rho0_km_Mat);
+    Mat rhs_B0_Mat = anomtrans::apply_driving_electric(kmb, Ehat_dot_grad_k, rho0_km_Mat);
     ierr = MatDestroy(&rho0_km_Mat);CHKERRXX(ierr);
 
     Vec rhs_B0;
@@ -214,9 +214,19 @@ TEST( Driving, square_TB_Hall ) {
     Vec sigma_yy_components;
     std::tie(sigma_yy, sigma_yy_components) = calculate_longitudinal_conductivity(kmb, H, rho1_B0);
 
+    Mat rho1_B0_Mat = anomtrans::make_diag_Mat(rho1_B0);
+
+    Mat rhs_Bfinite_Mat = anomtrans::apply_driving_magnetic(kmb, DH0_cross_Bhat, d_dk_Cart, rho1_B0_Mat);
+    ierr = MatDestroy(&rho1_B0_Mat);CHKERRXX(ierr);
+
     Vec rhs_Bfinite;
     ierr = VecDuplicate(rho0_km, &rhs_Bfinite);CHKERRXX(ierr);
-    ierr = MatMult(Dbar_B, rho1_B0, rhs_Bfinite);CHKERRXX(ierr);
+    ierr = MatGetDiagonal(rhs_Bfinite_Mat, rhs_Bfinite);CHKERRXX(ierr);
+
+    // TODO - for calculation of <S_{EB}>, will use off-diagonal parts of rhs_Bfinite_Mat.
+    // For now, only need diagonal part, so destroy the matrix here after we have extracted
+    // diagonal part.
+    ierr = MatDestroy(&rhs_Bfinite_Mat);CHKERRXX(ierr);
 
     Vec rho1_Bfinite;
     ierr = VecDuplicate(rho0_km, &rho1_Bfinite);CHKERRXX(ierr);
@@ -228,23 +238,23 @@ TEST( Driving, square_TB_Hall ) {
     Vec sigma_Hall_components;
     std::tie(sigma_Hall, sigma_Hall_components) = calculate_Hall_conductivity(kmb, H, rho1_Bfinite);
 
-    auto collected_rho0 = anomtrans::collect_contents(rho0_km);
+    auto collected_rho0 = anomtrans::split_scalars(anomtrans::collect_contents(rho0_km)).first;
     all_rho0.push_back(collected_rho0);
-    auto collected_rhs_B0 = anomtrans::collect_contents(rhs_B0);
+    auto collected_rhs_B0 = anomtrans::split_scalars(anomtrans::collect_contents(rhs_B0)).first;
     all_rhs_B0.push_back(collected_rhs_B0);
-    auto collected_rho1_B0 = anomtrans::collect_contents(rho1_B0);
+    auto collected_rho1_B0 = anomtrans::split_scalars(anomtrans::collect_contents(rho1_B0)).first;
     all_rho1_B0.push_back(collected_rho1_B0);
-    auto collected_rhs_Bfinite = anomtrans::collect_contents(rhs_Bfinite);
+    auto collected_rhs_Bfinite = anomtrans::split_scalars(anomtrans::collect_contents(rhs_Bfinite)).first;
     all_rhs_Bfinite.push_back(collected_rhs_Bfinite);
-    auto collected_rho1_Bfinite = anomtrans::collect_contents(rho1_Bfinite);
+    auto collected_rho1_Bfinite = anomtrans::split_scalars(anomtrans::collect_contents(rho1_Bfinite)).first;
     all_rho1_Bfinite.push_back(collected_rho1_Bfinite);
 
-    all_Hall_conductivities.push_back(sigma_Hall);
-    auto collected_sigma_Hall_components = anomtrans::collect_contents(sigma_Hall_components);
+    all_Hall_conductivities.push_back(sigma_Hall.real());
+    auto collected_sigma_Hall_components = anomtrans::split_scalars(anomtrans::collect_contents(sigma_Hall_components)).first;
     all_Hall_conductivity_components.push_back(collected_sigma_Hall_components);
 
-    all_sigma_yys.push_back(sigma_yy);
-    auto collected_sigma_yy_components = anomtrans::collect_contents(sigma_yy_components);
+    all_sigma_yys.push_back(sigma_yy.real());
+    auto collected_sigma_yy_components = anomtrans::split_scalars(anomtrans::collect_contents(sigma_yy_components)).first;
     all_sigma_yy_components.push_back(collected_sigma_yy_components);
 
     ierr = VecDestroy(&sigma_Hall_components);CHKERRXX(ierr);
@@ -258,13 +268,12 @@ TEST( Driving, square_TB_Hall ) {
     ierr = VecDestroy(&rho0_km);CHKERRXX(ierr);
   }
 
-  auto collected_Ekm = anomtrans::collect_contents(Ekm);
+  auto collected_Ekm = anomtrans::split_scalars(anomtrans::collect_contents(Ekm)).first;
 
   // Done with PETSc data.
-  ierr = MatDestroy(&Dbar_B);CHKERRXX(ierr);
-
   for (std::size_t dc = 0; dc < k_dim; dc++) {
-    ierr = MatDestroy(&(d_dk_Cart[dc]));CHKERRXX(ierr);
+    ierr = MatDestroy(&(d_dk_Cart.at(dc)));CHKERRXX(ierr);
+    ierr = MatDestroy(&(DH0_cross_Bhat.at(dc)));CHKERRXX(ierr);
   }
 
   ierr = KSPDestroy(&ksp);CHKERRXX(ierr);
@@ -336,28 +345,28 @@ TEST( Driving, square_TB_Hall ) {
         j_known["ms"].get<std::vector<unsigned int>>(), -1.0, -1.0) );
 
     // t is an appropriate scale for E.
-    auto macheps = std::numeric_limits<PetscScalar>::epsilon();
-    ASSERT_TRUE( anomtrans::check_equal_within(j_out["Ekm"].get<std::vector<PetscScalar>>(),
-        j_known["Ekm"].get<std::vector<PetscScalar>>(),
+    auto macheps = std::numeric_limits<PetscReal>::epsilon();
+    ASSERT_TRUE( anomtrans::check_equal_within(j_out["Ekm"].get<std::vector<PetscReal>>(),
+        j_known["Ekm"].get<std::vector<PetscReal>>(),
         100.0*t*macheps, 10.0*macheps) );
 
     // 1 is an appropriate scale for rho: elements range from 0 to 1.
     // TODO using 1 as scale for norm_d_rho0_dk also. Is this appropriate?
     // The k here is has scale 1 (k_recip values from 0 to 1).
-    ASSERT_TRUE( anomtrans::check_equal_within(j_out["rho0"].get<std::vector<std::vector<PetscScalar>>>(),
-        j_known["rho0"].get<std::vector<std::vector<PetscScalar>>>(),
+    ASSERT_TRUE( anomtrans::check_equal_within(j_out["rho0"].get<std::vector<std::vector<PetscReal>>>(),
+        j_known["rho0"].get<std::vector<std::vector<PetscReal>>>(),
         100.0*macheps, 10.0*macheps) );
-    ASSERT_TRUE( anomtrans::check_equal_within(j_out["rhs_B0"].get<std::vector<std::vector<PetscScalar>>>(),
-        j_known["rhs_B0"].get<std::vector<std::vector<PetscScalar>>>(),
+    ASSERT_TRUE( anomtrans::check_equal_within(j_out["rhs_B0"].get<std::vector<std::vector<PetscReal>>>(),
+        j_known["rhs_B0"].get<std::vector<std::vector<PetscReal>>>(),
         100.0*macheps, 10.0*macheps) );
-    ASSERT_TRUE( anomtrans::check_equal_within(j_out["rho1_B0"].get<std::vector<std::vector<PetscScalar>>>(),
-        j_known["rho1_B0"].get<std::vector<std::vector<PetscScalar>>>(),
+    ASSERT_TRUE( anomtrans::check_equal_within(j_out["rho1_B0"].get<std::vector<std::vector<PetscReal>>>(),
+        j_known["rho1_B0"].get<std::vector<std::vector<PetscReal>>>(),
         100.0*macheps, 10.0*macheps) );
-    ASSERT_TRUE( anomtrans::check_equal_within(j_out["rhs_Bfinite"].get<std::vector<std::vector<PetscScalar>>>(),
-        j_known["rhs_Bfinite"].get<std::vector<std::vector<PetscScalar>>>(),
+    ASSERT_TRUE( anomtrans::check_equal_within(j_out["rhs_Bfinite"].get<std::vector<std::vector<PetscReal>>>(),
+        j_known["rhs_Bfinite"].get<std::vector<std::vector<PetscReal>>>(),
         100.0*macheps, 10.0*macheps) );
-    ASSERT_TRUE( anomtrans::check_equal_within(j_out["rho1_Bfinite"].get<std::vector<std::vector<PetscScalar>>>(),
-        j_known["rho1_Bfinite"].get<std::vector<std::vector<PetscScalar>>>(),
+    ASSERT_TRUE( anomtrans::check_equal_within(j_out["rho1_Bfinite"].get<std::vector<std::vector<PetscReal>>>(),
+        j_known["rho1_Bfinite"].get<std::vector<std::vector<PetscReal>>>(),
         1000.0*macheps, 10.0*macheps) );
   }
 }

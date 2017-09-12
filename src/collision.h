@@ -20,8 +20,6 @@
 
 namespace anomtrans {
 
-static_assert(std::is_same<PetscScalar, PetscReal>::value,
-    "The implementation of the collision matrix assumes that PetscScalar is a real-valued type.");
 static_assert(std::is_same<PetscReal, double>::value,
     "The implementation of sigma_min assumes that PetscReal is the same as double.");
 
@@ -84,9 +82,9 @@ Mat make_collision(const kmBasis<k_dim> &kmb, const Hamiltonian &H, const double
 
   // Need to sort energies and get their permutation index to avoid considering
   // all columns of K when building a row.
-  std::vector<std::pair<PetscScalar, PetscInt>> sorted_Ekm;
+  std::vector<std::pair<PetscReal, PetscInt>> sorted_Ekm;
   for (std::size_t ikm = 0; ikm < static_cast<std::size_t>(kmb.end_ikm); ikm++) {
-    sorted_Ekm.push_back(std::make_pair(all_Ekm_vals.at(ikm), ikm));
+    sorted_Ekm.push_back(std::make_pair(all_Ekm_vals.at(ikm).real(), ikm));
   }
   std::sort(sorted_Ekm.begin(), sorted_Ekm.end());
   // Now sorted_Ekm.at(i).first is the i'th energy in ascending order and
@@ -154,7 +152,7 @@ Mat make_collision(const kmBasis<k_dim> &kmb, const Hamiltonian &H, const double
 
     std::vector<PetscInt> column_ikms;
     std::vector<PetscScalar> column_vals;
-    std::tie(column_ikms, column_vals) = collision_row(kmb, H, sigma, disorder_term,
+    std::tie(column_ikms, column_vals) = collision_row(kmb, sigma, disorder_term,
         sorted_Ekm, ikm_to_sorted, threshold, row_count, local_row);
 
     ierr = MatSetValues(K, 1, &local_row, column_ikms.size(), column_ikms.data(),
@@ -179,9 +177,9 @@ Mat make_collision(const kmBasis<k_dim> &kmb, const Hamiltonian &H, const double
  *        value (a boost::optional<std::pair<PetscInt, PetscInt>>, for example).
  */
 bool collision_count_nonzeros_elem(const double sigma,
-    const std::vector<std::pair<PetscScalar, PetscInt>> &sorted_Ekm,
+    const std::vector<std::pair<PetscReal, PetscInt>> &sorted_Ekm,
     const PetscReal threshold, const PetscInt begin, const PetscInt end,
-    const PetscScalar E_row, const PetscInt sorted_col_index,
+    const PetscReal E_row, const PetscInt sorted_col_index,
     PetscInt &row_diag, PetscInt &row_od);
 
 /** @brief Construct the row structure of the local part of the collision matrix:
@@ -190,7 +188,7 @@ bool collision_count_nonzeros_elem(const double sigma,
  */
 template <std::size_t k_dim>
 std::pair<std::vector<PetscInt>, std::vector<PetscInt>> collision_count_nonzeros(const kmBasis<k_dim> &kmb,
-    const double sigma, const std::vector<std::pair<PetscScalar, PetscInt>> &sorted_Ekm,
+    const double sigma, const std::vector<std::pair<PetscReal, PetscInt>> &sorted_Ekm,
     const std::vector<PetscInt> &ikm_to_sorted, const PetscReal threshold,
     const PetscInt begin, const PetscInt end) {
   std::vector<PetscInt> row_counts_diag;
@@ -204,7 +202,7 @@ std::pair<std::vector<PetscInt>, std::vector<PetscInt>> collision_count_nonzeros
     PetscInt row_od = 0;
 
     PetscInt sorted_row_index = ikm_to_sorted.at(row);
-    PetscScalar E_row = sorted_Ekm.at(sorted_row_index).first;
+    PetscReal E_row = sorted_Ekm.at(sorted_row_index).first;
 
     PetscInt end_up = static_cast<PetscInt>(std::floor(kmb.end_ikm/2.0) + 1);
     PetscInt end_down = static_cast<PetscInt>(std::ceil(kmb.end_ikm/2.0));
@@ -250,11 +248,11 @@ std::pair<std::vector<PetscInt>, std::vector<PetscInt>> collision_count_nonzeros
  */
 template <typename UU>
 bool collision_row_elem(const double sigma, const UU &disorder_term,
-    const std::vector<std::pair<PetscScalar, PetscInt>> &sorted_Ekm,
-    const PetscReal threshold, const PetscScalar E_row, const PetscInt row,
+    const std::vector<std::pair<PetscReal, PetscInt>> &sorted_Ekm,
+    const PetscReal threshold, const PetscReal E_row, const PetscInt row,
     const PetscInt sorted_col_index, std::vector<PetscInt> &column_ikms,
     std::vector<PetscScalar> &column_vals) {
-  PetscScalar E_col = sorted_Ekm.at(sorted_col_index).first;
+  PetscReal E_col = sorted_Ekm.at(sorted_col_index).first;
   PetscInt column = sorted_Ekm.at(sorted_col_index).second;
 
   double delta_fac = delta_Gaussian(sigma, E_row - E_col);
@@ -279,10 +277,10 @@ bool collision_row_elem(const double sigma, const UU &disorder_term,
  *  @param threshold Include only elements with absolute value greater than this.
  *  @todo Common infrastructure between this and collision_count_nonzeros?
  */
-template <std::size_t k_dim, typename Hamiltonian, typename UU>
-IndexValPairs collision_row(const kmBasis<k_dim> &kmb, const Hamiltonian &H,
+template <std::size_t k_dim, typename UU>
+IndexValPairs collision_row(const kmBasis<k_dim> &kmb,
     const double sigma, const UU &disorder_term,
-    const std::vector<std::pair<PetscScalar, PetscInt>> &sorted_Ekm,
+    const std::vector<std::pair<PetscReal, PetscInt>> &sorted_Ekm,
     const std::vector<PetscInt> &ikm_to_sorted, const PetscReal threshold,
     const PetscInt row_count, const PetscInt row) {
   std::vector<PetscInt> column_ikms;
@@ -291,7 +289,7 @@ IndexValPairs collision_row(const kmBasis<k_dim> &kmb, const Hamiltonian &H,
   column_vals.reserve(row_count);
 
   PetscInt sorted_row_index = ikm_to_sorted.at(row);
-  PetscScalar E_row = sorted_Ekm.at(sorted_row_index).first;
+  PetscReal E_row = sorted_Ekm.at(sorted_row_index).first;
 
   PetscInt end_up = static_cast<PetscInt>(std::floor(kmb.end_ikm/2.0) + 1);
   PetscInt end_down = static_cast<PetscInt>(std::ceil(kmb.end_ikm/2.0));

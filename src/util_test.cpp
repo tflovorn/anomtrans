@@ -26,7 +26,7 @@ int main(int argc, char* argv[]) {
 }
 
 TEST( cross, unit_vectors ) {
-  PetscScalar tol = 1e-12;
+  PetscReal tol = 1e-12;
   // Check that \hat{x} cross \hat{y} = \hat{z} and cyclic permutations.
   for (std::size_t d = 0; d < 3; d++) {
     std::array<PetscScalar, 3> u = {0.0, 0.0, 0.0};
@@ -35,9 +35,9 @@ TEST( cross, unit_vectors ) {
     v.at((d + 1) % 3) = 1.0;
 
     auto u_cross_v = anomtrans::cross(u, v);
-    ASSERT_NEAR( u_cross_v.at(d), 0.0, tol );
-    ASSERT_NEAR( u_cross_v.at((d + 1) % 3), 0.0, tol );
-    ASSERT_NEAR( u_cross_v.at((d + 2) % 3), 1.0, tol );
+    ASSERT_NEAR( u_cross_v.at(d).real(), 0.0, tol );
+    ASSERT_NEAR( u_cross_v.at((d + 1) % 3).real(), 0.0, tol );
+    ASSERT_NEAR( u_cross_v.at((d + 2) % 3).real(), 1.0, tol );
   }
   // Check that \hat{x} cross \hat{y} = -\hat{z} and cyclic permutations.
   for (std::size_t d = 0; d < 3; d++) {
@@ -47,9 +47,9 @@ TEST( cross, unit_vectors ) {
     v.at(d) = 1.0;
 
     auto u_cross_v = anomtrans::cross(u, v);
-    ASSERT_NEAR( u_cross_v.at(d), 0.0, tol );
-    ASSERT_NEAR( u_cross_v.at((d + 1) % 3), 0.0, tol );
-    ASSERT_NEAR( u_cross_v.at((d + 2) % 3), -1.0, tol );
+    ASSERT_NEAR( u_cross_v.at(d).real(), 0.0, tol );
+    ASSERT_NEAR( u_cross_v.at((d + 1) % 3).real(), 0.0, tol );
+    ASSERT_NEAR( u_cross_v.at((d + 2) % 3).real(), -1.0, tol );
   }
   // Check that \hat{x} cross \hat{y} = \hat{z} when \hat{x} and \hat{y}
   // are given as 2D vectors.
@@ -57,9 +57,9 @@ TEST( cross, unit_vectors ) {
   std::array<PetscScalar, 2> y_2d = {0.0, 1.0};
 
   auto x_cross_y = anomtrans::cross(x_2d, y_2d);
-  ASSERT_NEAR( x_cross_y.at(0), 0.0, tol );
-  ASSERT_NEAR( x_cross_y.at(1), 0.0, tol );
-  ASSERT_NEAR( x_cross_y.at(2), 1.0, tol );
+  ASSERT_NEAR( x_cross_y.at(0).real(), 0.0, tol );
+  ASSERT_NEAR( x_cross_y.at(1).real(), 0.0, tol );
+  ASSERT_NEAR( x_cross_y.at(2).real(), 1.0, tol );
 }
 
 TEST( wrap, correct_wrapping ) {

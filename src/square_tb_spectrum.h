@@ -28,6 +28,9 @@ public:
   /** @brief Number of k-points in each direction to sample.
    */
   const kComps<2> Nk;
+  /** @brief Number of bands.
+   */
+  const unsigned int Nbands;
 
   square_tb_Hamiltonian(double _t, double _tp, kComps<2> _Nk);
 
@@ -35,7 +38,15 @@ public:
    */
   double energy(kmComps<2> ikm_comps) const;
 
-  /** @brief Velocity at (k, m): v_{km} = dE_{km}/dk|_{k}
+  /** @brief Gradient of the Hamiltonian, evaluated in the eigenbasis;
+   *         equal to the covariant derivative of the Hamiltonain.
+   *         gradient(ikm, mp) = <k, m|grad_k H|k, mp>.
+   */
+  std::array<std::complex<double>, 2> gradient(kmComps<2> ikm_comps, unsigned int mp) const;
+
+  /** @brief Velocity at (k, m): v_{km} = dE_{km}/dk|_{k}.
+   *  @note By Hellmann-Feynman theorem, this is equal to gradient(km, m)
+   *         = <k, m|grad_k H|k, m>.
    */
   std::array<double, 2> velocity(kmComps<2> ikm_comps) const;
 

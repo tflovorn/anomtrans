@@ -11,14 +11,6 @@ PetscInt wrap(PetscInt x, PetscInt N) {
   return N - (abs_x - m*N);
 }
 
-std::vector<PetscInt> invert_vals_indices(std::vector<std::pair<PetscScalar, PetscInt>> xs) {
-  std::vector<PetscInt> ys(xs.size());
-  for (std::size_t i = 0; i < xs.size(); i++) {
-    ys.at(xs.at(i).second) = i;
-  }
-  return ys;
-}
-
 std::vector<double> linspace(double start, double stop, unsigned int num) {
   std::vector<double> v;
   v.reserve(num);
@@ -41,6 +33,19 @@ std::vector<double> linspace(double start, double stop, unsigned int num) {
   }
     
   return v;
+}
+
+std::pair<std::vector<PetscReal>, std::vector<PetscReal>> split_scalars(std::vector<PetscScalar> v) {
+  std::vector<PetscReal> re_v, im_v;
+  re_v.reserve(v.size());
+  im_v.reserve(v.size());
+
+  for (auto x : v) {
+    re_v.push_back(x.real());
+    im_v.push_back(x.imag());
+  }
+
+  return std::make_pair(re_v, im_v);
 }
 
 boost::optional<std::string> getenv_optional(const std::string& var) {
@@ -85,6 +90,21 @@ bool check_equal_within<PetscReal>(std::vector<PetscReal> xs, std::vector<PetscR
     return false;
   }
   for (std::vector<PetscReal>::size_type i = 0; i < xs.size(); i++) {
+    if (!scalars_approx_equal(xs.at(i), ys.at(i), eps_abs, eps_rel)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+template <>
+bool check_equal_within<PetscScalar>(std::vector<PetscScalar> xs, std::vector<PetscScalar> ys, PetscReal eps_abs, PetscReal eps_rel) {
+  assert(eps_abs > 0.0);
+  assert(eps_rel > 0.0);
+  if (xs.size() != ys.size()) {
+    return false;
+  }
+  for (std::vector<PetscScalar>::size_type i = 0; i < xs.size(); i++) {
     if (!scalars_approx_equal(xs.at(i), ys.at(i), eps_abs, eps_rel)) {
       return false;
     }

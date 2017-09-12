@@ -96,7 +96,14 @@ double norm2_CartVec(CartVec<dim> L_Cart) {
  *         return the corresponding vector which inverts indices and values.
  *  @return A vector `ys` where ys.at(xs.at(i).second) == i.
  */
-std::vector<PetscInt> invert_vals_indices(std::vector<std::pair<PetscScalar, PetscInt>> xs);
+template <typename T>
+std::vector<PetscInt> invert_vals_indices(std::vector<std::pair<T, PetscInt>> xs) {
+  std::vector<PetscInt> ys(xs.size());
+  for (std::size_t i = 0; i < xs.size(); i++) {
+    ys.at(xs.at(i).second) = i;
+  }
+  return ys;
+}
 
 /** @brief Wrap x to a range of values [0, 1, ..., N-1].
  *         Negative values of x are wrapped starting from the right-hand side
@@ -113,6 +120,24 @@ PetscInt wrap(PetscInt x, PetscInt N);
  *  @param num The length of the sequence.
  */
 std::vector<double> linspace(double start, double stop, unsigned int num);
+
+/** @brief Split the vector of (complex) scalars v into a pair of vectors
+ *         giving the real and imaginary parts of the elements of v.
+ */
+std::pair<std::vector<PetscReal>, std::vector<PetscReal>> split_scalars(std::vector<PetscScalar> v);
+
+/** @brief Convert an array `x` of real elements to an array of complex elements
+ *         with real parts given by the elements of `x` and 0 imaginary parts.
+ */
+template <std::size_t len>
+std::array<PetscScalar, len> make_complex_array(std::array<PetscReal, len> x) {
+  std::array<PetscScalar, len> result;
+  for (std::size_t i = 0; i < len; i++) {
+    result.at(i) = std::complex<double>(x.at(i), 0.0);
+  }
+
+  return result;
+}
 
 /** @brief Wrapper around std::getenv.
  *  @param var Name of the environment variable to get the value of.
@@ -158,18 +183,15 @@ bool check_equal_within(std::vector<std::vector<T>> xs, std::vector<std::vector<
   return true;
 }
 
-static_assert(std::is_same<PetscScalar, PetscReal>::value,
-    "The implementation of check_equal_within assumes that PetscScalar is a real-valued type.");
-
-/** @brief Specialize check_equal_within to handle floats.
- *  @note We assume that PetscReal and PetscScalar are the same type.
- *        An additional specialization for PetscScalar will not compile
- *        when there are the same type.
- *  @todo Handle PetscScalar != PetscReal.
- *  @todo Only checks absolute error. Check (absolute or relative).
+/** @brief Specialize check_equal_within to handle PetscReal.
  */
 template <>
 bool check_equal_within<PetscReal>(std::vector<PetscReal> xs, std::vector<PetscReal> ys, PetscReal eps_abs, PetscReal eps_rel);
+
+/** @brief Specialize check_equal_within to handle PetscScalar = complex<PetscReal>.
+ */
+template <>
+bool check_equal_within<PetscScalar>(std::vector<PetscScalar> xs, std::vector<PetscScalar> ys, PetscReal eps_abs, PetscReal eps_rel);
 
 /** @brief Check if x and y are approximately equal, up to given absolute
  *         and relative tolerances.

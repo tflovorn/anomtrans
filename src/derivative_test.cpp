@@ -101,8 +101,8 @@ TEST( Derivative, square_TB_fermi_surface ) {
   unsigned int num_mus = 40;
   auto mus = anomtrans::linspace(Ekm_min, Ekm_max, num_mus);
 
-  std::vector<std::vector<PetscScalar>> all_rho0;
-  std::vector<std::vector<PetscScalar>> all_norm_d_rho0_dk;
+  std::vector<std::vector<PetscReal>> all_rho0;
+  std::vector<std::vector<PetscReal>> all_norm_d_rho0_dk;
   for (auto mu : mus) {
     Vec rho0_km = anomtrans::make_rho0(Ekm, beta, mu);
 
@@ -143,7 +143,7 @@ TEST( Derivative, square_TB_fermi_surface ) {
     for (PetscInt i = 0; i < num_local_rows; i++) {
       double norm2 = 0;
       for (std::size_t d = 0; d < k_dim; d++) {
-        double component = std::get<1>(local_d_rho0_dk.at(d)).at(i);
+        double component = std::get<1>(local_d_rho0_dk.at(d)).at(i).real();
         norm2 += component*component;
       }
       double norm = std::sqrt(norm2);
@@ -156,11 +156,11 @@ TEST( Derivative, square_TB_fermi_surface ) {
     ierr = VecAssemblyBegin(norm_d_rho0_dk);CHKERRXX(ierr);
     ierr = VecAssemblyEnd(norm_d_rho0_dk);CHKERRXX(ierr);
 
-    auto collected_rho0 = anomtrans::collect_contents(rho0_km);
-    auto collected_norm_d_rho0_dk = anomtrans::collect_contents(norm_d_rho0_dk);
+    auto collected_rho0 = anomtrans::split_scalars(anomtrans::collect_contents(rho0_km));
+    auto collected_norm_d_rho0_dk = anomtrans::split_scalars(anomtrans::collect_contents(norm_d_rho0_dk));
 
-    all_rho0.push_back(collected_rho0);
-    all_norm_d_rho0_dk.push_back(collected_norm_d_rho0_dk);
+    all_rho0.push_back(collected_rho0.first);
+    all_norm_d_rho0_dk.push_back(collected_norm_d_rho0_dk.first);
 
     ierr = VecDestroy(&norm_d_rho0_dk);CHKERRXX(ierr);
     ierr = VecDestroy(&rho0_km);CHKERRXX(ierr);
@@ -169,7 +169,7 @@ TEST( Derivative, square_TB_fermi_surface ) {
     }
   }
 
-  auto collected_Ekm = anomtrans::collect_contents(Ekm);
+  auto collected_Ekm = anomtrans::split_scalars(anomtrans::collect_contents(Ekm)).first;
 
   // Done with PETSc data.
   ierr = VecDestroy(&Ekm);CHKERRXX(ierr);
@@ -232,19 +232,19 @@ TEST( Derivative, square_TB_fermi_surface ) {
         j_known["ms"].get<std::vector<unsigned int>>(), -1.0, -1.0) );
 
     // t is an appropriate scale for E.
-    auto macheps = std::numeric_limits<PetscScalar>::epsilon();
-    ASSERT_TRUE( anomtrans::check_equal_within(j_out["Ekm"].get<std::vector<PetscScalar>>(),
-        j_known["Ekm"].get<std::vector<PetscScalar>>(),
+    auto macheps = std::numeric_limits<PetscReal>::epsilon();
+    ASSERT_TRUE( anomtrans::check_equal_within(j_out["Ekm"].get<std::vector<PetscReal>>(),
+        j_known["Ekm"].get<std::vector<PetscReal>>(),
         100.0*t*macheps, 10.0*macheps) );
 
     // 1 is an appropriate scale for rho: elements range from 0 to 1.
     // TODO using 1 as scale for norm_d_rho0_dk also. Is this appropriate?
     // The k here is has scale 1 (k_recip values from 0 to 1).
-    ASSERT_TRUE( anomtrans::check_equal_within(j_out["rho0"].get<std::vector<std::vector<PetscScalar>>>(),
-        j_known["rho0"].get<std::vector<std::vector<PetscScalar>>>(),
+    ASSERT_TRUE( anomtrans::check_equal_within(j_out["rho0"].get<std::vector<std::vector<PetscReal>>>(),
+        j_known["rho0"].get<std::vector<std::vector<PetscReal>>>(),
         100.0*macheps, 10.0*macheps) );
-    ASSERT_TRUE( anomtrans::check_equal_within(j_out["norm_d_rho0_dk"].get<std::vector<std::vector<PetscScalar>>>(),
-        j_known["norm_d_rho0_dk"].get<std::vector<std::vector<PetscScalar>>>(),
+    ASSERT_TRUE( anomtrans::check_equal_within(j_out["norm_d_rho0_dk"].get<std::vector<std::vector<PetscReal>>>(),
+        j_known["norm_d_rho0_dk"].get<std::vector<std::vector<PetscReal>>>(),
         100.0*macheps, 10.0*macheps) );
   }
 }

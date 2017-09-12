@@ -88,7 +88,7 @@ class SpatialDisorderCorrelation {
     std::vector<PetscScalar> ULambda_vals_stdvec;
     std::tie(all_rows, ULambda_vals_stdvec) = get_local_contents(ULambda_vals_all);
 
-    return ULambda_vals_stdvec;
+    return split_scalars(ULambda_vals_stdvec).first;
   }
 
   /** @brief Collect all L values such that e^{-|L|^2/(2 Lambda^2)} > DBL_EPS.

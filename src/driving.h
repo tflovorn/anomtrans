@@ -13,15 +13,12 @@ namespace anomtrans {
 
 /** @brief Applies the electric field driving term:
  *         given <rho>, output: hbar/(e * |E|) * Dbar_E(<rho>).
- *  @param D Matrix with elements [D]_{ci} giving the c'th Cartesian component
- *           (in order x, y, z) of the i'th lattice vector.
  *  @param kmb Object representing the discretization of k-space and the number
  *             of bands.
- *  @param order Order of approximation to use for finite difference calculation
- *               of derivative.
- *  @param Ehat Unit vector giving the direction of the electric field in
- *              the Cartesian basis.
- *  @todo Implement Berry curvature contribution.
+ *  @param Ehat_dot_grad_k Dot product of the electric field direction (Cartesian unit vector)
+ *                         with the (Cartesian) k-gradient matrix.
+ *  @param rho Density matrix to apply the electric driving term to.
+ *  @todo Implement Berry connection contribution: add argument Mat Ehat_dot_R.
  *  @todo Is it appropriate for E to have the same dimension as k?
  *        Term E dot d<rho>/dk has vanishing contributions from E components
  *        where there are no corresponding k components.
@@ -30,63 +27,55 @@ namespace anomtrans {
  *  @todo Determine appropriate fill ratio for MatMatMult in apply_deriv.
  */
 template <std::size_t k_dim>
-Mat apply_driving_electric(kmBasis<k_dim> kmb, std::array<double, k_dim> Ehat,
-    Mat Ehat_dot_grad_k, Mat rho) {
+Mat apply_driving_electric(const kmBasis<k_dim> &kmb, Mat Ehat_dot_grad_k, Mat rho) {
   Mat result = apply_deriv(kmb, Ehat_dot_grad_k, rho);
 
   return result;
 }
 
 /** @brief Magnetic field driving term hbar^2/e * Dbar_B.
- *  @param D Matrix with elements [D]_{ci} giving the c'th Cartesian component
- *           (in order x, y, z) of the i'th lattice vector.
  *  @param kmb Object representing the discretization of k-space and the number
  *             of bands.
- *  @param order Order of approximation to use for finite difference calculation
- *               of derivative.
- *  @param H Class instance giving the Hamiltonian of the system. Should have
- *           the method std::array<double, k_dim> velocity(kmComps<k_dim>) which
- *           gives the group velocity in the Cartesian basis.
- *  @param Bhat Unit vector giving the direction of the magnetic field in
- *              the Cartesian basis.
- *  @todo What is the correct way to handle x, y components of Bfield when k_dim is 2?
- *        Should the number of components of Bfield be fixed differently?
- *  @todo Implement correct calculation for multi-band case (superoperator
- *        representation?). Need to understand calculation of velocity for
- *        general case (multi-band, possible degeneracies).
- *  @todo Pass in derivative/energies to avoid calculating calculating them
- *        here?
- *  @todo Could use constexpr if here.
+ *  @param DH0_cross_Bhat Cross product of the (Cartesian) covariant derivative of the unperturbed
+ *                     Hamiltonian with the magnetic field direction (Cartesian unit vector).
+ *  @param d_dk_Cart Components of the k-gradient matrix given in Cartesian coordinates.
+ *  @param rho Density matrix to apply the magnetic driving term to.
+ *  @note `DH0_cross_Bhat` only has finite contribution to dot product with D<rho>/Dk
+ *        for components in range 0 <= dc < k_dim, since D<rho>/Dk vanishes if dc >= k_dim.
+ *        Only components of `DH0_cross_B` which can contribute to the result are given.
+ *  @todo Implement Berry connection contribution:
+ *        add argument std::array<Mat, 3> berry_connection.
+ *  @todo Determine appropriate fill ratio for MatMatMult in apply_deriv.
+ *  @todo Optimize to reduce number of allocations.
  */
-template <std::size_t k_dim, typename Hamiltonian>
-Mat driving_magnetic(DimMatrix<k_dim> D, kmBasis<k_dim> kmb,
-    unsigned int deriv_approx_order, Hamiltonian H, std::array<double, 3> Bhat) {
-  std::vector<std::array<PetscScalar, 3>> coeffs;
-  for (PetscInt ikm = 0; ikm < kmb.end_ikm; ikm++) {
-    // Need a function Mat_from_sum(coeff_fn, Bs, expected_elems_per_for)
-    // where coeff_fn gives a coefficient which is constant along a given row
-    // but may vary between rows.
-    std::array<PetscScalar, k_dim> v = H.velocity(kmb.decompose(ikm));
-    coeffs.push_back(cross(v, Bhat));
+template <std::size_t k_dim>
+Mat apply_driving_magnetic(const kmBasis<k_dim> &kmb, std::array<Mat, k_dim> DH0_cross_Bhat,
+    std::array<Mat, k_dim> d_dk_Cart, Mat rho) {
+  std::array<Mat, k_dim> deriv_rhos;
+  for (std::size_t dc = 0; dc < k_dim; dc++) {
+    deriv_rhos.at(dc) = apply_deriv(kmb, d_dk_Cart.at(dc), rho);
   }
 
-  auto coeff_fn = [coeffs](std::size_t d, PetscInt row, PetscInt col)->PetscScalar {
-    return coeffs.at(row).at(d);
-  };
-
-  DerivStencil<1> stencil(DerivApproxType::central, deriv_approx_order);
-
-  // Maximum number of elements expected for sum of Cartesian derivatives.
-  PetscInt expected_elems_per_row = stencil.approx_order*k_dim*k_dim*k_dim;
-
-  std::array<Mat, k_dim> d_dk_Cart = make_d_dk_Cartesian(D, kmb, stencil);
-  Mat Dbar_b = Mat_from_sum_fn(coeff_fn, d_dk_Cart, expected_elems_per_row);
-
-  for (std::size_t d = 0; d < k_dim; d++) {
-    PetscErrorCode ierr = MatDestroy(&(d_dk_Cart.at(d)));CHKERRXX(ierr);
+  Mat result;
+  for (std::size_t dc = 0; dc < k_dim; dc++) {
+    Mat prod;
+    PetscErrorCode ierr = MatMatMult(DH0_cross_Bhat.at(dc), deriv_rhos.at(dc), MAT_INITIAL_MATRIX,
+        PETSC_DEFAULT, &prod);CHKERRXX(ierr);
+    if (dc == 0) {
+      result = prod;
+    } else {
+      // TODO - possible that there is same nonzero pattern for each term?
+      PetscErrorCode ierr = MatAXPY(result, 1.0, prod, DIFFERENT_NONZERO_PATTERN);CHKERRXX(ierr);
+    }
   }
 
-  return Dbar_b;
+  // TODO - {a dot b} \equiv a dot b + b dot a -- need second term.
+
+  for (std::size_t dc = 0; dc < k_dim; dc++) {
+    PetscErrorCode ierr = MatDestroy(&deriv_rhos.at(dc));CHKERRXX(ierr);
+  }
+
+  return result;
 }
 
 } // namespace anomtrans

@@ -17,11 +17,11 @@ double get_sigma_min(PetscReal max_energy_difference) {
 }
 
 bool collision_count_nonzeros_elem(const double sigma,
-    const std::vector<std::pair<PetscScalar, PetscInt>> &sorted_Ekm,
+    const std::vector<std::pair<PetscReal, PetscInt>> &sorted_Ekm,
     const PetscReal threshold, const PetscInt begin, const PetscInt end,
-    const PetscScalar E_row, const PetscInt sorted_col_index,
+    const PetscReal E_row, const PetscInt sorted_col_index,
     PetscInt &row_diag, PetscInt &row_od) {
-  PetscScalar E_col = sorted_Ekm.at(sorted_col_index).first;
+  PetscReal E_col = sorted_Ekm.at(sorted_col_index).first;
   PetscInt column = sorted_Ekm.at(sorted_col_index).second;
 
   double delta_fac = delta_Gaussian(sigma, E_row - E_col);

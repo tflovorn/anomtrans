@@ -3,7 +3,7 @@
 namespace anomtrans {
 
 square_tb_Hamiltonian::square_tb_Hamiltonian(double _t, double _tp, kComps<2> _Nk)
-      : t(_t), tp(_tp), Nk(_Nk) {}
+      : t(_t), tp(_tp), Nk(_Nk), Nbands(1) {}
 
 double square_tb_Hamiltonian::energy(kmComps<2> ikm_comps) const {
   kmVals<2> km = km_at(Nk, ikm_comps);
@@ -18,6 +18,19 @@ double square_tb_Hamiltonian::energy(kmComps<2> ikm_comps) const {
   double ky = 2*pi*k.at(1);
 
   return -2*t*(std::cos(kx) + std::cos(ky)) + 4*tp*std::cos(kx)*std::cos(ky);
+}
+
+std::array<std::complex<double>, 2> square_tb_Hamiltonian::gradient(kmComps<2> ikm_comps, unsigned int mp) const {
+  // One band, so we can just use velocity() here.
+  // Ignore band arguments.
+  auto v = velocity(ikm_comps);
+
+  std::array<std::complex<double>, 2> result;
+  for (std::size_t dc = 0; dc < 2; dc++) {
+    result.at(dc) = std::complex<double>(v.at(dc), 0.0);
+  }
+
+  return result;
 }
 
 std::array<double, 2> square_tb_Hamiltonian::velocity(kmComps<2> ikm_comps) const {
