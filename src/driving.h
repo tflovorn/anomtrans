@@ -58,6 +58,8 @@ Mat apply_driving_magnetic(const kmBasis<k_dim> &kmb, std::array<Mat, k_dim> DH0
     deriv_rhos.at(dc) = apply_deriv(kmb, d_dk_Cart.at(dc), rho);
   }
 
+  // Symmetrized product: {a dot b} = a dot b + b dot a.
+  // a dot b part:
   Mat result = nullptr;
   for (std::size_t dc = 0; dc < k_dim; dc++) {
     Mat prod;
@@ -71,7 +73,15 @@ Mat apply_driving_magnetic(const kmBasis<k_dim> &kmb, std::array<Mat, k_dim> DH0
     }
   }
 
-  // TODO - {a dot b} \equiv a dot b + b dot a -- need second term.
+  // b dot a part:
+  for (std::size_t dc = 0; dc < k_dim; dc++) {
+    Mat prod;
+    PetscErrorCode ierr = MatMatMult(deriv_rhos.at(dc), DH0_cross_Bhat.at(dc), MAT_INITIAL_MATRIX,
+        PETSC_DEFAULT, &prod);CHKERRXX(ierr);
+    ierr = MatAXPY(result, 1.0, prod, DIFFERENT_NONZERO_PATTERN);CHKERRXX(ierr);
+  }
+
+  PetscErrorCode ierr = MatScale(result, 0.5);CHKERRXX(ierr);
 
   for (std::size_t dc = 0; dc < k_dim; dc++) {
     PetscErrorCode ierr = MatDestroy(&deriv_rhos.at(dc));CHKERRXX(ierr);
