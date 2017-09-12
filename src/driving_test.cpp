@@ -89,7 +89,7 @@ TEST( Driving, square_TB_Hall ) {
   }
 
   std::array<double, k_dim> Ehat = {0.0, 1.0};
-  std::array<double, 3> Bhat = {0.0, 0.0, 1.0};
+  std::array<double, 3> Bhat = {0.0, 0.0, -1.0};
 
   Vec Ekm = anomtrans::get_energies(kmb, H);
 
@@ -217,7 +217,6 @@ TEST( Driving, square_TB_Hall ) {
     Vec rhs_Bfinite;
     ierr = VecDuplicate(rho0_km, &rhs_Bfinite);CHKERRXX(ierr);
     ierr = MatMult(Dbar_B, rho1_B0, rhs_Bfinite);CHKERRXX(ierr);
-    ierr = VecScale(rhs_Bfinite, -1.0);CHKERRXX(ierr);
 
     Vec rho1_Bfinite;
     ierr = VecDuplicate(rho0_km, &rho1_Bfinite);CHKERRXX(ierr);
