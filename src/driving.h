@@ -51,12 +51,14 @@ Mat apply_driving_electric(const kmBasis<k_dim> &kmb, Mat Ehat_dot_grad_k, Mat r
 template <std::size_t k_dim>
 Mat apply_driving_magnetic(const kmBasis<k_dim> &kmb, std::array<Mat, k_dim> DH0_cross_Bhat,
     std::array<Mat, k_dim> d_dk_Cart, Mat rho) {
+  static_assert(k_dim > 0, "must have at least 1 spatial dimension");
+
   std::array<Mat, k_dim> deriv_rhos;
   for (std::size_t dc = 0; dc < k_dim; dc++) {
     deriv_rhos.at(dc) = apply_deriv(kmb, d_dk_Cart.at(dc), rho);
   }
 
-  Mat result;
+  Mat result = nullptr;
   for (std::size_t dc = 0; dc < k_dim; dc++) {
     Mat prod;
     PetscErrorCode ierr = MatMatMult(DH0_cross_Bhat.at(dc), deriv_rhos.at(dc), MAT_INITIAL_MATRIX,
