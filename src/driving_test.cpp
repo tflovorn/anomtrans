@@ -17,6 +17,7 @@
 #include "driving.h"
 #include "conductivity.h"
 #include "berry.h"
+#include "dm_graph.h"
 
 using json = nlohmann::json;
 
