@@ -16,6 +16,7 @@
 #include "collision.h"
 #include "driving.h"
 #include "conductivity.h"
+#include "berry.h"
 
 using json = nlohmann::json;
 
