@@ -20,12 +20,17 @@ namespace anomtrans {
 template <std::size_t k_dim, typename Hamiltonian>
 std::array<Mat, k_dim> make_DH0_cross_Bhat(const kmBasis<k_dim> &kmb, const Hamiltonian &H,
     std::array<double, 3> Bhat) {
+  static_assert(k_dim > 0, "must have number of spatial dimensions > 0");
+
   std::array<Mat, k_dim> result;
   for (std::size_t dc = 0; dc < k_dim; dc++) {
     result.at(dc) = make_Mat(kmb.end_ikm, kmb.end_ikm, kmb.Nbands);
   }
 
-  for (PetscInt ikm = 0; ikm < kmb.end_ikm; ikm++) {
+  PetscInt begin, end;
+  PetscErrorCode ierr = MatGetOwnershipRange(result.at(0), &begin, &end);CHKERRXX(ierr);
+
+  for (PetscInt local_row = begin; local_row < end; local_row++) {
     std::vector<PetscInt> result_row_cols;
     result_row_cols.reserve(kmb.Nbands);
 
@@ -34,7 +39,7 @@ std::array<Mat, k_dim> make_DH0_cross_Bhat(const kmBasis<k_dim> &kmb, const Hami
       result_row_vals.at(dc).reserve(kmb.Nbands);
     }
 
-    kmComps<k_dim> km = kmb.decompose(ikm);
+    kmComps<k_dim> km = kmb.decompose(local_row);
 
     for (unsigned int mp = 0; mp < kmb.Nbands; mp++) {
       auto grad = H.gradient(km, mp);
@@ -49,7 +54,7 @@ std::array<Mat, k_dim> make_DH0_cross_Bhat(const kmBasis<k_dim> &kmb, const Hami
     }
 
     for (std::size_t dc = 0; dc < k_dim; dc++) {
-      PetscErrorCode ierr = MatSetValues(result.at(dc), 1, &ikm, result_row_cols.size(),
+      PetscErrorCode ierr = MatSetValues(result.at(dc), 1, &local_row, result_row_cols.size(),
           result_row_cols.data(), result_row_vals.at(dc).data(), INSERT_VALUES);CHKERRXX(ierr);
     }
   }
