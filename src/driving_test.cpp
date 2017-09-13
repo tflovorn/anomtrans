@@ -152,6 +152,11 @@ TEST( Driving, square_TB_Hall ) {
   Mat Ehat_dot_grad_k = anomtrans::Mat_from_sum_const(anomtrans::make_complex_array(Ehat), d_dk_Cart, Ehat_grad_expected_elems_per_row);
   auto DH0_cross_Bhat = anomtrans::make_DH0_cross_Bhat(kmb, H, Bhat);
 
+  // TODO - what is a good way to choose broadening for Berry connection?
+  double berry_broadening = 1e-4;
+  auto R = anomtrans::make_berry_connection(kmb, H, berry_broadening);
+  auto Ehat_dot_R = anomtrans::Mat_from_sum_const(anomtrans::make_complex_array(Ehat), R, kmb.Nbands);
+
   auto mus = anomtrans::linspace(Ekm_min, Ekm_max, num_mus);
 
   std::vector<std::vector<PetscReal>> all_rho0;
@@ -190,7 +195,8 @@ TEST( Driving, square_TB_Hall ) {
 
     Mat rho0_km_Mat = anomtrans::make_diag_Mat(rho0_km);
 
-    Mat rhs_B0_Mat = anomtrans::apply_driving_electric(kmb, Ehat_dot_grad_k, rho0_km_Mat);
+    Mat rhs_B0_Mat = anomtrans::apply_driving_electric(kmb, Ehat_dot_grad_k, Ehat_dot_R,
+        rho0_km_Mat);
     ierr = MatDestroy(&rho0_km_Mat);CHKERRXX(ierr);
 
     Vec rhs_B0;
@@ -217,7 +223,8 @@ TEST( Driving, square_TB_Hall ) {
 
     Mat rho1_B0_Mat = anomtrans::make_diag_Mat(rho1_B0);
 
-    Mat rhs_Bfinite_Mat = anomtrans::apply_driving_magnetic(kmb, DH0_cross_Bhat, d_dk_Cart, rho1_B0_Mat);
+    Mat rhs_Bfinite_Mat = anomtrans::apply_driving_magnetic(kmb, DH0_cross_Bhat, d_dk_Cart,
+        R, rho1_B0_Mat);
     ierr = MatDestroy(&rho1_B0_Mat);CHKERRXX(ierr);
 
     Vec rhs_Bfinite;
@@ -275,8 +282,10 @@ TEST( Driving, square_TB_Hall ) {
   for (std::size_t dc = 0; dc < k_dim; dc++) {
     ierr = MatDestroy(&(d_dk_Cart.at(dc)));CHKERRXX(ierr);
     ierr = MatDestroy(&(DH0_cross_Bhat.at(dc)));CHKERRXX(ierr);
+    ierr = MatDestroy(&(R.at(dc)));CHKERRXX(ierr);
   }
 
+  ierr = MatDestroy(&Ehat_dot_R);CHKERRXX(ierr);
   ierr = KSPDestroy(&ksp);CHKERRXX(ierr);
   ierr = MatDestroy(&collision);CHKERRXX(ierr);
   ierr = VecDestroy(&Ekm);CHKERRXX(ierr);

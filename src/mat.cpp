@@ -113,4 +113,19 @@ bool check_Mat_equal(Mat A, Mat B, double tol) {
   return true;
 }
 
+Mat commutator(Mat A, Mat B) {
+  Mat prod_left, prod_tot;
+  // prod_left = AB
+  PetscErrorCode ierr = MatMatMult(A, B, MAT_INITIAL_MATRIX,
+      PETSC_DEFAULT, &prod_left);CHKERRXX(ierr);
+  // prod_tot = BA
+  ierr = MatMatMult(B, A, MAT_INITIAL_MATRIX, PETSC_DEFAULT, &prod_tot);CHKERRXX(ierr);
+  // prod_tot <- AB - BA
+  ierr = MatAYPX(prod_tot, -1.0, prod_left, DIFFERENT_NONZERO_PATTERN);CHKERRXX(ierr);
+
+  ierr = MatDestroy(&prod_left);CHKERRXX(ierr);
+
+  return prod_tot;
+}
+
 } // namespace anomtrans

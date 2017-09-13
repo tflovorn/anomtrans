@@ -48,6 +48,12 @@ Mat Mat_from_sum_const(std::array<PetscScalar, len> coeffs, std::array<Mat, len>
   return Mat_from_sum_fn(coeff_fn, Bs, expected_elems_per_row);
 }
 
+/** @brief Calculate the commutator AB - BA.
+ *  @todo Add parameter for MatMatMult fill parameter?
+ *  @todo Add parameter for MatAYPX nonzero pattern?
+ */
+Mat commutator(Mat A, Mat B);
+
 /** @brief Construct a matrix [A]_{ij} = \sum_d coeffs(d, i, j) * [Bs(d)]_{ij}.
  *  @param coeffs A function taking 3 arguments: a list dimension `d` from 0 to len
  *                and PetscInt values `i` and `j` denoting matrix row and column
