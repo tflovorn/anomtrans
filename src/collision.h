@@ -56,9 +56,6 @@ double get_sigma_min(PetscReal max_energy_difference);
  *  @todo Sure that Gaussian delta function is appropriate? Lorentzian is natural
  *        given the origin of the term but a poor fit for generating sparsity.
  *        Would cold smearing be better than Gaussian?
- *  @todo Is the expected signature of disorder_term appropriate? Could be more
- *        restrictive in the accepted ikm values (i.e. force ikm3 == ikm2,
- *        ikm4 == ikm1).
  */
 template <std::size_t k_dim, typename Hamiltonian, typename UU>
 Mat make_collision(const kmBasis<k_dim> &kmb, const Hamiltonian &H, const double sigma,

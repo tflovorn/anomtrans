@@ -13,13 +13,15 @@
 
 namespace anomtrans {
 
-/** @brief Calculate the disorder-averaged on-site diagonal disorder term.
+/** @brief Calculate the disorder-averaged on-site diagonal disorder term
+ *         which does not change band indices: <U_{km, k'm'} U_{k'm', km}>.
  *  @note There is an extra factor of U0^2/Nk appearing in <UU>. This is
- *        left out here to avoid passing the parameters.
+ *        left out here to avoid passing the parameters. This function can be
+ *        passed to make_collision() in a lambda which adds this factor.
  */
 template <typename Hamiltonian>
-double on_site_diagonal_disorder(const unsigned int Nbands, const Hamiltonian &H,
-    const PetscInt ikm1, const PetscInt ikm2) {
+double on_site_diagonal_disorder_band_preserved(const unsigned int Nbands,
+    const Hamiltonian &H, const PetscInt ikm1, const PetscInt ikm2) {
   // Use Kahan summation for sum over band indices.
   std::complex<double> sum(0.0, 0.0);
   std::complex<double> c(0.0, 0.0);
@@ -34,6 +36,48 @@ double on_site_diagonal_disorder(const unsigned int Nbands, const Hamiltonian &H
   }
 
   return std::norm(sum);
+}
+
+/** @brief Calculate the disorder-averaged on-site diagonal disorder term
+ *         which may change band indices: <U_{km, k'm'} U_{k'm', km''}>.
+ *  @precondition Arguments are given such that k'' in ikm3 = (k'', m'') may
+ *                be different than k in ikm1 = (k, m). For physically meaningful
+ *                result (momentum conserved after disorder average), must have
+ *                k'' = k. However, with the arguments passed here, cannot check this.
+ *  @todo Add kmBasis to H (or pass kmBasis) to allow checking precondition.
+ *  @note There is an extra factor of U0^2/Nk appearing in <UU>. This is
+ *        left out here to avoid passing the parameters. This function can be
+ *        passed to make_collision() in a lambda which adds this factor.
+ */
+template <typename Hamiltonian>
+std::complex<double> on_site_diagonal_disorder(const unsigned int Nbands,
+    const Hamiltonian &H, const PetscInt ikm1, const PetscInt ikm2, const PetscInt ikm3) {
+  // Use Kahan summation for sum over band indices.
+  std::complex<double> sum_i1(0.0, 0.0);
+  std::complex<double> c_i1(0.0, 0.0);
+  std::complex<double> sum_i2(0.0, 0.0);
+  std::complex<double> c_i2(0.0, 0.0);
+
+  // TODO check that k3 = k1.
+
+  for (unsigned int i = 0; i < Nbands; i++) {
+      std::complex<double> contrib_i1 = std::conj(H.basis_component(ikm1, i))
+          * H.basis_component(ikm2, i);
+      std::complex<double> contrib_i2 = std::conj(H.basis_component(ikm2, i))
+          * H.basis_component(ikm3, i);
+
+      std::complex<double> y = contrib_i1 - c_i1;
+      std::complex<double> t = sum_i1 + y;
+      c_i1 = (t - sum_i1) - y;
+      sum_i1 = t;
+
+      y = contrib_i2 - c_i2;
+      t = sum_i2 + y;
+      c_i2 = (t - sum_i2) - y;
+      sum_i2 = t;
+  }
+
+  return sum_i1 * sum_i2;
 }
 
 /** @brief Functor which computes the spatially correlated disorder factor
@@ -253,11 +297,17 @@ public:
   }
 };
 
+/** @brief Calculate the disorder-averaged on-site diagonal disorder term
+ *         which does not change band indices: <U_{km, k'm'} U_{k'm', km}>.
+ *  @note There is an extra factor of U0^2/Nk appearing in <UU>. This is
+ *        left out here to avoid passing the parameters. This function can be
+ *        passed to make_collision() in a lambda which adds this factor.
+ */
 template <typename Hamiltonian, typename spatial_correlation>
-double spatially_correlated_diagonal_disorder(const unsigned int Nbands,
+double spatially_correlated_diagonal_disorder_band_preserved(const unsigned int Nbands,
     const Hamiltonian &H, const spatial_correlation &ULambda,
     const PetscInt ikm1, const PetscInt ikm2) {
-  return on_site_diagonal_disorder(Nbands, H, ikm1, ikm2) * ULambda(ikm1, ikm2);
+  return on_site_diagonal_disorder_band_preserved(Nbands, H, ikm1, ikm2) * ULambda(ikm1, ikm2);
 }
 
 } // namespace anomtrans

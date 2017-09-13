@@ -108,13 +108,15 @@ TEST( Driving, square_TB_Hall ) {
   double disorder_coeff = U0_sq / Nk_tot;
   /*
   auto disorder_term = [Nbands, H, disorder_coeff](PetscInt ikm1, PetscInt ikm2)->double {
-    return disorder_coeff*anomtrans::on_site_diagonal_disorder(Nbands, H, ikm1, ikm2);
+    return disorder_coeff*anomtrans::on_site_diagonal_disorder_band_preserved(Nbands, H,
+        ikm1, ikm2);
   };
   */
   double Lambda = 1e-12;
   anomtrans::SpatialDisorderCorrelation<k_dim> ULambda(kmb, D, Lambda);
   auto disorder_term = [Nbands, H, ULambda, disorder_coeff](PetscInt ikm1, PetscInt ikm2)->double {
-    return disorder_coeff*anomtrans::spatially_correlated_diagonal_disorder(Nbands, H, ULambda, ikm1, ikm2);
+    return disorder_coeff*anomtrans::spatially_correlated_diagonal_disorder_band_preserved(Nbands,
+        H, ULambda, ikm1, ikm2);
   };
 
   // TODO include finite disorder correlation length
