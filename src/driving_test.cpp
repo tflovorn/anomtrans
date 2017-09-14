@@ -175,7 +175,9 @@ TEST( Driving, square_TB_Hall ) {
   // K rho1_B0 = Dbar_E(rho0)
   // K rho1_Bfinite = -Dbar_B rho1_B0
   for (auto mu : mus) {
+    // ** TODO - replace with make_eq_node
     Vec rho0_km = anomtrans::make_rho0(Ekm, beta, mu);
+    // ** end TODO - replace with make_eq_node
 
     // Get normalized version of rho0 to use for nullspace.
     // TODO can we safely pass a nullptr instead of rho0_orig_norm?
@@ -196,6 +198,7 @@ TEST( Driving, square_TB_Hall ) {
     ierr = MatSetNullSpace(collision, nullspace);CHKERRXX(ierr);
     // NOTE rho0_normalized must not be modified after this call until we are done with nullspace.
 
+    // ** TODO - replace with add_linear_response_electric
     Mat rho0_km_Mat = anomtrans::make_diag_Mat(rho0_km);
 
     Mat rhs_B0_Mat = anomtrans::apply_driving_electric(kmb, Ehat_dot_grad_k, Ehat_dot_R,
@@ -217,6 +220,7 @@ TEST( Driving, square_TB_Hall ) {
     ierr = VecDuplicate(rho0_km, &rho1_B0);CHKERRXX(ierr);
 
     ierr = KSPSolve(ksp, rhs_B0, rho1_B0);CHKERRXX(ierr);
+    // ** end TODO - replace with add_linear_response_electric
 
     // Have obtained linear response to electric field. Can calculate this
     // part of the longitudinal conductivity.

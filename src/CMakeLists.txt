@@ -7,6 +7,7 @@ list(APPEND SOURCES
   square_tb_spectrum.cpp
   rho0.cpp
   collision.cpp
+  dm_graph.cpp
 )
 
 add_mpi_test(vec "${SOURCES}")
