@@ -228,6 +228,7 @@ TEST( Driving, square_TB_Hall ) {
     Vec sigma_yy_components;
     std::tie(sigma_yy, sigma_yy_components) = calculate_longitudinal_conductivity(kmb, H, rho1_B0);
 
+    // ** TODO - replace with add_next_order_magnetic
     Mat rho1_B0_Mat = anomtrans::make_diag_Mat(rho1_B0);
 
     Mat rhs_Bfinite_Mat = anomtrans::apply_driving_magnetic(kmb, DH0_cross_Bhat, d_dk_Cart,
@@ -246,6 +247,7 @@ TEST( Driving, square_TB_Hall ) {
     Vec rho1_Bfinite;
     ierr = VecDuplicate(rho0_km, &rho1_Bfinite);CHKERRXX(ierr);
     ierr = KSPSolve(ksp, rhs_Bfinite, rho1_Bfinite);CHKERRXX(ierr);
+    // ** end TODO - replace with add_next_order_magnetic
 
     // Have obtained linear response to E_y B_z. Can calculate this part of
     // the transverse conductivity.
