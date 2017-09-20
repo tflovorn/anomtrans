@@ -175,9 +175,10 @@ TEST( Driving, square_TB_Hall ) {
   // K rho1_B0 = Dbar_E(rho0)
   // K rho1_Bfinite = -Dbar_B rho1_B0
   for (auto mu : mus) {
-    // ** TODO - replace with make_eq_node
-    Vec rho0_km = anomtrans::make_rho0(Ekm, beta, mu);
-    // ** end TODO - replace with make_eq_node
+    auto dm_rho0 = anomtrans::make_eq_node(Ekm, beta, mu);
+    Vec rho0_km;
+    ierr = VecDuplicate(Ekm, &rho0_km);CHKERRXX(ierr);
+    ierr = MatGetDiagonal(dm_rho0->rho, rho0_km);CHKERRXX(ierr);
 
     // Get normalized version of rho0 to use for nullspace.
     // TODO can we safely pass a nullptr instead of rho0_orig_norm?
@@ -198,29 +199,11 @@ TEST( Driving, square_TB_Hall ) {
     ierr = MatSetNullSpace(collision, nullspace);CHKERRXX(ierr);
     // NOTE rho0_normalized must not be modified after this call until we are done with nullspace.
 
-    // ** TODO - replace with add_linear_response_electric
-    Mat rho0_km_Mat = anomtrans::make_diag_Mat(rho0_km);
-
-    Mat rhs_B0_Mat = anomtrans::apply_driving_electric(kmb, Ehat_dot_grad_k, Ehat_dot_R,
-        rho0_km_Mat);
-    ierr = MatDestroy(&rho0_km_Mat);CHKERRXX(ierr);
-
-    Vec rhs_B0;
-    ierr = VecDuplicate(rho0_km, &rhs_B0);CHKERRXX(ierr);
-    ierr = MatGetDiagonal(rhs_B0_Mat, rhs_B0);CHKERRXX(ierr);
-
-    // TODO - for calculation of <S_E>, will use off-diagonal parts of rhs_B0_Mat.
-    // For now, only need diagonal part, so destroy the matrix here after we have extracted
-    // diagonal part.
-    ierr = MatDestroy(&rhs_B0_Mat);CHKERRXX(ierr);
-
-    // (Need to initialize rho1_B0, but we don't care what is in it before
-    // we call KSPSolve.)
+    anomtrans::add_linear_response_electric(dm_rho0, kmb, Ehat_dot_grad_k, Ehat_dot_R, ksp);
+    auto dm_n_E = dm_rho0->children[anomtrans::DMDerivedBy::Kdd_inv_DE];
     Vec rho1_B0;
     ierr = VecDuplicate(rho0_km, &rho1_B0);CHKERRXX(ierr);
-
-    ierr = KSPSolve(ksp, rhs_B0, rho1_B0);CHKERRXX(ierr);
-    // ** end TODO - replace with add_linear_response_electric
+    ierr = MatGetDiagonal(dm_n_E->rho, rho1_B0);CHKERRXX(ierr);
 
     // Have obtained linear response to electric field. Can calculate this
     // part of the longitudinal conductivity.
@@ -229,11 +212,8 @@ TEST( Driving, square_TB_Hall ) {
     std::tie(sigma_yy, sigma_yy_components) = calculate_longitudinal_conductivity(kmb, H, rho1_B0);
 
     // ** TODO - replace with add_next_order_magnetic
-    Mat rho1_B0_Mat = anomtrans::make_diag_Mat(rho1_B0);
-
     Mat rhs_Bfinite_Mat = anomtrans::apply_driving_magnetic(kmb, DH0_cross_Bhat, d_dk_Cart,
-        R, rho1_B0_Mat);
-    ierr = MatDestroy(&rho1_B0_Mat);CHKERRXX(ierr);
+        R, dm_n_E->rho);
 
     Vec rhs_Bfinite;
     ierr = VecDuplicate(rho0_km, &rhs_Bfinite);CHKERRXX(ierr);
@@ -257,12 +237,8 @@ TEST( Driving, square_TB_Hall ) {
 
     auto collected_rho0 = anomtrans::split_scalars(anomtrans::collect_contents(rho0_km)).first;
     all_rho0.push_back(collected_rho0);
-    auto collected_rhs_B0 = anomtrans::split_scalars(anomtrans::collect_contents(rhs_B0)).first;
-    all_rhs_B0.push_back(collected_rhs_B0);
     auto collected_rho1_B0 = anomtrans::split_scalars(anomtrans::collect_contents(rho1_B0)).first;
     all_rho1_B0.push_back(collected_rho1_B0);
-    auto collected_rhs_Bfinite = anomtrans::split_scalars(anomtrans::collect_contents(rhs_Bfinite)).first;
-    all_rhs_Bfinite.push_back(collected_rhs_Bfinite);
     auto collected_rho1_Bfinite = anomtrans::split_scalars(anomtrans::collect_contents(rho1_Bfinite)).first;
     all_rho1_Bfinite.push_back(collected_rho1_Bfinite);
 
@@ -279,7 +255,6 @@ TEST( Driving, square_TB_Hall ) {
     ierr = VecDestroy(&rhs_Bfinite);CHKERRXX(ierr);
     ierr = VecDestroy(&sigma_yy_components);CHKERRXX(ierr);
     ierr = VecDestroy(&rho1_B0);CHKERRXX(ierr);
-    ierr = VecDestroy(&rhs_B0);CHKERRXX(ierr);
     ierr = MatNullSpaceDestroy(&nullspace);CHKERRXX(ierr);
     ierr = VecDestroy(&rho0_normalized);CHKERRXX(ierr);
     ierr = VecDestroy(&rho0_km);CHKERRXX(ierr);
@@ -316,9 +291,7 @@ TEST( Driving, square_TB_Hall ) {
       {"ms", all_ms},
       {"Ekm", collected_Ekm},
       {"rho0", all_rho0},
-      {"rhs_B0", all_rhs_B0},
       {"rho1_B0", all_rho1_B0},
-      {"rhs_Bfinite", all_rhs_Bfinite},
       {"rho1_Bfinite", all_rho1_Bfinite},
       {"_series_Hall_conductivity", all_Hall_conductivities},
       {"_series_sigma_yy", all_sigma_yys},
@@ -375,14 +348,8 @@ TEST( Driving, square_TB_Hall ) {
     ASSERT_TRUE( anomtrans::check_equal_within(j_out["rho0"].get<std::vector<std::vector<PetscReal>>>(),
         j_known["rho0"].get<std::vector<std::vector<PetscReal>>>(),
         100.0*macheps, 10.0*macheps) );
-    ASSERT_TRUE( anomtrans::check_equal_within(j_out["rhs_B0"].get<std::vector<std::vector<PetscReal>>>(),
-        j_known["rhs_B0"].get<std::vector<std::vector<PetscReal>>>(),
-        100.0*macheps, 10.0*macheps) );
     ASSERT_TRUE( anomtrans::check_equal_within(j_out["rho1_B0"].get<std::vector<std::vector<PetscReal>>>(),
         j_known["rho1_B0"].get<std::vector<std::vector<PetscReal>>>(),
-        100.0*macheps, 10.0*macheps) );
-    ASSERT_TRUE( anomtrans::check_equal_within(j_out["rhs_Bfinite"].get<std::vector<std::vector<PetscReal>>>(),
-        j_known["rhs_Bfinite"].get<std::vector<std::vector<PetscReal>>>(),
         100.0*macheps, 10.0*macheps) );
     ASSERT_TRUE( anomtrans::check_equal_within(j_out["rho1_Bfinite"].get<std::vector<std::vector<PetscReal>>>(),
         j_known["rho1_Bfinite"].get<std::vector<std::vector<PetscReal>>>(),

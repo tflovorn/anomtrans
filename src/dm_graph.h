@@ -6,6 +6,7 @@
 #include <array>
 #include <map>
 #include <memory>
+#include <utility>
 #include <petscksp.h>
 #include "mat.h"
 #include "grid_basis.h"
@@ -69,13 +70,17 @@ public:
    *         without duplicates. The keys of the map are given by the names of the nodes.
    *         The nodes are ordered by increasing impurity order.
    */
-  std::map<std::string, std::shared_ptr<DMGraphNode>> unique_descendants();
+  //std::map<std::string, std::shared_ptr<DMGraphNode>> unique_descendants();
 };
 
 /** @brief Construct the node containing the equilibrium density matrix
  *         (which has no parent nodes).
+ *  @todo Would prefer to return pair<DMGraphNode, Vec> including rho0_km,
+ *        since this Vec is required to construct the nullspace of Kdd.
+ *        Tricky using tie due to intermediate default construction.
+ *        Works better with structured bindings?
  */
-DMGraphNode make_eq_node(Vec Ekm, double beta, double mu);
+std::shared_ptr<DMGraphNode> make_eq_node(Vec Ekm, double beta, double mu);
 
 /** @brief Given a node containing the equilibrium density matrix,
  *         add children to it corresponding to linear response to an applied magnetic
@@ -84,7 +89,7 @@ DMGraphNode make_eq_node(Vec Ekm, double beta, double mu);
  *  @todo Implementation can check that rho0 is really the equilibrium density matrix
  *        by verifying that its list of parents is empty.
  */
-DMGraphNode::ChildrenMap add_linear_response_magnetic(DMGraphNode &eq_node);
+//DMGraphNode::ChildrenMap add_linear_response_magnetic(DMGraphNode &eq_node);
 
 /** @brief Given a node containing the equilibrium density matrix,
  *         add children to it corresponding to linear response to an applied electric
@@ -93,7 +98,7 @@ DMGraphNode::ChildrenMap add_linear_response_magnetic(DMGraphNode &eq_node);
  *                called (the nullspace of Kdd is the <rho_0> vector).
  */
 template <std::size_t k_dim>
-DMGraphNode::ChildrenMap add_linear_response_electric(std::shared_ptr<DMGraphNode> eq_node,
+void add_linear_response_electric(std::shared_ptr<DMGraphNode> eq_node,
     const kmBasis<k_dim> &kmb, Mat Ehat_dot_grad_k, Mat Ehat_dot_R, KSP Kdd_ksp) {
   // eq_node must be the equilibrium density matrix, which has no parents.
   assert(eq_node->parents.size() == 0);
@@ -127,8 +132,6 @@ DMGraphNode::ChildrenMap add_linear_response_electric(std::shared_ptr<DMGraphNod
   ierr = VecDestroy(&n_E);CHKERRXX(ierr);
   ierr = VecDestroy(&D_E_rho0_diag);CHKERRXX(ierr);
   ierr = MatDestroy(&D_E_rho0);CHKERRXX(ierr);
-
-  return eq_node->children;
 }
 
 /** @brief Add children to `node` corresponding to the next order of the expansion in powers
@@ -139,7 +142,7 @@ DMGraphNode::ChildrenMap add_linear_response_electric(std::shared_ptr<DMGraphNod
  *                called (the nullspace of Kdd is the <rho_0> vector).
  */
 template <std::size_t k_dim>
-DMGraphNode::ChildrenMap add_next_order_magnetic(std::shared_ptr<DMGraphNode> parent_node,
+void add_next_order_magnetic(std::shared_ptr<DMGraphNode> parent_node,
     const kmBasis<k_dim> &kmb, std::array<Mat, k_dim> DH0_cross_Bhat,
     std::array<Mat, k_dim> d_dk_Cart, std::array<Mat, k_dim> R, KSP Kdd_ksp) {
   // Construct n child: Kdd^{-1} D_B (<rho>).
@@ -176,8 +179,6 @@ DMGraphNode::ChildrenMap add_next_order_magnetic(std::shared_ptr<DMGraphNode> pa
   ierr = VecDestroy(&child_n_B);CHKERRXX(ierr);
   ierr = VecDestroy(&D_B_rho_diag);CHKERRXX(ierr);
   ierr = MatDestroy(&D_B_rho);CHKERRXX(ierr);
-
-  return parent_node->children;
 }
 
 } // namespace anomtrans
