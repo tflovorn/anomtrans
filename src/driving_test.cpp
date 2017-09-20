@@ -211,23 +211,11 @@ TEST( Driving, square_TB_Hall ) {
     Vec sigma_yy_components;
     std::tie(sigma_yy, sigma_yy_components) = calculate_longitudinal_conductivity(kmb, H, rho1_B0);
 
-    // ** TODO - replace with add_next_order_magnetic
-    Mat rhs_Bfinite_Mat = anomtrans::apply_driving_magnetic(kmb, DH0_cross_Bhat, d_dk_Cart,
-        R, dm_n_E->rho);
-
-    Vec rhs_Bfinite;
-    ierr = VecDuplicate(rho0_km, &rhs_Bfinite);CHKERRXX(ierr);
-    ierr = MatGetDiagonal(rhs_Bfinite_Mat, rhs_Bfinite);CHKERRXX(ierr);
-
-    // TODO - for calculation of <S_{EB}>, will use off-diagonal parts of rhs_Bfinite_Mat.
-    // For now, only need diagonal part, so destroy the matrix here after we have extracted
-    // diagonal part.
-    ierr = MatDestroy(&rhs_Bfinite_Mat);CHKERRXX(ierr);
-
+    anomtrans::add_next_order_magnetic(dm_n_E, kmb, DH0_cross_Bhat, d_dk_Cart, R, ksp);
+    auto dm_n_EB = dm_n_E->children[anomtrans::DMDerivedBy::Kdd_inv_DB];
     Vec rho1_Bfinite;
     ierr = VecDuplicate(rho0_km, &rho1_Bfinite);CHKERRXX(ierr);
-    ierr = KSPSolve(ksp, rhs_Bfinite, rho1_Bfinite);CHKERRXX(ierr);
-    // ** end TODO - replace with add_next_order_magnetic
+    ierr = MatGetDiagonal(dm_n_EB->rho, rho1_Bfinite);CHKERRXX(ierr);
 
     // Have obtained linear response to E_y B_z. Can calculate this part of
     // the transverse conductivity.
@@ -252,7 +240,6 @@ TEST( Driving, square_TB_Hall ) {
 
     ierr = VecDestroy(&sigma_Hall_components);CHKERRXX(ierr);
     ierr = VecDestroy(&rho1_Bfinite);CHKERRXX(ierr);
-    ierr = VecDestroy(&rhs_Bfinite);CHKERRXX(ierr);
     ierr = VecDestroy(&sigma_yy_components);CHKERRXX(ierr);
     ierr = VecDestroy(&rho1_B0);CHKERRXX(ierr);
     ierr = MatNullSpaceDestroy(&nullspace);CHKERRXX(ierr);
