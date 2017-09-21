@@ -8,6 +8,7 @@
 #include <petscksp.h>
 #include "mat.h"
 #include "grid_basis.h"
+#include "util.h"
 
 namespace anomtrans {
 
@@ -133,12 +134,12 @@ std::array<Vec, 3> make_berry_curvature(const kmBasis<k_dim> &kmb, const Hamilto
       for (std::size_t dc = 0; dc < 3; dc++) {
         // [i (a x a^*)] is pure real for all a. Make sure Berry curvature is real.
         // TODO - is there a good general way to choose scale of absolute error here?
-        assert(scalars_approx_equal(grad.at(dc), grad_star.at(dc).conj(),
-              10.0*std::numeric_limits<PetscScalar>::epsilon(),
-              10.0*std::numeric_limits<PetscScalar>::epsilon()));
+        assert(scalars_approx_equal(grad.at(dc), std::conj(grad_star.at(dc)),
+              10.0*std::numeric_limits<PetscReal>::epsilon(),
+              10.0*std::numeric_limits<PetscReal>::epsilon()));
 
         PetscScalar num = std::complex<double>(0.0, 1.0) * grad_cross.at(dc);
-        local_vals.at(dc) += num / denom;
+        local_vals.at(dc).at(local_row) += num / denom;
       }
     }
   }

@@ -1,4 +1,5 @@
 #include <cstddef>
+#include <array>
 #include <tuple>
 #include <gtest/gtest.h>
 #include <mpi.h>

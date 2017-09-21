@@ -12,7 +12,7 @@
 namespace anomtrans {
 
 /** @brief Applies the electric field driving term:
- *         given <rho>, output: hbar/(e * |E|) * Dbar_E(<rho>).
+ *         given <rho>, output: hbar/(e * |E|) * D_E(<rho>).
  *  @param kmb Object representing the discretization of k-space and the number
  *             of bands.
  *  @param Ehat_dot_grad_k Dot product of the electric field direction (Cartesian unit vector)
@@ -45,7 +45,7 @@ Mat apply_driving_electric(const kmBasis<k_dim> &kmb, Mat Ehat_dot_grad_k,
   return result;
 }
 
-/** @brief Magnetic field driving term hbar^2/e * Dbar_B.
+/** @brief Magnetic field driving term hbar^2/(e * |B|) * D_B.
  *  @param kmb Object representing the discretization of k-space and the number
  *             of bands.
  *  @param DH0_cross_Bhat Cross product of the (Cartesian) covariant derivative of the unperturbed

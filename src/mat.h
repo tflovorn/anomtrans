@@ -42,6 +42,8 @@ bool check_Mat_equal(Mat A, Mat B, double tol);
 template<std::size_t len>
 Mat Mat_from_sum_const(std::array<PetscScalar, len> coeffs, std::array<Mat, len> Bs,
     PetscInt expected_elems_per_row) {
+  static_assert(len > 0, "must have at least 1 Mat for Mat_from_sum_const");
+
   auto coeff_fn = [coeffs](std::size_t d, PetscInt row, PetscInt col)->PetscScalar {
     return coeffs.at(d);
   };
@@ -72,9 +74,7 @@ template<std::size_t len, typename F>
 Mat Mat_from_sum_fn(F coeffs, std::array<Mat, len> Bs,
     PetscInt expected_elems_per_row) {
   // Need at least one matrix/coeff pair to have a well-defined output.
-  if (len == 0) {
-    throw std::invalid_argument("must have at least one coeff/matrix to add");
-  }
+  static_assert(len > 0, "must have at least 1 Mat for Mat_from_sum_fn");
 
   // Get dimensions of Ms and check that they are all equal.
   std::vector<PetscInt> ms, ns;

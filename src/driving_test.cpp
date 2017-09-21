@@ -160,6 +160,9 @@ TEST( Driving, square_TB_Hall ) {
   auto R = anomtrans::make_berry_connection(kmb, H, berry_broadening);
   auto Ehat_dot_R = anomtrans::Mat_from_sum_const(anomtrans::make_complex_array(Ehat), R, kmb.Nbands);
 
+  auto Omega = anomtrans::make_berry_curvature(kmb, H, berry_broadening);
+  auto Bhat_dot_Omega = anomtrans::Vec_from_sum_const(anomtrans::make_complex_array(Bhat), Omega);
+
   auto mus = anomtrans::linspace(Ekm_min, Ekm_max, num_mus);
 
   std::vector<std::vector<PetscReal>> all_rho0;
@@ -211,7 +214,7 @@ TEST( Driving, square_TB_Hall ) {
     Vec sigma_yy_components;
     std::tie(sigma_yy, sigma_yy_components) = calculate_longitudinal_conductivity(kmb, H, rho1_B0);
 
-    anomtrans::add_next_order_magnetic(dm_n_E, kmb, DH0_cross_Bhat, d_dk_Cart, R, ksp);
+    anomtrans::add_next_order_magnetic(dm_n_E, kmb, DH0_cross_Bhat, d_dk_Cart, R, ksp, Bhat_dot_Omega);
     auto dm_n_EB = dm_n_E->children[anomtrans::DMDerivedBy::Kdd_inv_DB];
     Vec rho1_Bfinite;
     ierr = VecDuplicate(rho0_km, &rho1_Bfinite);CHKERRXX(ierr);
@@ -254,8 +257,10 @@ TEST( Driving, square_TB_Hall ) {
     ierr = MatDestroy(&(d_dk_Cart.at(dc)));CHKERRXX(ierr);
     ierr = MatDestroy(&(DH0_cross_Bhat.at(dc)));CHKERRXX(ierr);
     ierr = MatDestroy(&(R.at(dc)));CHKERRXX(ierr);
+    ierr = VecDestroy(&(Omega.at(dc)));CHKERRXX(ierr);
   }
 
+  ierr = VecDestroy(&Bhat_dot_Omega);CHKERRXX(ierr);
   ierr = MatDestroy(&Ehat_dot_R);CHKERRXX(ierr);
   ierr = KSPDestroy(&ksp);CHKERRXX(ierr);
   ierr = MatDestroy(&collision);CHKERRXX(ierr);

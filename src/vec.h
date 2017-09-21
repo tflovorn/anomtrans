@@ -32,6 +32,23 @@ PetscReal get_Vec_MaxAbs(Vec v);
  */
 std::vector<PetscScalar> collect_contents(Vec v);
 
+/** @brief Construct a vector u = \sum_d coeffs(d) * vs(d).
+ *  @pre The length of coeffs and vs should be at least 1.
+ *  @pre All vectors in vs should have the same length.
+ */
+template <std::size_t len>
+Vec Vec_from_sum_const(std::array<PetscScalar, len> coeffs, std::array<Vec, len> vs) {
+  static_assert(len > 0, "must have at least 1 Vec for Vec_from_sum_const");
+
+  Vec u;
+  PetscErrorCode ierr = VecDuplicate(vs.at(0), &u);CHKERRXX(ierr);
+  ierr = VecSet(u, 0.0);CHKERRXX(ierr);
+
+  ierr = VecMAXPY(u, len, coeffs.data(), vs.data());CHKERRXX(ierr);
+
+  return u;
+}
+
 /** @brief Apply a function `f` to each element of the vector `v_in` and return
  *         the corresponding vector of outputs.
  *  @param v_in The vector of function inputs.

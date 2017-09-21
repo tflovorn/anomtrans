@@ -144,7 +144,8 @@ void add_linear_response_electric(std::shared_ptr<DMGraphNode> eq_node,
 template <std::size_t k_dim>
 void add_next_order_magnetic(std::shared_ptr<DMGraphNode> parent_node,
     const kmBasis<k_dim> &kmb, std::array<Mat, k_dim> DH0_cross_Bhat,
-    std::array<Mat, k_dim> d_dk_Cart, std::array<Mat, k_dim> R, KSP Kdd_ksp) {
+    std::array<Mat, k_dim> d_dk_Cart, std::array<Mat, k_dim> R, KSP Kdd_ksp,
+    Vec Bhat_dot_Omega) {
   // Construct n child: Kdd^{-1} D_B (<rho>).
   Mat D_B_rho = apply_driving_magnetic(kmb, DH0_cross_Bhat, d_dk_Cart, R, parent_node->rho);
 
@@ -172,8 +173,30 @@ void add_next_order_magnetic(std::shared_ptr<DMGraphNode> parent_node,
   // TODO - Construct S child.
 
   if (parent_node->node_kind != DMKind::S) {
-    // TODO - Construct xi child.
+    // Construct xi child.
     // xi and n have xi children, but S does not.
+    Vec parent_diag;
+    ierr = VecDuplicate(D_B_rho_diag, &parent_diag);CHKERRXX(ierr);
+    ierr = MatGetDiagonal(parent_node->rho, parent_diag);CHKERRXX(ierr);
+
+    // xi_{km} = n_{km} * (B dot Omega_{km})
+    Vec xi;
+    ierr = VecDuplicate(D_B_rho_diag, &xi);CHKERRXX(ierr);
+    ierr = VecPointwiseMult(xi, parent_diag, Bhat_dot_Omega);CHKERRXX(ierr);
+
+    Mat child_xi_Mat = make_diag_Mat(xi);
+    DMKind child_xi_node_kind = DMKind::xi;
+    int child_xi_impurity_order = parent_node->impurity_order;
+    std::string child_xi_name = ""; // TODO
+    DMGraphNode::ParentsMap child_xi_parents {
+      {DMDerivedBy::B_dot_Omega, std::weak_ptr<DMGraphNode>(parent_node)}
+    };
+    auto child_xi_node = std::make_shared<DMGraphNode>(child_xi_Mat, child_xi_node_kind,
+        child_xi_impurity_order, child_xi_name, child_xi_parents);
+
+    parent_node->children[DMDerivedBy::B_dot_Omega] = child_xi_node;
+
+    ierr = VecDestroy(&xi);CHKERRXX(ierr);
   }
 
   ierr = VecDestroy(&child_n_B);CHKERRXX(ierr);
