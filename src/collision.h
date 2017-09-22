@@ -16,7 +16,6 @@
 #include "vec.h"
 #include "mat.h"
 #include "energy.h"
-#include "util.h"
 
 namespace anomtrans {
 
@@ -67,24 +66,11 @@ Mat make_collision(const kmBasis<k_dim> &kmb, const Hamiltonian &H, const double
   // TODO could add parameter to get_energies to just construct Ekm as local vector.
   Vec Ekm_all = scatter_to_all(Ekm);
 
-  std::vector<PetscInt> all_rows;
-  std::vector<PetscScalar> all_Ekm_vals;
-  std::tie(all_rows, all_Ekm_vals) = get_local_contents(Ekm_all);
-  assert(all_rows.at(0) == 0);
-  assert(all_rows.at(all_rows.size() - 1) == kmb.end_ikm - 1);
-
   // Need to sort energies and get their permutation index to avoid considering
   // all columns of K when building a row.
-  std::vector<std::pair<PetscReal, PetscInt>> sorted_Ekm;
-  for (std::size_t ikm = 0; ikm < static_cast<std::size_t>(kmb.end_ikm); ikm++) {
-    sorted_Ekm.push_back(std::make_pair(all_Ekm_vals.at(ikm).real(), ikm));
-  }
-  std::sort(sorted_Ekm.begin(), sorted_Ekm.end());
-  // Now sorted_Ekm.at(i).first is the i'th energy in ascending order and
-  // sorted_Ekm.at(i).second is the corresponding ikm value of that
-  // energy.
-  std::vector<PetscInt> ikm_to_sorted = invert_vals_indices(sorted_Ekm);
-  assert(sorted_Ekm.size() == ikm_to_sorted.size());
+  SortResult sorted_Ekm;
+  std::vector<PetscInt> ikm_to_sorted;
+  std::tie(sorted_Ekm, ikm_to_sorted) = sort_energies(kmb, Ekm_all);
 
   // We need to know what values to regard as 'effectively 0' in K.
   // Take this to be any values where the delta function factor is
@@ -168,9 +154,8 @@ Mat make_collision(const kmBasis<k_dim> &kmb, const Hamiltonian &H, const double
  *        value (a boost::optional<std::pair<PetscInt, PetscInt>>, for example).
  */
 bool collision_count_nonzeros_elem(const double sigma,
-    const std::vector<std::pair<PetscReal, PetscInt>> &sorted_Ekm,
-    const PetscReal threshold, const PetscInt begin, const PetscInt end,
-    const PetscReal E_row, const PetscInt sorted_col_index,
+    const SortResult &sorted_Ekm, const PetscReal threshold, const PetscInt begin,
+    const PetscInt end, const PetscReal E_row, const PetscInt sorted_col_index,
     PetscInt &row_diag, PetscInt &row_od);
 
 /** @brief Construct the row structure of the local part of the collision matrix:
@@ -179,9 +164,8 @@ bool collision_count_nonzeros_elem(const double sigma,
  */
 template <std::size_t k_dim>
 std::pair<std::vector<PetscInt>, std::vector<PetscInt>> collision_count_nonzeros(const kmBasis<k_dim> &kmb,
-    const double sigma, const std::vector<std::pair<PetscReal, PetscInt>> &sorted_Ekm,
-    const std::vector<PetscInt> &ikm_to_sorted, const PetscReal threshold,
-    const PetscInt begin, const PetscInt end) {
+    const double sigma, const SortResult &sorted_Ekm, const std::vector<PetscInt> &ikm_to_sorted,
+    const PetscReal threshold, const PetscInt begin, const PetscInt end) {
   std::vector<PetscInt> row_counts_diag;
   row_counts_diag.reserve(end - begin);
   std::vector<PetscInt> row_counts_od;
@@ -239,8 +223,8 @@ std::pair<std::vector<PetscInt>, std::vector<PetscInt>> collision_count_nonzeros
  */
 template <typename UU>
 bool collision_row_elem(const double sigma, const UU &disorder_term,
-    const std::vector<std::pair<PetscReal, PetscInt>> &sorted_Ekm,
-    const PetscReal threshold, const PetscReal E_row, const PetscInt row,
+    const SortResult &sorted_Ekm, const PetscReal threshold,
+    const PetscReal E_row, const PetscInt row,
     const PetscInt sorted_col_index, std::vector<PetscInt> &column_ikms,
     std::vector<PetscScalar> &column_vals) {
   PetscReal E_col = sorted_Ekm.at(sorted_col_index).first;
@@ -271,9 +255,8 @@ bool collision_row_elem(const double sigma, const UU &disorder_term,
 template <std::size_t k_dim, typename UU>
 IndexValPairs collision_row(const kmBasis<k_dim> &kmb,
     const double sigma, const UU &disorder_term,
-    const std::vector<std::pair<PetscReal, PetscInt>> &sorted_Ekm,
-    const std::vector<PetscInt> &ikm_to_sorted, const PetscReal threshold,
-    const PetscInt row_count, const PetscInt row) {
+    const SortResult &sorted_Ekm, const std::vector<PetscInt> &ikm_to_sorted,
+    const PetscReal threshold, const PetscInt row_count, const PetscInt row) {
   std::vector<PetscInt> column_ikms;
   column_ikms.reserve(row_count);
   std::vector<PetscScalar> column_vals;

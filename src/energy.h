@@ -3,10 +3,12 @@
 
 #include <cstddef>
 #include <vector>
+#include <algorithm>
 #include <petscksp.h>
 #include "vec.h"
 #include "grid_basis.h"
 #include "derivative.h"
+#include "util.h"
 
 namespace anomtrans {
 
@@ -61,6 +63,37 @@ PetscReal find_max_energy_difference(const kmBasis<k_dim> &kmb, const Hamiltonia
   }
 
   return dE_dk_max;
+}
+
+using SortResult = std::vector<std::pair<PetscReal, PetscInt>>;
+
+/** @brief Sort the values of Ekm_all and return the sorted values along with
+ *         lists giving the preimage and image of the sort.
+ *  @returns A pair of values: first, a vector of (sorted energy, original index) pairs;
+ *           second, a vector whose elements (in the unsorted basis) give the index of the
+ *           corresponding element of the sorted vector.
+ */
+template <std::size_t k_dim>
+std::pair<SortResult, std::vector<PetscInt>> sort_energies(const kmBasis<k_dim> &kmb,
+    Vec Ekm_all) {
+  std::vector<PetscInt> all_rows;
+  std::vector<PetscScalar> all_Ekm_vals;
+  std::tie(all_rows, all_Ekm_vals) = get_local_contents(Ekm_all);
+  assert(all_rows.at(0) == 0);
+  assert(all_rows.at(all_rows.size() - 1) == kmb.end_ikm - 1);
+
+  SortResult sorted_Ekm;
+  for (std::size_t ikm = 0; ikm < static_cast<std::size_t>(kmb.end_ikm); ikm++) {
+    sorted_Ekm.push_back(std::make_pair(all_Ekm_vals.at(ikm).real(), ikm));
+  }
+  std::sort(sorted_Ekm.begin(), sorted_Ekm.end());
+  // Now sorted_Ekm.at(i).first is the i'th energy in ascending order and
+  // sorted_Ekm.at(i).second is the corresponding ikm value of that
+  // energy.
+  std::vector<PetscInt> ikm_to_sorted = invert_vals_indices(sorted_Ekm);
+  assert(sorted_Ekm.size() == ikm_to_sorted.size());
+
+  return std::make_pair(sorted_Ekm, ikm_to_sorted);
 }
 
 } // namespace anomtrans
