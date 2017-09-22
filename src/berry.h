@@ -44,10 +44,6 @@ std::array<Mat, k_dim> make_berry_connection(const kmBasis<k_dim> &kmb, const Ha
 
     for (unsigned int mp = 0; mp < kmb.Nbands; mp++) {
       if (mp == m) {
-        // Diagonal elements of Berry connection vanish in eigenbasis.
-        for (std::size_t dc = 0; dc < k_dim; dc++) {
-          result_row_vals.at(dc).push_back(std::complex<double>(0.0, 0.0));
-        }
         continue;
       }
 
