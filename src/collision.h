@@ -40,6 +40,16 @@ double delta_Gaussian(double sigma, double x);
  */
 double get_sigma_min(PetscReal max_energy_difference);
 
+/** @brief Calculate the threshold difference in energies beyond which km-points are
+ *         considered to be part of difference Fermi surfaces.
+ *  @note Take this to be any values where the delta function factor is
+ *        below the threshold given by: delta(0) * DBL_EPSILON.
+ * @todo Is this an appropriate scale?
+ *       Is it sufficient to use delta function value to determine if above
+ *       threshold, or should UU play a role in comparison and threshold?
+ */
+PetscReal get_fermi_surface_threshold(double sigma);
+
 /** @brief Construct the collision matrix: hbar K.
  *  @param kmb Object representing the discretization of k-space and the number
  *             of bands.
@@ -73,13 +83,8 @@ Mat make_collision(const kmBasis<k_dim> &kmb, const Hamiltonian &H, const double
   std::tie(sorted_Ekm, ikm_to_sorted) = sort_energies(kmb, Ekm_all);
 
   // We need to know what values to regard as 'effectively 0' in K.
-  // Take this to be any values where the delta function factor is
-  // below the threshold given by:
-  //   delta(0) * DBL_EPSILON.
-  // TODO is this an appropriate scale?
-  // Is it sufficient to compare delta_fac value to determine if above
-  // threshold, or should UU play a role in comparison and threshold?
-  PetscReal threshold = delta_Gaussian(sigma, 0.0) * std::numeric_limits<PetscReal>::epsilon();
+  // Choose those which are multiplied by a negligible delta function factor.
+  PetscReal threshold = get_fermi_surface_threshold(sigma);
 
   // Assume Ekm has the same local distribution as K.
   // This should be true since K is N x N and Ekm is length N, and local distributions

@@ -16,6 +16,10 @@ double get_sigma_min(PetscReal max_energy_difference) {
   return coeff * max_energy_difference;
 }
 
+PetscReal get_fermi_surface_threshold(double sigma) {
+  return delta_Gaussian(sigma, 0.0) * std::numeric_limits<PetscReal>::epsilon();
+}
+
 bool on_fermi_surface(const double sigma, const SortResult &sorted_Ekm,
     const std::vector<PetscInt> &ikm_to_sorted, const PetscReal threshold,
     PetscReal E_km, PetscInt sorted_ikpmp_index) {
