@@ -146,17 +146,63 @@ Mat make_collision(const kmBasis<k_dim> &kmb, const Hamiltonian &H, const double
   return K;
 }
 
-/** @brief Register an element of the row's nonzero diagonal or off-diagonal
- *         part count. Return true if the element is above threshold
- *         (and thus registered), or false otherwise.
- *  @todo Might want to change this to functional style: avoid updating row_diag
- *        and row_od and instead communicate what needs to update by the return
- *        value (a boost::optional<std::pair<PetscInt, PetscInt>>, for example).
+/** @brief Return true iff the (k', m') point given by sorted_ikpmp_index is on
+ *         the Fermi surface associated with the point (k, m) with energy E_km.
  */
-bool collision_count_nonzeros_elem(const double sigma,
-    const SortResult &sorted_Ekm, const PetscReal threshold, const PetscInt begin,
-    const PetscInt end, const PetscReal E_row, const PetscInt sorted_col_index,
-    PetscInt &row_diag, PetscInt &row_od);
+bool on_fermi_surface(const double sigma, const SortResult &sorted_Ekm,
+    const std::vector<PetscInt> &ikm_to_sorted, const PetscReal threshold,
+    PetscReal E_km, PetscInt sorted_ikpmp_index);
+
+/** @brief Iterate over the indices ikpmp of the (k', m') points which are on the
+ *         Fermi surface associated with the point ikm and call the function fs_fn(ikpmp)
+ *         for each of these points.
+ *  @param fs_fn A function with the signature `void fs_fn(PetscInt ikpmp)`.
+ *  @note Points (k', m') on the Fermi surface of point (k, m) are given by those with
+ *        |\delta_{\sigma}(E_{km} - E_{k'm'})| > threshold.
+ */
+template <std::size_t k_dim, typename F>
+void apply_on_fermi_surface(const kmBasis<k_dim> &kmb,
+    const double sigma, const SortResult &sorted_Ekm, const std::vector<PetscInt> &ikm_to_sorted,
+    const PetscReal threshold, PetscInt ikm, F fs_fn) {
+  PetscInt sorted_ikm_index = ikm_to_sorted.at(ikm);
+  PetscReal E_km = sorted_Ekm.at(sorted_ikm_index).first;
+
+  // We will iterate through the list of sorted energies, moving up and down away from ikm.
+  // If the highest or lowest energy is reached, the up and down iterations will
+  // wrap around and continue.
+  // `end_up` and `end_down` are 1 + the maximum number of elements which may be
+  // encountered in this way.
+  PetscInt end_up = static_cast<PetscInt>(std::floor(kmb.end_ikm/2.0) + 1);
+  PetscInt end_down = static_cast<PetscInt>(std::ceil(kmb.end_ikm/2.0));
+
+  // Iterate through columns in sorted order, moving up in energy from ikm.
+  for (PetscInt di = 1; di < end_up; di++) {
+    PetscInt sorted_ikpmp_index = wrap(sorted_ikm_index + di, kmb.end_ikm);
+
+    // Are we still on the Fermi surface? If so, call fs_fn.
+    if (on_fermi_surface(sigma, sorted_Ekm, ikm_to_sorted, threshold, E_km, sorted_ikpmp_index)) {
+      PetscInt ikpmp = sorted_Ekm.at(sorted_ikpmp_index).second;
+      fs_fn(ikpmp);
+    } else {
+      // No longer on Fermi surface: we can stop moving up in energy.
+      break;
+    }
+  }
+
+  // Iterate through columns in sorted order, moving down in energy from row.
+  for (PetscInt di = 1; di < end_down; di++) {
+    PetscInt sorted_ikpmp_index = wrap(sorted_ikm_index - di, kmb.end_ikm);
+
+    // Are we still on the Fermi surface? If so, call fs_fn.
+    if (on_fermi_surface(sigma, sorted_Ekm, ikm_to_sorted, threshold, E_km, sorted_ikpmp_index)) {
+      PetscInt ikpmp = sorted_Ekm.at(sorted_ikpmp_index).second;
+      fs_fn(ikpmp);
+    } else {
+      // No longer on Fermi surface: we can stop moving down in energy.
+      break;
+    }
+  }
+}
 
 /** @brief Construct the row structure of the local part of the collision matrix:
  *         return the number of nonzeros in the diagonal and off-diagonal parts
@@ -171,81 +217,28 @@ std::pair<std::vector<PetscInt>, std::vector<PetscInt>> collision_count_nonzeros
   std::vector<PetscInt> row_counts_od;
   row_counts_od.reserve(end - begin);
 
-  // Iterate through local rows in K basis order.
+  // Iterate through local rows in Kdd basis order.
   for (PetscInt row = begin; row < end; row++) {
+    // Columns ikpmp on the Fermi surface of the row point ikm will have nonzero contribution
+    // to Kdd. Count these points.
     PetscInt row_diag = 1; // Always include the diagonal element.
     PetscInt row_od = 0;
 
-    PetscInt sorted_row_index = ikm_to_sorted.at(row);
-    PetscReal E_row = sorted_Ekm.at(sorted_row_index).first;
-
-    PetscInt end_up = static_cast<PetscInt>(std::floor(kmb.end_ikm/2.0) + 1);
-    PetscInt end_down = static_cast<PetscInt>(std::ceil(kmb.end_ikm/2.0));
-
-    // Iterate through columns in sorted order, moving up in energy from row.
-    for (PetscInt di = 1; di < end_up; di++) {
-      PetscInt sorted_col_index = wrap(sorted_row_index + di, kmb.end_ikm);
-
-      // Process this element: add it to row_diag or row_od if applicable.
-      bool more_elems = collision_count_nonzeros_elem(sigma, sorted_Ekm,
-          threshold, begin, end, E_row, sorted_col_index, row_diag, row_od);
-
-      if (not more_elems) {
-        break;
+    auto update_count = [begin, end, &row_diag, &row_od](PetscInt col) {
+      if (begin <= col and col < end) {
+        row_diag++;
+      } else {
+        row_od++;
       }
-    }
-    // Iterate through columns in sorted order, moving down in energy from row.
-    for (PetscInt di = 1; di < end_down; di++) {
-      PetscInt sorted_col_index = wrap(sorted_row_index - di, kmb.end_ikm);
+    };
 
-      // Process this element: add it to row_diag or row_od if applicable.
-      bool more_elems = collision_count_nonzeros_elem(sigma, sorted_Ekm,
-          threshold, begin, end, E_row, sorted_col_index, row_diag, row_od);
-
-      if (not more_elems) {
-        break;
-      }
-    }
+    apply_on_fermi_surface(kmb, sigma, sorted_Ekm, ikm_to_sorted, threshold, row, update_count);
 
     row_counts_diag.push_back(row_diag);
     row_counts_od.push_back(row_od);
   }
 
   return std::make_pair(row_counts_diag, row_counts_od);
-}
-
-/** @brief Add an element of the row to the collection of nonzero values, if
- *         large enough. Return true if the element is above threshold
- *         (and thus added), or false otherwise.
- *  @todo Might want to change this to functional style: avoid updating column_ikms
- *        and column_vals and instead communicate what needs to update by the return
- *        value (a boost::optional<std::pair<PetscInt, PetscScalar>>, for example).
- */
-template <typename UU>
-bool collision_row_elem(const double sigma, const UU &disorder_term,
-    const SortResult &sorted_Ekm, const PetscReal threshold,
-    const PetscReal E_row, const PetscInt row,
-    const PetscInt sorted_col_index, std::vector<PetscInt> &column_ikms,
-    std::vector<PetscScalar> &column_vals) {
-  PetscReal E_col = sorted_Ekm.at(sorted_col_index).first;
-  PetscInt column = sorted_Ekm.at(sorted_col_index).second;
-
-  double delta_fac = delta_Gaussian(sigma, E_row - E_col);
-
-  // If this element is over threshold, we will store it.
-  // TODO could assume delta_fac is always positive.
-  // For Gaussian delta, this is true.
-  if (std::abs(delta_fac) > threshold) {
-    PetscScalar K_elem = -2*pi * delta_fac * disorder_term(row, column);
-    column_ikms.push_back(column);
-    column_vals.push_back(K_elem);
-    return true;
-  } else {
-    // All elements farther away than this have a greater energy
-    // difference. If this element is below threshold, the rest of them
-    // will be too.
-    return false;
-  }
 }
 
 /** @brief Construct the row of the collision matrix with the given row index.
@@ -265,33 +258,22 @@ IndexValPairs collision_row(const kmBasis<k_dim> &kmb,
   PetscInt sorted_row_index = ikm_to_sorted.at(row);
   PetscReal E_row = sorted_Ekm.at(sorted_row_index).first;
 
-  PetscInt end_up = static_cast<PetscInt>(std::floor(kmb.end_ikm/2.0) + 1);
-  PetscInt end_down = static_cast<PetscInt>(std::ceil(kmb.end_ikm/2.0));
+  // Calculate the contributions of the column points ikpmp on this row ikm.
+  auto add_elem = [E_row, row, sigma, &disorder_term, &sorted_Ekm, &ikm_to_sorted,
+       &column_ikms, &column_vals](PetscInt col) {
+    // TODO could just use col here if passed Ekm.
+    PetscInt sorted_col_index = ikm_to_sorted.at(col);
+    PetscReal E_col = sorted_Ekm.at(sorted_col_index).first;
 
-  // Iterate through columns in sorted order, moving up in energy from row.
-  for (PetscInt di = 1; di < end_up; di++) {
-    PetscInt sorted_col_index = wrap(sorted_row_index + di, kmb.end_ikm);
+    double delta_fac = delta_Gaussian(sigma, E_row - E_col);
+    PetscScalar K_elem = -2*pi * delta_fac * disorder_term(row, col);
 
-    // Process this element: add it to column_ikms and column_vals if applicable.
-    bool more_elems = collision_row_elem(sigma, disorder_term, sorted_Ekm,
-        threshold, E_row, row, sorted_col_index, column_ikms, column_vals);
+    column_ikms.push_back(col);
+    column_vals.push_back(K_elem);
+  };
 
-    if (not more_elems) {
-      break;
-    }
-  }
-  // Iterate through columns in sorted order, moving down in energy from row.
-  for (PetscInt di = 1; di < end_down; di++) {
-    PetscInt sorted_col_index = wrap(sorted_row_index - di, kmb.end_ikm);
+  apply_on_fermi_surface(kmb, sigma, sorted_Ekm, ikm_to_sorted, threshold, row, add_elem);
 
-    // Process this element: add it to column_ikms and column_vals if applicable.
-    bool more_elems = collision_row_elem(sigma, disorder_term, sorted_Ekm,
-        threshold, E_row, row, sorted_col_index, column_ikms, column_vals);
-
-    if (not more_elems) {
-      break;
-    }
-  }
   // Always include diagonal element.
   // Its value is given by (-1)*(sum of elements in this row).
   // May be many elements in row, so use Kahan summation.
@@ -312,7 +294,6 @@ IndexValPairs collision_row(const kmBasis<k_dim> &kmb,
 
   return IndexValPairs(column_ikms, column_vals);
 }
-
 
 } // namespace anomtrans
 

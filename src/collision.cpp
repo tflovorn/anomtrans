@@ -16,32 +16,14 @@ double get_sigma_min(PetscReal max_energy_difference) {
   return coeff * max_energy_difference;
 }
 
-bool collision_count_nonzeros_elem(const double sigma,
-    const std::vector<std::pair<PetscReal, PetscInt>> &sorted_Ekm,
-    const PetscReal threshold, const PetscInt begin, const PetscInt end,
-    const PetscReal E_row, const PetscInt sorted_col_index,
-    PetscInt &row_diag, PetscInt &row_od) {
-  PetscReal E_col = sorted_Ekm.at(sorted_col_index).first;
-  PetscInt column = sorted_Ekm.at(sorted_col_index).second;
+bool on_fermi_surface(const double sigma, const SortResult &sorted_Ekm,
+    const std::vector<PetscInt> &ikm_to_sorted, const PetscReal threshold,
+    PetscReal E_km, PetscInt sorted_ikpmp_index) {
+  PetscReal E_kpmp = sorted_Ekm.at(sorted_ikpmp_index).first;
 
-  double delta_fac = delta_Gaussian(sigma, E_row - E_col);
+  double delta_fac = delta_Gaussian(sigma, E_km - E_kpmp);
 
-  // If this element is over threshold, we will store it.
-  // TODO could assume delta_fac is always positive.
-  // For Gaussian delta, this is true.
-  if (std::abs(delta_fac) > threshold) {
-    if (begin <= column and column < end) {
-      row_diag++;
-    } else {
-      row_od++;
-    }
-    return true;
-  } else {
-    // All elements farther away than this have a greater energy
-    // difference. If this element is below threshold, the rest of them
-    // will be too.
-    return false;
-  }
+  return std::abs(delta_fac) > threshold;
 }
 
 } // namespace anomtrans
