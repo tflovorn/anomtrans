@@ -32,6 +32,11 @@ PetscReal get_Vec_MaxAbs(Vec v);
  */
 std::vector<PetscScalar> collect_contents(Vec v);
 
+/** @brief Create and return a Vec which has the contents of `v` scattered to
+ *         all ranks.
+ */
+Vec scatter_to_all(Vec v);
+
 /** @brief Construct a vector u = \sum_d coeffs(d) * vs(d).
  *  @pre The length of coeffs and vs should be at least 1.
  *  @pre All vectors in vs should have the same length.

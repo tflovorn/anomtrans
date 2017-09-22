@@ -65,11 +65,7 @@ Mat make_collision(const kmBasis<k_dim> &kmb, const Hamiltonian &H, const double
   // We need the full contents of Ekm to construct each row of K.
   // Bring them to each process.
   // TODO could add parameter to get_energies to just construct Ekm as local vector.
-  VecScatter ctx;
-  Vec Ekm_all;
-  PetscErrorCode ierr = VecScatterCreateToAll(Ekm, &ctx, &Ekm_all);CHKERRXX(ierr);
-  ierr = VecScatterBegin(ctx, Ekm, Ekm_all, INSERT_VALUES, SCATTER_FORWARD);CHKERRXX(ierr);
-  ierr = VecScatterEnd(ctx, Ekm, Ekm_all, INSERT_VALUES, SCATTER_FORWARD);CHKERRXX(ierr);
+  Vec Ekm_all = scatter_to_all(Ekm);
 
   std::vector<PetscInt> all_rows;
   std::vector<PetscScalar> all_Ekm_vals;
@@ -104,7 +100,7 @@ Mat make_collision(const kmBasis<k_dim> &kmb, const Hamiltonian &H, const double
   // are determined with PETSC_DECIDE.
   // TODO is there a better way to do this?
   PetscInt begin, end;
-  ierr = VecGetOwnershipRange(Ekm, &begin, &end);CHKERRXX(ierr);
+  PetscErrorCode ierr = VecGetOwnershipRange(Ekm, &begin, &end);CHKERRXX(ierr);
 
   // Count how many nonzeros are in each local row on the diagonal portion
   // (i.e. those elements (ikm1, ikm2) with begin <= ikm2 < end) and the
@@ -136,7 +132,6 @@ Mat make_collision(const kmBasis<k_dim> &kmb, const Hamiltonian &H, const double
   ierr = MatGetOwnershipRange(K, &begin_K, &end_K);CHKERRXX(ierr);
   if (begin_K != begin or end_K != end) {
     ierr = MatDestroy(&K);CHKERRXX(ierr);
-    ierr = VecScatterDestroy(&ctx);CHKERRXX(ierr);
     ierr = VecDestroy(&Ekm_all);CHKERRXX(ierr);
     ierr = VecDestroy(&Ekm);CHKERRXX(ierr);
 
@@ -159,7 +154,6 @@ Mat make_collision(const kmBasis<k_dim> &kmb, const Hamiltonian &H, const double
   ierr = MatAssemblyBegin(K, MAT_FINAL_ASSEMBLY);CHKERRXX(ierr);
   ierr = MatAssemblyEnd(K, MAT_FINAL_ASSEMBLY);CHKERRXX(ierr);
 
-  ierr = VecScatterDestroy(&ctx);CHKERRXX(ierr);
   ierr = VecDestroy(&Ekm_all);CHKERRXX(ierr);
   ierr = VecDestroy(&Ekm);CHKERRXX(ierr);
 

@@ -54,4 +54,16 @@ std::vector<PetscScalar> collect_contents(Vec v) {
   return std::get<1>(local_collected);
 }
 
+Vec scatter_to_all(Vec v) {
+  VecScatter ctx;
+  Vec v_all;
+  PetscErrorCode ierr = VecScatterCreateToAll(v, &ctx, &v_all);CHKERRXX(ierr);
+  ierr = VecScatterBegin(ctx, v, v_all, INSERT_VALUES, SCATTER_FORWARD);CHKERRXX(ierr);
+  ierr = VecScatterEnd(ctx, v, v_all, INSERT_VALUES, SCATTER_FORWARD);CHKERRXX(ierr);
+
+  ierr = VecScatterDestroy(&ctx);CHKERRXX(ierr);
+
+  return v_all;
+}
+
 } // namespace anomtrans
