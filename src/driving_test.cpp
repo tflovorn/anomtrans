@@ -210,8 +210,7 @@ TEST( Driving, square_TB_Hall ) {
     // Have obtained linear response to electric field. Can calculate this
     // part of the longitudinal conductivity.
     // sigma_yy = -e Tr[v_y <rho_{E_y}>]
-    // TODO - fix sign error present in previous impl.
-    PetscScalar sigma_yy = calculate_velocity_ev(kmb, H, dm_n_E->rho).at(1);
+    PetscScalar sigma_yy = -calculate_velocity_ev(kmb, H, dm_n_E->rho).at(1);
 
     anomtrans::add_next_order_magnetic(dm_n_E, kmb, DH0_cross_Bhat, d_dk_Cart, R, ksp, Bhat_dot_Omega);
     auto dm_n_EB = dm_n_E->children[anomtrans::DMDerivedBy::Kdd_inv_DB];
@@ -222,8 +221,7 @@ TEST( Driving, square_TB_Hall ) {
     // Have obtained linear response to E_y B_z. Can calculate this part of
     // the transverse conductivity.
     // sigma_xy = -e Tr[v_x <rho_{E_y B_z}>]
-    // TODO - fix sign error present in previous impl.
-    PetscScalar sigma_Hall = calculate_velocity_ev(kmb, H, dm_n_EB->rho).at(0);
+    PetscScalar sigma_Hall = -calculate_velocity_ev(kmb, H, dm_n_EB->rho).at(0);
 
     auto collected_rho0 = anomtrans::split_scalars(anomtrans::collect_contents(rho0_km)).first;
     all_rho0.push_back(collected_rho0);
