@@ -83,14 +83,21 @@ bool check_json_equal(std::string test_path, std::string known_path) {
 }
 
 template <>
-bool check_equal_within<PetscReal>(std::vector<PetscReal> xs, std::vector<PetscReal> ys, PetscReal eps_abs, PetscReal eps_rel) {
+bool check_equal_within<PetscReal>(std::vector<PetscReal> xs, std::vector<PetscReal> ys,
+    PetscReal eps_abs, PetscReal eps_rel) {
   assert(eps_abs > 0.0);
   assert(eps_rel > 0.0);
   if (xs.size() != ys.size()) {
+    PetscPrintf(PETSC_COMM_WORLD, "check_equal_within failed: arrays are different sizes - expected %d, got %d\n",
+        ys.size(), xs.size());
+
     return false;
   }
   for (std::vector<PetscReal>::size_type i = 0; i < xs.size(); i++) {
     if (!scalars_approx_equal(xs.at(i), ys.at(i), eps_abs, eps_rel)) {
+      PetscPrintf(PETSC_COMM_WORLD, "check_equal_within failed: expected %f, got %f\n",
+          ys.at(i), xs.at(i));
+
       return false;
     }
   }
@@ -98,14 +105,21 @@ bool check_equal_within<PetscReal>(std::vector<PetscReal> xs, std::vector<PetscR
 }
 
 template <>
-bool check_equal_within<PetscScalar>(std::vector<PetscScalar> xs, std::vector<PetscScalar> ys, PetscReal eps_abs, PetscReal eps_rel) {
+bool check_equal_within<PetscScalar>(std::vector<PetscScalar> xs, std::vector<PetscScalar> ys,
+    PetscReal eps_abs, PetscReal eps_rel) {
   assert(eps_abs > 0.0);
   assert(eps_rel > 0.0);
   if (xs.size() != ys.size()) {
+    PetscPrintf(PETSC_COMM_WORLD, "check_equal_within failed: arrays are different sizes - expected %d, got %d\n",
+        ys.size(), xs.size());
+
     return false;
   }
   for (std::vector<PetscScalar>::size_type i = 0; i < xs.size(); i++) {
     if (!scalars_approx_equal(xs.at(i), ys.at(i), eps_abs, eps_rel)) {
+      PetscPrintf(PETSC_COMM_WORLD, "check_equal_within failed: expected (%f, %f), got (%f, %f)\n",
+          ys.at(i).real(), ys.at(i).imag(), xs.at(i).real(), xs.at(i).imag());
+
       return false;
     }
   }
