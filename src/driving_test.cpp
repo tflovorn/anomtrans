@@ -173,8 +173,6 @@ TEST( Driving, square_TB_Hall ) {
   std::vector<std::vector<PetscReal>> all_rho1_Bfinite;
   std::vector<PetscReal> all_Hall_conductivities;
   std::vector<PetscReal> all_sigma_yys;
-  std::vector<std::vector<PetscReal>> all_Hall_conductivity_components;
-  std::vector<std::vector<PetscReal>> all_sigma_yy_components;
   // For each mu, solve the pair of equations:
   // K rho1_B0 = Dbar_E(rho0)
   // K rho1_Bfinite = -Dbar_B rho1_B0
@@ -211,9 +209,9 @@ TEST( Driving, square_TB_Hall ) {
 
     // Have obtained linear response to electric field. Can calculate this
     // part of the longitudinal conductivity.
-    PetscScalar sigma_yy;
-    Vec sigma_yy_components;
-    std::tie(sigma_yy, sigma_yy_components) = calculate_longitudinal_conductivity(kmb, H, rho1_B0);
+    // sigma_yy = -e Tr[v_y <rho_{E_y}>]
+    // TODO - fix sign error present in previous impl.
+    PetscScalar sigma_yy = calculate_velocity_ev(kmb, H, dm_n_E->rho).at(1);
 
     anomtrans::add_next_order_magnetic(dm_n_E, kmb, DH0_cross_Bhat, d_dk_Cart, R, ksp, Bhat_dot_Omega);
     auto dm_n_EB = dm_n_E->children[anomtrans::DMDerivedBy::Kdd_inv_DB];
@@ -223,9 +221,9 @@ TEST( Driving, square_TB_Hall ) {
 
     // Have obtained linear response to E_y B_z. Can calculate this part of
     // the transverse conductivity.
-    PetscScalar sigma_Hall;
-    Vec sigma_Hall_components;
-    std::tie(sigma_Hall, sigma_Hall_components) = calculate_Hall_conductivity(kmb, H, rho1_Bfinite);
+    // sigma_xy = -e Tr[v_x <rho_{E_y B_z}>]
+    // TODO - fix sign error present in previous impl.
+    PetscScalar sigma_Hall = calculate_velocity_ev(kmb, H, dm_n_EB->rho).at(0);
 
     auto collected_rho0 = anomtrans::split_scalars(anomtrans::collect_contents(rho0_km)).first;
     all_rho0.push_back(collected_rho0);
@@ -234,17 +232,10 @@ TEST( Driving, square_TB_Hall ) {
     auto collected_rho1_Bfinite = anomtrans::split_scalars(anomtrans::collect_contents(rho1_Bfinite)).first;
     all_rho1_Bfinite.push_back(collected_rho1_Bfinite);
 
-    all_Hall_conductivities.push_back(sigma_Hall.real());
-    auto collected_sigma_Hall_components = anomtrans::split_scalars(anomtrans::collect_contents(sigma_Hall_components)).first;
-    all_Hall_conductivity_components.push_back(collected_sigma_Hall_components);
-
     all_sigma_yys.push_back(sigma_yy.real());
-    auto collected_sigma_yy_components = anomtrans::split_scalars(anomtrans::collect_contents(sigma_yy_components)).first;
-    all_sigma_yy_components.push_back(collected_sigma_yy_components);
+    all_Hall_conductivities.push_back(sigma_Hall.real());
 
-    ierr = VecDestroy(&sigma_Hall_components);CHKERRXX(ierr);
     ierr = VecDestroy(&rho1_Bfinite);CHKERRXX(ierr);
-    ierr = VecDestroy(&sigma_yy_components);CHKERRXX(ierr);
     ierr = VecDestroy(&rho1_B0);CHKERRXX(ierr);
     ierr = MatNullSpaceDestroy(&nullspace);CHKERRXX(ierr);
     ierr = VecDestroy(&rho0_normalized);CHKERRXX(ierr);
@@ -288,8 +279,6 @@ TEST( Driving, square_TB_Hall ) {
       {"rho1_Bfinite", all_rho1_Bfinite},
       {"_series_Hall_conductivity", all_Hall_conductivities},
       {"_series_sigma_yy", all_sigma_yys},
-      {"Hall_conductivity_components", all_Hall_conductivity_components},
-      {"sigma_yy_components", all_sigma_yy_components}
     };
 
     std::stringstream outpath;

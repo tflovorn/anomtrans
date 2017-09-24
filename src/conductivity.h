@@ -9,113 +9,67 @@
 
 namespace anomtrans {
 
-/** @brief Calculate the Hall conductivity
- *         sigma_{xy} = (-e/E_y B_z) Tr[v_x rho_B^{(1)}].
- *  @todo Sure this calculation is correct? Expect an extra factor of e...
- *  @todo Could factor out velocity calculation - general function for
- *        constructing PETSc vector from kmb and function mapping row index
- *        to PETSc scalar would be useful. Could also replace get_energies
- *        with such a function.
- *  @todo This is for single-band case only. In multi-band case, need to
- *        consider difference between dH/dk and dE/dk?
+/** @brief Compute \hbar times <v>, the expectation value of the velocity operator:
+ *         \hbar <v> = \hbar Tr[v <rho>] = \sum_{kmm'} <km|\grad_k H_k|km'> <rho>_k^{mm'}.
+ *  @returns The Cartesian components of \hbar <v>.
+ *  @todo Return PetscReal instead of PetscScalar? Output should be guaranteed to be real.
  */
 template <std::size_t k_dim, typename Hamiltonian>
-std::tuple<PetscScalar, Vec> calculate_Hall_conductivity(const kmBasis<k_dim> &kmb,
-    const Hamiltonian &H, Vec rho1_B) {
-  // TODO may want to just pass ikm to H: look up precomputed v without
-  // conversion to ikm_comps and back.
-  auto vx_elem = [kmb, H](PetscInt ikm)->PetscScalar {
-    auto ikm_comps = kmb.decompose(ikm);
-    auto velocity = H.velocity(ikm_comps);
-    return std::get<0>(velocity);
+std::array<PetscScalar, k_dim> calculate_velocity_ev(const kmBasis<k_dim> &kmb,
+    const Hamiltonian &H, Mat rho) {
+  auto row_elem = [&kmb, &H, rho](PetscInt ikmp)->std::array<PetscScalar, k_dim> {
+    auto mp = std::get<1>(kmb.decompose(ikmp));
+
+    std::array<PetscScalar, k_dim> row_total, c;
+    // TODO can omit initialization of row_total, c here?
+    // Appears that std::complex<double> default-initializes to 0.
+    for (std::size_t dc = 0; dc < k_dim; dc++) {
+      row_total.at(dc) = 0.0;
+      c.at(dc) = 0.0;
+    }
+
+    PetscInt ncols;
+    const PetscInt *cols;
+    const PetscScalar *rho_row;
+    PetscErrorCode ierr = MatGetRow(rho, ikmp, &ncols, &cols, &rho_row);CHKERRXX(ierr);
+
+    for (PetscInt col_index = 0; col_index < ncols; col_index++) {
+      PetscInt ikm = cols[col_index];
+      auto ikm_comps = kmb.decompose(ikm);
+
+      auto grad_k_mmp = H.gradient(ikm_comps, mp);
+      PetscScalar rho_k_mpm = rho_row[col_index];
+
+      // Use Kahan sum to avoid introducing error if the number of bands is large.
+      // TODO - prefer a different summation strategy?
+      for (std::size_t dc = 0; dc < k_dim; dc++) {
+        PetscScalar contrib = grad_k_mmp.at(dc) * rho_k_mpm;
+
+        PetscScalar y = contrib - c.at(dc);
+        PetscScalar t = row_total.at(dc) + y;
+        c.at(dc) = (t - row_total.at(dc)) - y;
+        row_total.at(dc) = t;
+      }
+    }
+
+    ierr = MatRestoreRow(rho, ikmp, &ncols, &cols, &rho_row);CHKERRXX(ierr);
+
+    return row_total;
   };
 
-  Vec vx = vector_index_apply(kmb.end_ikm, vx_elem);
+  std::array<Vec, k_dim> v_vecs = vector_index_apply_multiple<k_dim>(kmb.end_ikm, row_elem);
 
-  // Make sure vx and rho1_B have the same local row distribution.
-  // TODO this full check would not be necessary if we could assume that vx and
-  // rho1_B were created with the same row distribution (which they would
-  // be if they have the same number of global elements and were created
-  // with local elements set by PETSC_DECIDE). This would be a benefit
-  // of wrapping Vec in a class (can just check if instances of the Vec
-  // class have the same number of global rows, and always create with
-  // PETSC_DECIDE setting local rows).
-  PetscInt begin_vx, end_vx;
-  PetscErrorCode ierr = VecGetOwnershipRange(vx, &begin_vx, &end_vx);CHKERRXX(ierr);
+  std::array<PetscScalar, k_dim> vs;
+  for (std::size_t dc = 0; dc < k_dim; dc++) {
+    PetscScalar component;
+    PetscErrorCode ierr = VecSum(v_vecs.at(dc), &component);CHKERRXX(ierr);
 
-  PetscInt begin_rho, end_rho;
-  ierr = VecGetOwnershipRange(rho1_B, &begin_rho, &end_rho);CHKERRXX(ierr);
-  if (begin_vx != begin_rho or end_vx != end_rho) {
-    ierr = VecDestroy(&vx);CHKERRXX(ierr);
-    throw std::runtime_error("got different row distribution for vx and rho");
+    vs.at(dc) = component;
+
+    ierr = VecDestroy(&(v_vecs.at(dc)));CHKERRXX(ierr);
   }
 
-  // Get Hall conductivity: sigma_Hall = -e vx^T rho1_B
-  PetscScalar sigma_Hall;
-  // VecDot(u, v) = v^{\dagger} u
-  ierr = VecDot(rho1_B, vx, &sigma_Hall);
-
-  Vec sigma_Hall_components;
-  ierr = VecDuplicate(rho1_B, &sigma_Hall_components);CHKERRXX(ierr);
-  ierr = VecPointwiseMult(sigma_Hall_components, rho1_B, vx);CHKERRXX(ierr);
-
-  ierr = VecDestroy(&vx);CHKERRXX(ierr);
-
-  return std::make_tuple(sigma_Hall, sigma_Hall_components);
-}
-
-/** @brief Calculate the longitudinal conductivity
- *         sigma_{yy} = (-e/E_y) Tr[v_x rho_B^{(1)}].
- *  @todo Could factor out velocity calculation - general function for
- *        constructing PETSc vector from kmb and function mapping row index
- *        to PETSc scalar would be useful. Could also replace get_energies
- *        with such a function.
- *  @todo This is for single-band case only. In multi-band case, need to
- *        consider difference between dH/dk and dE/dk?
- */
-template <std::size_t k_dim, typename Hamiltonian>
-std::tuple<PetscScalar, Vec> calculate_longitudinal_conductivity(const kmBasis<k_dim> &kmb,
-    const Hamiltonian &H, Vec rho1_B0) {
-  // TODO may want to just pass ikm to H: look up precomputed v without
-  // conversion to ikm_comps and back.
-  auto vy_elem = [kmb, H](PetscInt ikm)->PetscScalar {
-    auto ikm_comps = kmb.decompose(ikm);
-    auto velocity = H.velocity(ikm_comps);
-    return std::get<1>(velocity);
-  };
-
-  Vec vy = vector_index_apply(kmb.end_ikm, vy_elem);
-
-  // Make sure vy and rho1_B0 have the same local row distribution.
-  // TODO this full check would not be necessary if we could assume that vy and
-  // rho1_B0 were created with the same row distribution (which they would
-  // be if they have the same number of global elements and were created
-  // with local elements set by PETSC_DECIDE). This would be a benefit
-  // of wrapping Vec in a class (can just check if instances of the Vec
-  // class have the same number of global rows, and always create with
-  // PETSC_DECIDE setting local rows).
-  PetscInt begin_vy, end_vy;
-  PetscErrorCode ierr = VecGetOwnershipRange(vy, &begin_vy, &end_vy);CHKERRXX(ierr);
-
-  PetscInt begin_rho, end_rho;
-  ierr = VecGetOwnershipRange(rho1_B0, &begin_rho, &end_rho);CHKERRXX(ierr);
-  if (begin_vy != begin_rho or end_vy != end_rho) {
-    ierr = VecDestroy(&vy);CHKERRXX(ierr);
-    throw std::runtime_error("got different row distribution for vx and rho");
-  }
-
-  // Get Hall conductivity: sigma_yy = -e vy^T rho1_B0
-  PetscScalar sigma_yy;
-  // VecDot(u, v) = v^{\dagger} u
-  ierr = VecDot(rho1_B0, vy, &sigma_yy);
-
-  Vec sigma_yy_components;
-  ierr = VecDuplicate(rho1_B0, &sigma_yy_components);CHKERRXX(ierr);
-  ierr = VecPointwiseMult(sigma_yy_components, rho1_B0, vy);CHKERRXX(ierr);
-
-  ierr = VecDestroy(&vy);CHKERRXX(ierr);
-
-  return std::make_tuple(sigma_yy, sigma_yy_components);
+  return vs;
 }
 
 } // namespace anomtrans
