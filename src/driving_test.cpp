@@ -335,6 +335,14 @@ TEST( Driving, square_TB_Hall ) {
         j_known["Ekm"].get<std::vector<PetscReal>>(),
         100.0*t*macheps, 10.0*macheps) );
 
+    // TODO - what are appropriate scales for conductivities? Absolute error depends on disorder scale.
+    ASSERT_TRUE( anomtrans::check_equal_within(j_out["_series_sigma_yy"].get<std::vector<PetscReal>>(),
+        j_known["_series_sigma_yy"].get<std::vector<PetscReal>>(),
+        100.0*macheps, 100.0*macheps) );
+    ASSERT_TRUE( anomtrans::check_equal_within(j_out["_series_Hall_conductivity"].get<std::vector<PetscReal>>(),
+        j_known["_series_Hall_conductivity"].get<std::vector<PetscReal>>(),
+        100.0*macheps, 100.0*macheps) );
+
     // 1 is an appropriate scale for rho: elements range from 0 to 1.
     // TODO using 1 as scale for norm_d_rho0_dk also. Is this appropriate?
     // The k here is has scale 1 (k_recip values from 0 to 1).
