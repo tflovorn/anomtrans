@@ -109,37 +109,76 @@ Vec vector_elem_apply(Vec v_in, F f) {
   return v_out;
 }
 
+/** @brief Construct an arrays of Vec's by applying a function `f` to each index of the
+ *         vector of length N. Each returned Vec corresponds to one return value position
+ *         of `f`.
+ *  @param N The global length of the desired vector.
+ *  @param f A function with the signature
+ *           std::array<PetscScalar, out_dim> f(PetscInt).
+ *  @pre out_dim must be at least 1.
+ *  @invariant f(i) will only be called for rows i belonging to the current rank.
+ */
+template <std::size_t out_dim, typename F>
+std::array<Vec, out_dim> vector_index_apply_multiple(PetscInt N, const F &f) {
+  static_assert(out_dim > 0, "Must have at least one output of f");
+
+  std::array<Vec, out_dim> vs;
+
+  for (std::size_t oi = 0; oi < out_dim; oi++) {
+    PetscErrorCode ierr = VecCreateMPI(PETSC_COMM_WORLD, PETSC_DECIDE,
+        N, &(vs.at(oi)));CHKERRXX(ierr);
+  }
+
+  PetscInt begin, end;
+  PetscErrorCode ierr = VecGetOwnershipRange(vs.at(0), &begin, &end);CHKERRXX(ierr);
+
+  std::vector<PetscInt> rows;
+  std::array<std::vector<PetscScalar>, out_dim> vals;
+
+  rows.reserve(end - begin);
+
+  for (std::size_t oi = 0; oi < out_dim; oi++) {
+    vals.at(oi).reserve(end - begin);
+  }
+
+  for (PetscInt i = begin; i < end; i++) {
+    rows.push_back(i);
+
+    std::array<PetscScalar, out_dim> i_vals = f(i);
+
+    for (std::size_t oi = 0; oi < out_dim; oi++) {
+      vals.at(oi).push_back(i_vals.at(oi));
+    }
+  }
+
+  for (std::size_t oi = 0; oi < out_dim; oi++) {
+    assert(rows.size() == vals.at(oi).size());
+
+    ierr = VecSetValues(vs.at(oi), rows.size(), rows.data(), vals.at(oi).data(),
+        INSERT_VALUES);CHKERRXX(ierr);
+
+    ierr = VecAssemblyBegin(vs.at(oi));CHKERRXX(ierr);
+    ierr = VecAssemblyEnd(vs.at(oi));CHKERRXX(ierr);
+  }
+
+  return vs;
+}
+
 /** @brief Construct a Vec by applying a function `f` to each index of the
  *         vector of length N.
  *  @param N The global length of the desired vector.
  *  @param f A function with the signature
  *           PetscScalar f(PetscInt).
+ *  @invariant f(i) will only be called for rows i belonging to the current rank.
  */
 template <typename F>
 Vec vector_index_apply(PetscInt N, const F &f) {
-  Vec v;
-  PetscErrorCode ierr = VecCreateMPI(PETSC_COMM_WORLD, PETSC_DECIDE, N, &v);CHKERRXX(ierr);
+  // This function is a special case of vector_index_apply_multiple where out_dim = 1.
+  auto f_multiple = [&f](PetscInt i)->std::array<PetscScalar, 1> {
+    return { f(i) };
+  };
 
-  PetscInt begin, end;
-  ierr = VecGetOwnershipRange(v, &begin, &end);CHKERRXX(ierr);
-
-  std::vector<PetscInt> rows;
-  rows.reserve(end - begin);
-  std::vector<PetscScalar> vals;
-  vals.reserve(end - begin);
-
-  for (PetscInt i = begin; i < end; i++) {
-    rows.push_back(i);
-    vals.push_back(f(i));
-  }
-  assert(rows.size() == vals.size());
-
-  ierr = VecSetValues(v, rows.size(), rows.data(), vals.data(), INSERT_VALUES);CHKERRXX(ierr);
-
-  ierr = VecAssemblyBegin(v);CHKERRXX(ierr);
-  ierr = VecAssemblyEnd(v);CHKERRXX(ierr);
-
-  return v;
+  return vector_index_apply_multiple<1>(N, f_multiple).at(0);
 }
 
 } // namespace anomtrans
