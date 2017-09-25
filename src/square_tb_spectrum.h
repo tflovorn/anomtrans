@@ -44,12 +44,6 @@ public:
    */
   std::array<std::complex<double>, 2> gradient(kmComps<2> ikm_comps, unsigned int mp) const;
 
-  /** @brief Velocity at (k, m): v_{km} = dE_{km}/dk|_{k}.
-   *  @note By Hellmann-Feynman theorem, this is equal to gradient(km, m)
-   *         = <k, m|grad_k H|k, m>.
-   */
-  std::array<double, 2> velocity(kmComps<2> ikm_comps) const;
-
   /** @brief Value of U_{im}(k), where U is the unitary matrix which diagonalizes
    *         H(k), m is the eigenvalue index, and i is the component of the
    *         initial basis (pseudo-atomic orbital or otherwise).
