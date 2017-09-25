@@ -312,6 +312,19 @@ double spatially_correlated_diagonal_disorder_band_preserved(const unsigned int 
   return on_site_diagonal_disorder_band_preserved(Nbands, H, ikm1, ikm2) * ULambda(ikm1, ikm2);
 }
 
+/** @brief Calculate the disorder-averaged on-site diagonal disorder term
+ *         which may change band indices: <U_{km, k'm'} U_{k'm', km''}>.
+ *  @note There is an extra factor of U0^2/Nk appearing in <UU>. This is
+ *        left out here to avoid passing the parameters. This function can be
+ *        passed to make_collision() in a lambda which adds this factor.
+ */
+template <typename Hamiltonian, typename spatial_correlation>
+std::complex<double> spatially_correlated_diagonal_disorder(const unsigned int Nbands,
+    const Hamiltonian &H, const spatial_correlation &ULambda,
+    const PetscInt ikm1, const PetscInt ikm2, const PetscInt ikm3) {
+  return on_site_diagonal_disorder(Nbands, H, ikm1, ikm2, ikm3) * ULambda(ikm1, ikm2);
+}
+
 } // namespace anomtrans
 
 #endif // ANOMTRANS_DISORDER_H

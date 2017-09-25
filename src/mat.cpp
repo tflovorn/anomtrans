@@ -68,6 +68,23 @@ Mat make_diag_Mat(Vec v) {
   return result;
 }
 
+void set_Mat_diagonal(Mat M, PetscScalar alpha) {
+  PetscInt num_rows, num_cols;
+  PetscErrorCode ierr = MatGetSize(M, &num_rows, &num_cols);CHKERRXX(ierr);
+
+  if (num_rows != num_cols) {
+    throw std::invalid_argument("matrix input to set_Mat_diagonal must be square");
+  }
+
+  Vec diag;
+  ierr = VecCreateMPI(PETSC_COMM_WORLD, PETSC_DECIDE, num_rows, &diag);CHKERRXX(ierr);
+  ierr = VecSet(diag, alpha);CHKERRXX(ierr);
+
+  ierr = MatDiagonalSet(M, diag, INSERT_VALUES);CHKERRXX(ierr);
+
+  ierr = VecDestroy(&diag);CHKERRXX(ierr);
+}
+
 bool check_Mat_equal(Mat A, Mat B, double tol) {
   PetscInt A_m, A_n, B_m, B_n;
   PetscErrorCode ierr = MatGetSize(A, &A_m, &A_n);CHKERRXX(ierr);

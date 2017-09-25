@@ -26,6 +26,15 @@ Mat make_Mat(PetscInt m, PetscInt n, PetscInt expected_elems_per_row);
  */
 Mat make_diag_Mat(Vec v);
 
+/** @brief Set all diagonal entries of `M` to `alpha`.
+ *  @pre `M` must be a square matrix.
+ *  @todo MatDiagonalSet warns that it is slow if diagonal entries of `M` do not already have
+ *        a value. What is a general way to avoid this?
+ *  @todo Check that diagonal entries have values.
+ *  @todo Possible to implement this function without allocating a Vec?
+ */
+void set_Mat_diagonal(Mat M, PetscScalar alpha);
+
 /** @brief Return true iff each element of A and B is equal to within tol.
  *  @pre A and B should have the same global sizes and same local row
  *       distributions.

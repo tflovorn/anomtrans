@@ -120,22 +120,13 @@ TEST( Driving, square_TB_Hall ) {
     return disorder_coeff*anomtrans::spatially_correlated_diagonal_disorder_band_preserved(Nbands,
         H, ULambda, ikm1, ikm2);
   };
+  auto disorder_term_od = [Nbands, H, ULambda, disorder_coeff](PetscInt ikm1, PetscInt ikm2,
+      PetscInt ikm3)->std::complex<double> {
+    return disorder_coeff*anomtrans::spatially_correlated_diagonal_disorder(Nbands,
+        H, ULambda, ikm1, ikm2, ikm3);
+  };
 
-  // TODO include finite disorder correlation length
   Mat collision = anomtrans::make_collision(kmb, H, sigma, disorder_term);
-
-  // The collision matrix K should be symmetric. Knowing that this is the case
-  // substantially simplifies solution of the associated linear systems.
-  // TODO assuming that PetscScalar is not complex here. If it is complex, we
-  // should check that K is Hermitian.
-  // TODO do this check manually? Trying this crashes with an error that MatIsSymmetric
-  // is not supported for MATMPIAIJ.
-  //PetscBool K_is_symmetric;
-  //PetscReal tol = 1e-12;
-  //ierr = MatIsSymmetric(collision, tol, &K_is_symmetric);CHKERRXX(ierr);
-  //ASSERT_TRUE( K_is_symmetric );
-
-  //ierr = MatSetOption(collision, MAT_SYMMETRIC, PETSC_TRUE);CHKERRXX(ierr);
 
   // Create the linear solver context.
   KSP ksp;
@@ -153,7 +144,8 @@ TEST( Driving, square_TB_Hall ) {
   // Maximum number of elements expected for sum of Cartesian derivatives.
   PetscInt Ehat_grad_expected_elems_per_row = stencil.approx_order*k_dim*k_dim*k_dim;
 
-  Mat Ehat_dot_grad_k = anomtrans::Mat_from_sum_const(anomtrans::make_complex_array(Ehat), d_dk_Cart, Ehat_grad_expected_elems_per_row);
+  Mat Ehat_dot_grad_k = anomtrans::Mat_from_sum_const(anomtrans::make_complex_array(Ehat),
+      d_dk_Cart, Ehat_grad_expected_elems_per_row);
   auto DH0_cross_Bhat = anomtrans::make_DH0_cross_Bhat(kmb, H, Bhat);
 
   // TODO - what is a good way to choose broadening for Berry connection?
@@ -201,7 +193,8 @@ TEST( Driving, square_TB_Hall ) {
     ierr = MatSetNullSpace(collision, nullspace);CHKERRXX(ierr);
     // NOTE rho0_normalized must not be modified after this call until we are done with nullspace.
 
-    anomtrans::add_linear_response_electric(dm_rho0, kmb, Ehat_dot_grad_k, Ehat_dot_R, ksp);
+    anomtrans::add_linear_response_electric(dm_rho0, kmb, Ehat_dot_grad_k, Ehat_dot_R, ksp,
+        H, sigma, disorder_term_od, berry_broadening);
     auto dm_n_E = dm_rho0->children[anomtrans::DMDerivedBy::Kdd_inv_DE];
     Vec rho1_B0;
     ierr = VecDuplicate(rho0_km, &rho1_B0);CHKERRXX(ierr);
@@ -209,7 +202,7 @@ TEST( Driving, square_TB_Hall ) {
 
     // Have obtained linear response to electric field. Can calculate this
     // part of the longitudinal conductivity.
-    // sigma_yy = -e Tr[v_y <rho_{E_y}>]
+    // sigma_yy = -e Tr[v_y <rho_{E_y}>] / E_y
     PetscScalar sigma_yy = -calculate_velocity_ev(kmb, H, dm_n_E->rho).at(1);
 
     anomtrans::add_next_order_magnetic(dm_n_E, kmb, DH0_cross_Bhat, d_dk_Cart, R, ksp, Bhat_dot_Omega);
@@ -220,7 +213,7 @@ TEST( Driving, square_TB_Hall ) {
 
     // Have obtained linear response to E_y B_z. Can calculate this part of
     // the transverse conductivity.
-    // sigma_xy = -e Tr[v_x <rho_{E_y B_z}>]
+    // sigma_{xy, Hall} = -e Tr[v_x <rho_{E_y B_z}>] / (E_y B_z)
     PetscScalar sigma_Hall = -calculate_velocity_ev(kmb, H, dm_n_EB->rho).at(0);
 
     auto collected_rho0 = anomtrans::split_scalars(anomtrans::collect_contents(rho0_km)).first;

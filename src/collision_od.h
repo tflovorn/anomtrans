@@ -30,7 +30,7 @@ namespace anomtrans {
  */
 template <std::size_t k_dim, typename Hamiltonian, typename UU_OD>
 Mat apply_collision_od(const kmBasis<k_dim> &kmb, const Hamiltonian &H, const double sigma,
-    const UU_OD &disorder_term, std::vector<PetscScalar> n_all) {
+    const UU_OD &disorder_term, const std::vector<PetscScalar> &n_all) {
   // TODO could make this an argument to avoid recomputing.
   Vec Ekm = get_energies(kmb, H);
   // We need the full contents of Ekm to construct each row of K.
@@ -38,7 +38,7 @@ Mat apply_collision_od(const kmBasis<k_dim> &kmb, const Hamiltonian &H, const do
   // TODO could add parameter to get_energies to just construct Ekm as local vector.
   Vec Ekm_all = scatter_to_all(Ekm);
   // TODO consolidate Ekm_all and Ekm_all_std - replace Ekm_all with std::vector?
-  auto Ekm_all_std = std::get<1>(get_local_contents(Ekm_all));
+  auto Ekm_all_std = split_scalars(std::get<1>(get_local_contents(Ekm_all))).first;
 
   // Need to sort energies and get their permutation index to avoid considering
   // all columns of K when building a row.
@@ -61,25 +61,19 @@ Mat apply_collision_od(const kmBasis<k_dim> &kmb, const Hamiltonian &H, const do
 
     PetscReal eps_km = Ekm_all_std.at(ikm);
 
-    std::vector<PetscInt> fermi_km = get_fermi_surface_indices(kmb, sigma, sorted_Ekm,
-        ikm_to_sorted, threshold, ikm);
-
     std::vector<PetscInt> column_ikms;
     std::vector<PetscScalar> column_vals;
 
     for (unsigned int mpp = 0; mpp < kmb.Nbands; mpp++) {
-      if (mpp = m) {
+      if (mpp == m) {
         // Jn includes only off-diagonal terms.
         continue;
       }
 
       kmComps<k_dim> kmpp = std::make_tuple(k, mpp);
-      PetscInt ikmpp = kmb.decompose(kmpp);
+      PetscInt ikmpp = kmb.compose(kmpp);
 
       PetscReal eps_kmpp = Ekm_all_std.at(ikmpp);
-
-      std::vector<PetscInt> fermi_kmpp = get_fermi_surface_indices(kmb, sigma, sorted_Ekm,
-          ikm_to_sorted, threshold, ikmpp);
 
       PetscScalar total = std::complex<double>(0.0, 0.0);
 
@@ -89,7 +83,7 @@ Mat apply_collision_od(const kmBasis<k_dim> &kmb, const Hamiltonian &H, const do
 
         std::complex<double> U_part = disorder_term(ikm, ikpmp, ikmpp);
 
-        PetscReal ndiff = n_all.at(ikm) - n_all.at(ikpmp);
+        PetscReal ndiff = n_all.at(ikm).real() - n_all.at(ikpmp).real();
         double delta_fac = delta_Gaussian(sigma, eps_km - eps_kpmp);
 
         total += pi * U_part * ndiff * delta_fac;
@@ -103,7 +97,7 @@ Mat apply_collision_od(const kmBasis<k_dim> &kmb, const Hamiltonian &H, const do
 
         std::complex<double> U_part = disorder_term(ikm, ikpmp, ikmpp);
 
-        PetscReal ndiff = n_all.at(ikmpp) - n_all.at(ikpmp);
+        PetscReal ndiff = n_all.at(ikmpp).real() - n_all.at(ikpmp).real();
         double delta_fac = delta_Gaussian(sigma, eps_kmpp - eps_kpmp);
 
         total += pi * U_part * ndiff * delta_fac;

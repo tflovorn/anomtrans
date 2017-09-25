@@ -22,6 +22,7 @@ namespace anomtrans {
  *        We can safely create an object of type Vec on the stack, initialize it with
  *        VecCreate, and return it. The caller will need to call VecDestroy(&v) on
  *        the returned Vec.
+ *  @todo Make kmb a constant ref - avoid copy.
  */
 template <std::size_t k_dim, typename Hamiltonian>
 Vec get_energies(kmBasis<k_dim> kmb, Hamiltonian H) {
@@ -94,6 +95,62 @@ std::pair<SortResult, std::vector<PetscInt>> sort_energies(const kmBasis<k_dim> 
   assert(sorted_Ekm.size() == ikm_to_sorted.size());
 
   return std::make_pair(sorted_Ekm, ikm_to_sorted);
+}
+
+/** @brief Apply the precession term P^{-1} to the density matrix `rho` and return
+ *         the resulting value
+ *         [P^{-1} <rho>]_k^{mm'} = -i\hbar <rho>_k^{mm'} / (E_{km} - E_{km'}).
+ *  @param kmb Object representing the discretization of k-space and the number
+ *             of bands.
+ *  @param H Class instance giving the Hamiltonian of the system. Should have
+ *           the method energy(kmComps<dim>).
+ *  @note Degeneracies are treated by introducing a Lorentzian broadening:
+ *        1 / (E_{km} - E_{km'}) is replaced by
+ *        (E_{km} - E_{km'}) / ((E_{km} - E_{km'})^2 + broadening^2).
+ *  @pre <rho> should be diagonal in k, i.e. <rho>_{km, k'm'} has no entries where k' != k.
+ *  @todo Prefer to act on rho in-place?
+ */
+template <std::size_t k_dim, typename Hamiltonian>
+Mat apply_precession_term(const kmBasis<k_dim> &kmb, Hamiltonian H, Mat rho, double broadening) {
+  Mat result;
+  PetscErrorCode ierr = MatDuplicate(rho, MAT_SHARE_NONZERO_PATTERN, &result);CHKERRXX(ierr);
+
+  PetscInt begin, end;
+  ierr = MatGetOwnershipRange(rho, &begin, &end);CHKERRXX(ierr);
+
+  for (PetscInt ikm = begin; ikm < end; ikm++) {
+    PetscInt ncols;
+    const PetscInt *cols;
+    const PetscScalar *vals;
+    ierr = MatGetRow(rho, ikm, &ncols, &cols, &vals);CHKERRXX(ierr);
+
+    auto km = kmb.decompose(ikm);
+
+    std::vector<PetscScalar> result_row;
+
+    for (PetscInt column_index = 0; column_index < ncols; column_index++) {
+      PetscInt ikmp = cols[column_index];
+      auto kmp = kmb.decompose(ikmp);
+      // Make sure that <rho> is k-diagonal.
+      // Prefer to check this with if/throw? Choosing assert() here since it's in inner loop.
+      assert(std::get<0>(kmp) == std::get<0>(km));
+
+      double ediff = H.energy(km) - H.energy(kmp);
+      PetscScalar elem = std::complex<double>(0.0, -ediff/(std::pow(ediff, 2.0) + std::pow(broadening, 2.0)));
+
+      result_row.push_back(elem);
+    }
+
+    assert(result_row.size() == static_cast<std::size_t>(ncols));
+    ierr = MatSetValues(result, 1, &ikm, ncols, cols, result_row.data(), INSERT_VALUES);CHKERRXX(ierr);
+
+    ierr = MatRestoreRow(rho, ikm, &ncols, &cols, &vals);CHKERRXX(ierr);
+  }
+
+  ierr = MatAssemblyBegin(result, MAT_FINAL_ASSEMBLY);CHKERRXX(ierr);
+  ierr = MatAssemblyEnd(result, MAT_FINAL_ASSEMBLY);CHKERRXX(ierr);
+
+  return result;
 }
 
 } // namespace anomtrans

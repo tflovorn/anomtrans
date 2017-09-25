@@ -12,6 +12,7 @@
 #include "grid_basis.h"
 #include "rho0.h"
 #include "driving.h"
+#include "collision_od.h"
 
 namespace anomtrans {
 
@@ -94,12 +95,17 @@ std::shared_ptr<DMGraphNode> make_eq_node(Vec Ekm, double beta, double mu);
 /** @brief Given a node containing the equilibrium density matrix,
  *         add children to it corresponding to linear response to an applied electric
  *         field and return a list of those children.
+ *  @param disorder_term_od A function with signature `complex<double> f(ikm1, ikm2, ikm3)`
+ *                          giving the disorder-averaged term U_{ikm1, ikm2} U_{ikm2, ikm3}.
+ *                          Must have k1 = k3 for valid result.
  *  @precondition Kdd_ksp should have its nullspace set appropriately before this function is
  *                called (the nullspace of Kdd is the <rho_0> vector).
  */
-template <std::size_t k_dim>
+template <std::size_t k_dim, typename Hamiltonian, typename UU_OD>
 void add_linear_response_electric(std::shared_ptr<DMGraphNode> eq_node,
-    const kmBasis<k_dim> &kmb, Mat Ehat_dot_grad_k, Mat Ehat_dot_R, KSP Kdd_ksp) {
+    const kmBasis<k_dim> &kmb, Mat Ehat_dot_grad_k, Mat Ehat_dot_R, KSP Kdd_ksp,
+    const Hamiltonian &H, const double sigma, const UU_OD &disorder_term_od,
+    double berry_broadening) {
   // eq_node must be the equilibrium density matrix, which has no parents.
   assert(eq_node->parents.size() == 0);
 
@@ -127,9 +133,37 @@ void add_linear_response_electric(std::shared_ptr<DMGraphNode> eq_node,
 
   eq_node->children[DMDerivedBy::Kdd_inv_DE] = n_E_node;
 
-  // TODO: Construct <S_E^(0)>.
+  // Construct <S_E^(0)>_k^{mm'} = [P^{-1} [D_E(<rho_0>) - K^{od}(<n_E>)]]_k^{mm'}
+  //   = -i\hbar [D_E(<rho_0>) - K^{od}(<n_E>)]]_k^{mm'} / (E_{km} - E_{km'})
+  //   \approx -i\hbar [D_E(<rho_0>) - K^{od}(<n_E>)]]_k^{mm'}
+  //               * (E_{km} - E_{km'}) / ((E_{km} - E_{km'})^2 + \eta^2)
+  // Here \eta is the broadening applied to treat degeneracies, chosen to be the same
+  // as the broadening used in the calculation of the Berry connection.
+  set_Mat_diagonal(D_E_rho0, 0.0);
+  Vec n_E_all = scatter_to_all(n_E);
+  auto n_E_all_std = std::get<1>(get_local_contents(n_E_all));
+  Mat K_od_n_E = apply_collision_od(kmb, H, sigma, disorder_term_od, n_E_all_std);
+  // Replace D_E_rho0 with D_E_rho0 - K_od_n_E.
+  // TODO - can SAME_NONZERO_PATTERN be used here?
+  ierr = MatAXPY(D_E_rho0, -1.0, K_od_n_E, DIFFERENT_NONZERO_PATTERN);CHKERRXX(ierr);
+
+  Mat S_E = apply_precession_term(kmb, H, D_E_rho0, berry_broadening);
+
+  DMKind S_E_node_kind = DMKind::S;
+  int S_E_impurity_order = 0;
+  std::string S_E_name = "S_E^{(0)}";
+  DMGraphNode::ParentsMap S_E_parents {
+    {DMDerivedBy::P_inv_DE, std::weak_ptr<DMGraphNode>(eq_node)},
+    {DMDerivedBy::P_inv_Kod, std::weak_ptr<DMGraphNode>(n_E_node)}
+  };
+  auto S_E_node = std::make_shared<DMGraphNode>(S_E, S_E_node_kind, S_E_impurity_order,
+      S_E_name, S_E_parents);
+
+  eq_node->children[DMDerivedBy::P_inv_DE] = S_E_node;
+  n_E_node->children[DMDerivedBy::P_inv_Kod] = S_E_node;
 
   ierr = VecDestroy(&n_E);CHKERRXX(ierr);
+  ierr = VecDestroy(&n_E_all);CHKERRXX(ierr);
   ierr = VecDestroy(&D_E_rho0_diag);CHKERRXX(ierr);
   ierr = MatDestroy(&D_E_rho0);CHKERRXX(ierr);
 }
