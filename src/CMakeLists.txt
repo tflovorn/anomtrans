@@ -5,6 +5,7 @@ list(APPEND SOURCES
   util.cpp
   special_functions.cpp
   square_tb_spectrum.cpp
+  Rashba_Hamiltonian.cpp
   rho0.cpp
   collision.cpp
   dm_graph.cpp

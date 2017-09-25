@@ -1,5 +1,5 @@
-#ifndef ANOMTRANS_SQUARE_TB_SPECTRUM_H
-#define ANOMTRANS_SQUARE_TB_SPECTRUM_H
+#ifndef ANOMTRANS_RASHBA_HAMILTONIAN_H
+#define ANOMTRANS_RASHBA_HAMILTONIAN_H
 
 #include <cstddef>
 #include <cmath>
@@ -12,28 +12,26 @@
 namespace anomtrans {
 
 /** @brief k-space Hamiltonian for square lattice (or higher-dimensional version of square
- *         lattice) tight-binding model.
- *  @note For Hamiltonian initialized from TB model by projection (i.e. without
- *        analytic k-> energy formula) can store diagonalized H(k) privately
- *        (for all k).
+ *         lattice) tight-binding model with Rashba coupling.
  *  @note The lattice spacing a is set to 1.
  */
-class square_tb_Hamiltonian {
+class Rashba_Hamiltonian {
 public:
-  /** @brief Nearest-neighbor hopping amplitude.
+  /** @brief Nearest-neighbor orbital-preserving hopping amplitude.
    */
-  const double t;
-  /** @brief Next-nearest-neighbor hopping amplitude.
-   */
-  const double tp;
-  /** @brief Number of k-points in each direction to sample.
-   */
-  const kComps<2> Nk;
-  /** @brief Number of bands.
-   */
-  const unsigned int Nbands;
+  const double t0;
 
-  square_tb_Hamiltonian(double _t, double _tp, kComps<2> _Nk);
+  /** @brief Nearest-neighbor Rashba hopping amplitude.
+   */
+  const double tr;
+
+  /** @brief Discretization of (k, m) basis on which this Hamiltonian is defined.
+   *  @todo Would prefer to avoid copying kmb: it may be large.
+   *        Replace kmb copy with a shared pointer?
+   */
+  const kmBasis<2> kmb;
+
+  Rashba_Hamiltonian(double _t0, double _tr, kmBasis<2> _kmb);
 
   /** @brief Energy at (k,m): E_{km}.
    */
@@ -45,6 +43,12 @@ public:
    */
   std::array<std::complex<double>, 2> gradient(kmComps<2> ikm_comps, unsigned int mp) const;
 
+  /** @brief Velocity at (k, m): v_{km} = dE_{km}/dk|_{k}.
+   *  @note By Hellmann-Feynman theorem, this is equal to gradient(km, m)
+   *         = <k, m|grad_k H|k, m>.
+   */
+  std::array<double, 2> velocity(kmComps<2> ikm_comps) const;
+
   /** @brief Value of U_{im}(k), where U is the unitary matrix which diagonalizes
    *         H(k), m is the eigenvalue index, and i is the component of the
    *         initial basis (pseudo-atomic orbital or otherwise).
@@ -54,4 +58,4 @@ public:
 
 } // namespace anomtrans
 
-#endif // ANOMTRANS_SQUARE_TB_SPECTRUM_H
+#endif // ANOMTRANS_RASHBA_HAMILTONIAN_H
