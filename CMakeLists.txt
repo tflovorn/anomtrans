@@ -37,7 +37,6 @@ enable_testing()
 
 # Unit testing with MPI programs, following the approach at:
 # https://scicomp.stackexchange.com/a/8739
-# Modified for use with Trilinos testing framework.
 function(add_mpi_test name other_sources)
   add_executable(${name} ${name}_test.cpp ${other_sources})
   # TODO - express this in compiler-independent way?

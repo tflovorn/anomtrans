@@ -285,6 +285,8 @@ public:
       : ULambda_vals(get_ULambda_vals(_kmb, _D, _Lambda)), kmb(_kmb), D(_D),
         Lambda(_Lambda), kb_diff(make_kb_diff(_kmb)) {}
 
+  /** @brief Calculate the band-independent spatial correlation factor in the disorder term.
+   */
   double operator()(const PetscInt ikm1, const PetscInt ikm2) const {
     kmComps<k_dim> km1 = kmb.decompose(ikm1);
     kmComps<k_dim> km2 = kmb.decompose(ikm2);

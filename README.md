@@ -156,3 +156,10 @@ Build and run tests:
     ctest -V
 
 TODO - MKL BLAS/LAPACK support?
+
+# Development Notes
+
+Exceptions thrown by `anomtrans` functions are intended to be a 'panic' type of error.
+They should not be caught unless explicitly noted as being safe to catch.
+The lack of RAII for PETSc objects makes exception safety cumbersome, and in general
+it is not attempted here to provide this type of safety.
