@@ -18,7 +18,6 @@
 #include "conductivity.h"
 #include "berry.h"
 #include "dm_graph.h"
-#include "collision_od.h" // TEMP - TODO remove this dependency, here to compile collision_od only
 
 using json = nlohmann::json;
 
@@ -42,7 +41,7 @@ int main(int argc, char* argv[]) {
   return test_result;
 }
 
-TEST( Driving, square_TB_Hall ) {
+TEST( square_TB_Hall, square_TB_Hall ) {
   int rank;
   MPI_Comm_rank(PETSC_COMM_WORLD, &rank);
 
