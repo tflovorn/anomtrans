@@ -89,7 +89,7 @@ std::array<Vec, 3> make_berry_curvature(const kmBasis<k_dim> &kmb, const Hamilto
 
   for (std::size_t dc = 0; dc < 3; dc++) {
     PetscErrorCode ierr = VecCreateMPI(PETSC_COMM_WORLD, PETSC_DECIDE, kmb.end_ikm,
-        &result.at(dc));CHKERRXX(ierr);
+        &(result.at(dc)));CHKERRXX(ierr);
   }
 
   PetscInt begin, end;
@@ -130,17 +130,19 @@ std::array<Vec, 3> make_berry_curvature(const kmBasis<k_dim> &kmb, const Hamilto
       for (std::size_t dc = 0; dc < 3; dc++) {
         // [i (a x a^*)] is pure real for all a. Make sure Berry curvature is real.
         // TODO - is there a good general way to choose scale of absolute error here?
-        assert(scalars_approx_equal(grad.at(dc), std::conj(grad_star.at(dc)),
+        assert(scalars_approx_equal(grad_cross.at(dc), -std::conj(grad_cross.at(dc)),
               10.0*std::numeric_limits<PetscReal>::epsilon(),
               10.0*std::numeric_limits<PetscReal>::epsilon()));
 
         PetscScalar num = std::complex<double>(0.0, 1.0) * grad_cross.at(dc);
-        local_vals.at(dc).at(local_row) += num / denom;
+        local_vals.at(dc).at(local_row - begin) += num / denom;
       }
     }
   }
 
   for (std::size_t dc = 0; dc < 3; dc++) {
+    assert(local_rows.size() == local_vals.at(dc).size());
+
     ierr = VecSetValues(result.at(dc), local_rows.size(), local_rows.data(),
         local_vals.at(dc).data(), INSERT_VALUES);CHKERRXX(ierr);
 
