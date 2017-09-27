@@ -3,7 +3,9 @@
 namespace anomtrans {
 
 Rashba_Hamiltonian::Rashba_Hamiltonian(double _t0, double _tr, kmBasis<2> _kmb)
-  : t0(_t0), tr(_tr), kmb(_kmb) {}
+  : t0(_t0), tr(_tr), kmb(_kmb) {
+    assert(kmb.Nbands == 2);
+}
 
 double Rashba_Hamiltonian::energy(kmComps<2> ikm_comps) const {
   kmVals<2> km = km_at(kmb.Nk, ikm_comps);
@@ -34,6 +36,18 @@ namespace {
 std::complex<double> u_component(kVals<2> k) {
   double kx_a = 2.0*pi*k.at(0);
   double ky_a = 2.0*pi*k.at(1);
+
+  if ((k.at(0) == 0.0 and k.at(1) == 0.0)
+      or (k.at(0) == 0.5 and k.at(1) == 0.5)) {
+    // At k = (0, 0) and k = (1/2, 1/2), bands are degenerate
+    // and the u component is not well-defined.
+    // Choose the u value obtained by approaching k = 0 along
+    // (kx > 0, ky = 0).
+    // Here we assume that k in reciprocal lattice coordinates
+    // is restricted to [0, 1) x [0, 1).
+    // Exact comparison should be OK since 0.5 is exactly representable.
+    return std::complex<double>(1.0/std::sqrt(2.0));
+  }
 
   double denom = std::sqrt(2.0 * (std::pow(std::sin(kx_a), 2.0) +
       std::pow(std::sin(ky_a), 2.0)));
