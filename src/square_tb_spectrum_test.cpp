@@ -158,9 +158,7 @@ TEST( square_TB_Hall, square_TB_Hall ) {
   auto mus = anomtrans::linspace(Ekm_min, Ekm_max, num_mus);
 
   std::vector<std::vector<PetscReal>> all_rho0;
-  std::vector<std::vector<PetscReal>> all_rhs_B0;
   std::vector<std::vector<PetscReal>> all_rho1_B0;
-  std::vector<std::vector<PetscReal>> all_rhs_Bfinite;
   std::vector<std::vector<PetscReal>> all_rho1_Bfinite;
   std::vector<PetscReal> all_Hall_conductivities;
   std::vector<PetscReal> all_sigma_yys;
@@ -273,7 +271,7 @@ TEST( square_TB_Hall, square_TB_Hall ) {
     };
 
     std::stringstream outpath;
-    outpath << "driving_test_out.json";
+    outpath << "square_tb_spectrum_test_out.json";
 
     std::ofstream fp_out(outpath.str());
     fp_out << j_out.dump();
@@ -286,7 +284,7 @@ TEST( square_TB_Hall, square_TB_Hall ) {
     }
 
     std::stringstream known_path;
-    known_path << *test_data_dir << "/driving_test_out.json";
+    known_path << *test_data_dir << "/square_tb_spectrum_test_out.json";
 
     json j_known;
     std::ifstream fp_k(known_path.str());
