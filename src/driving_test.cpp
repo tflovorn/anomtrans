@@ -205,7 +205,8 @@ TEST( Driving, square_TB_Hall ) {
     // sigma_yy = -e Tr[v_y <rho_{E_y}>] / E_y
     PetscScalar sigma_yy = -calculate_velocity_ev(kmb, H, dm_n_E->rho).at(1);
 
-    anomtrans::add_next_order_magnetic(dm_n_E, kmb, DH0_cross_Bhat, d_dk_Cart, R, ksp, Bhat_dot_Omega);
+    anomtrans::add_next_order_magnetic(dm_n_E, kmb, DH0_cross_Bhat, d_dk_Cart, R, ksp, Bhat_dot_Omega,
+        H, sigma, disorder_term_od, berry_broadening);
     auto dm_n_EB = dm_n_E->children[anomtrans::DMDerivedBy::Kdd_inv_DB];
     Vec rho1_Bfinite;
     ierr = VecDuplicate(rho0_km, &rho1_Bfinite);CHKERRXX(ierr);

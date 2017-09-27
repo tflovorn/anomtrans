@@ -175,11 +175,15 @@ void add_linear_response_electric(std::shared_ptr<DMGraphNode> eq_node,
  *  @precondition Kdd_ksp should have its nullspace set appropriately before this function is
  *                called (the nullspace of Kdd is the <rho_0> vector).
  */
-template <std::size_t k_dim>
+template <std::size_t k_dim, typename Hamiltonian, typename UU_OD>
 void add_next_order_magnetic(std::shared_ptr<DMGraphNode> parent_node,
     const kmBasis<k_dim> &kmb, std::array<Mat, k_dim> DH0_cross_Bhat,
     std::array<Mat, k_dim> d_dk_Cart, std::array<Mat, k_dim> R, KSP Kdd_ksp,
-    Vec Bhat_dot_Omega) {
+    Vec Bhat_dot_Omega, const Hamiltonian &H, const double sigma, const UU_OD &disorder_term_od,
+    double berry_broadening) {
+  // TODO check that parent_node has the appropriate structure
+  // (it should be <rho>_{E, B^{N-1}}).
+
   // Construct n child: Kdd^{-1} D_B (<rho>).
   Mat D_B_rho = apply_driving_magnetic(kmb, DH0_cross_Bhat, d_dk_Cart, R, parent_node->rho);
 
@@ -204,7 +208,34 @@ void add_next_order_magnetic(std::shared_ptr<DMGraphNode> parent_node,
 
   parent_node->children[DMDerivedBy::Kdd_inv_DB] = child_n_B_node;
 
-  // TODO - Construct S child.
+  // Construct <S_EB^N)>_k^{mm'} = [P^{-1} [D_B(<rho_EB^{N-1}>) - K^{od}(<n_EB^N>)]]_k^{mm'}
+  //   = -i\hbar [D_E(<rho_EB^{N-1}>) - K^{od}(<n_EB^N>)]]_k^{mm'} / (E_{km} - E_{km'})
+  //   \approx -i\hbar [D_E(<rho_EB^{N-1}>) - K^{od}(<n_EB^N>)]]_k^{mm'}
+  //               * (E_{km} - E_{km'}) / ((E_{km} - E_{km'})^2 + \eta^2)
+  // Here \eta is the broadening applied to treat degeneracies, chosen to be the same
+  // as the broadening used in the calculation of the Berry connection.
+  set_Mat_diagonal(D_B_rho, 0.0);
+  Vec child_n_B_all = scatter_to_all(child_n_B);
+  auto child_n_B_all_std = std::get<1>(get_local_contents(child_n_B_all));
+  Mat K_od_child_n_B = apply_collision_od(kmb, H, sigma, disorder_term_od, child_n_B_all_std);
+  // Replace D_B_rho with D_B_rho - K_od_child_n_B.
+  // TODO - can SAME_NONZERO_PATTERN be used here?
+  ierr = MatAXPY(D_B_rho, -1.0, K_od_child_n_B, DIFFERENT_NONZERO_PATTERN);CHKERRXX(ierr);
+
+  Mat child_S_B = apply_precession_term(kmb, H, D_B_rho, berry_broadening);
+
+  DMKind child_S_B_node_kind = DMKind::S;
+  int child_S_B_impurity_order = parent_node->impurity_order;
+  std::string child_S_B_name = ""; // TODO
+  DMGraphNode::ParentsMap child_S_B_parents {
+    {DMDerivedBy::P_inv_DB, std::weak_ptr<DMGraphNode>(parent_node)},
+    {DMDerivedBy::P_inv_Kod, std::weak_ptr<DMGraphNode>(child_n_B_node)}
+  };
+  auto child_S_B_node = std::make_shared<DMGraphNode>(child_S_B, child_S_B_node_kind,
+      child_S_B_impurity_order, child_S_B_name, child_S_B_parents);
+
+  parent_node->children[DMDerivedBy::P_inv_DB] = child_S_B_node;
+  child_n_B_node->children[DMDerivedBy::P_inv_Kod] = child_S_B_node;
 
   if (parent_node->node_kind != DMKind::S) {
     // Construct xi child.
@@ -234,6 +265,7 @@ void add_next_order_magnetic(std::shared_ptr<DMGraphNode> parent_node,
   }
 
   ierr = VecDestroy(&child_n_B);CHKERRXX(ierr);
+  ierr = VecDestroy(&child_n_B_all);CHKERRXX(ierr);
   ierr = VecDestroy(&D_B_rho_diag);CHKERRXX(ierr);
   ierr = MatDestroy(&D_B_rho);CHKERRXX(ierr);
 }
