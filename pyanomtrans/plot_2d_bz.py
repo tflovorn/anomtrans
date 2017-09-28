@@ -79,6 +79,18 @@ def _ignore_key(key):
 
     return False
 
+def split_bands(val, Nbands):
+    # Naive implementation: assume values are ordered s.t. values for each band are grouped.
+    # Entries [0:prod(Nk)] are band 0, [prod(Nk):2*prod(Nk)] are band 1, ...
+    assert(len(val) % Nbands == 0)
+    Nk_tot = int(len(val) / Nbands)
+
+    split_val = []
+    for m in range(Nbands):
+        split_val.append(val[m*Nk_tot:(m+1)*Nk_tot])
+
+    return split_val
+
 def _main():
     parser = argparse.ArgumentParser("Plot Fermi surface as shown by |df(Emk)/dk|",
             formatter_class=argparse.ArgumentDefaultsHelpFormatter)
@@ -115,12 +127,9 @@ def _main():
 
     # Sort data by k's.
     # Assume that a key 'k_comps' is present.
-    # TODO: handle multiple m values.
     # Assume that a key 'ms' is present.
     Nk = get_Nk(all_data['k_comps'])
     Nbands = get_Nbands(all_data['ms'])
-    if Nbands > 1:
-        raise ValueError("nbands > 1 unsupported")
 
     kmb = kmBasis(Nk, Nbands)
 
@@ -143,10 +152,8 @@ def _main():
         raise ValueError("d != 2 unsupported")
 
     all_k0s, all_k1s = [], []
-    for ikm, iks in enumerate(sorted_data['k_comps']):
-        m = sorted_data['ms'][ikm]
-        assert((iks, m) == kmb.decompose(ikm))
-        k, m = km_at(kmb.Nk, (iks, m))
+    for iks in split_bands(sorted_data['k_comps'], Nbands)[0]:
+        k, _ = km_at(kmb.Nk, (iks, 0))
         all_k0s.append(k[0])
         all_k1s.append(k[1])
 
@@ -160,15 +167,19 @@ def _main():
 
         if is_list(val[0]):
             # val is a list of lists
-            for subval_index, subval in enumerate(val):
-                # TODO incorporate plot titles
-                title = None
-                plot_2d_bz_slice("{}_{}_{}".format(args.prefix, key, subval_index), title, all_k0s, all_k1s, subval)
+            for subval_index, subval_all_bands in enumerate(val):
+                subval_split = split_bands(subval_all_bands, Nbands)
+                for band_index, subval_band in enumerate(subval_split):
+                    # TODO incorporate plot titles
+                    title = None
+                    plot_2d_bz_slice("{}_{}_m{}_{}".format(args.prefix, key, band_index, subval_index), title, all_k0s, all_k1s, subval_band)
         else:
             # val is a single list
-            # TODO incorporate plot titles
-            title = None
-            plot_2d_bz_slice("{}_{}".format(args.prefix, key), title, all_k0s, all_k1s, val)
+            val_split = split_bands(val, Nbands)
+            for band_index, val_band in enumerate(val_split):
+                # TODO incorporate plot titles
+                title = None
+                plot_2d_bz_slice("{}_{}_m{}".format(args.prefix, key, band_index), title, all_k0s, all_k1s, val_band)
 
 if __name__ == '__main__':
     _main()
