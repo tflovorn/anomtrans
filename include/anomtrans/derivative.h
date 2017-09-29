@@ -228,6 +228,9 @@ Mat apply_deriv(kmBasis<k_dim> kmb, Mat deriv, Mat rho) {
       PetscInt kmp = kmb.compose(std::make_tuple(k, mp));
 
       if (result_row.count(kmp) != 0) {
+        // [d]_{km, k'm} will have a small, fixed number of nonzeros in each row,
+        // set by the dimension and the order of the finite difference approximation.
+        // Because of this, not concerned about rounding error here.
         result_row[kmp] += val;
       } else {
         result_row[kmp] = val;
@@ -257,7 +260,6 @@ Mat apply_deriv(kmBasis<k_dim> kmb, Mat deriv, Mat rho) {
 
   return result;
 }
-
 
 } // namespace anomtrans
 

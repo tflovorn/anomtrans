@@ -135,6 +135,8 @@ std::array<Vec, 3> make_berry_curvature(const kmBasis<k_dim> &kmb, const Hamilto
               10.0*std::numeric_limits<PetscReal>::epsilon()));
 
         PetscScalar num = std::complex<double>(0.0, 1.0) * grad_cross.at(dc);
+        // TODO prefer Kahan sum here?
+        // Error ~ Nbands.
         local_vals.at(dc).at(local_row - begin) += num / denom;
       }
     }

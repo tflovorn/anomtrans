@@ -29,6 +29,9 @@ include_directories(${PETSC_ARCH_INCLUDE_DIR})
 include_directories(SYSTEM ${JSON_INCLUDE_DIR})
 include_directories(${EIGEN_INCLUDE_DIR})
 
+# anomtrans include directory.
+include_directories("include/anomtrans")
+
 # Libraries to link.
 add_library(petsc SHARED IMPORTED)
 set_target_properties(petsc PROPERTIES IMPORTED_LOCATION "$ENV{PETSC_LIB}/libpetsc.so")
@@ -57,3 +60,4 @@ target_link_libraries(${name} ${ANOMTRANS_TEST_LIBS})
 endfunction(add_mpi_test)
 
 add_subdirectory(src)
+add_subdirectory(test)
