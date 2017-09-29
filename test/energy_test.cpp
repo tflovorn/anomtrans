@@ -5,11 +5,11 @@
 #include <gtest/gtest.h>
 #include <mpi.h>
 #include <petscksp.h>
-#include "MPIPrettyUnitTestResultPrinter.h"
+#include "util/MPIPrettyUnitTestResultPrinter.h"
 #include "grid_basis.h"
-#include "square_tb_spectrum.h"
-#include "energy.h"
-#include "vec.h"
+#include "models/square_tb_spectrum.h"
+#include "observables/energy.h"
+#include "util/vec.h"
 
 int main(int argc, char* argv[]) {
   ::testing::InitGoogleTest(&argc, argv);

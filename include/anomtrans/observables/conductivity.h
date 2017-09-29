@@ -4,7 +4,7 @@
 #include <stdexcept>
 #include <tuple>
 #include <petscksp.h>
-#include "vec.h"
+#include "util/vec.h"
 #include "grid_basis.h"
 
 namespace anomtrans {

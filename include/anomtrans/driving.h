@@ -5,9 +5,9 @@
 #include <stdexcept>
 #include <petscksp.h>
 #include "grid_basis.h"
-#include "util.h"
+#include "util/util.h"
 #include "derivative.h"
-#include "mat.h"
+#include "util/mat.h"
 
 namespace anomtrans {
 

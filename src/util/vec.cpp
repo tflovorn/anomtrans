@@ -1,4 +1,4 @@
-#include "vec.h"
+#include "util/vec.h"
 
 namespace anomtrans {
 

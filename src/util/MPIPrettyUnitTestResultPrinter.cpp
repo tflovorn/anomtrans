@@ -3,7 +3,7 @@
 // Current implementation: do not print anything unless rank = 0
 // (using rank passed during construction).
 #include <gtest/gtest.h>
-#include "MPIPrettyUnitTestResultPrinter.h"
+#include "util/MPIPrettyUnitTestResultPrinter.h"
 
 namespace anomtrans {
 

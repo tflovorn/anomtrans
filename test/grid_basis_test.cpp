@@ -4,7 +4,7 @@
 #include <gtest/gtest.h>
 #include <mpi.h>
 #include <petscksp.h>
-#include "MPIPrettyUnitTestResultPrinter.h"
+#include "util/MPIPrettyUnitTestResultPrinter.h"
 #include "grid_basis.h"
 
 int main(int argc, char* argv[]) {

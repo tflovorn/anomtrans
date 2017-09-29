@@ -6,11 +6,11 @@
 #include <vector>
 #include <tuple>
 #include <petscksp.h>
-#include "constants.h"
+#include "util/constants.h"
 #include "grid_basis.h"
-#include "vec.h"
-#include "energy.h"
-#include "collision.h"
+#include "util/vec.h"
+#include "observables/energy.h"
+#include "disorder/collision.h"
 
 namespace anomtrans {
 

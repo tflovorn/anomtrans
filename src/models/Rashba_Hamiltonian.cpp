@@ -1,4 +1,4 @@
-#include "Rashba_Hamiltonian.h"
+#include "models/Rashba_Hamiltonian.h"
 
 namespace anomtrans {
 

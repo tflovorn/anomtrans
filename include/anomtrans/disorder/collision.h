@@ -11,11 +11,11 @@
 #include <tuple>
 #include <utility>
 #include <petscksp.h>
-#include "constants.h"
+#include "util/constants.h"
 #include "grid_basis.h"
-#include "vec.h"
-#include "mat.h"
-#include "energy.h"
+#include "util/vec.h"
+#include "util/mat.h"
+#include "observables/energy.h"
 
 namespace anomtrans {
 

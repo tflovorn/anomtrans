@@ -1,4 +1,4 @@
-#include "pauli.h"
+#include "observables/pauli.h"
 
 namespace anomtrans {
 

@@ -1,14 +1,14 @@
 list(APPEND SOURCES
-  MPIPrettyUnitTestResultPrinter.cpp
-  vec.cpp
-  mat.cpp
-  util.cpp
-  special_functions.cpp
-  square_tb_spectrum.cpp
-  pauli.cpp
-  Rashba_Hamiltonian.cpp
-  rho0.cpp
-  collision.cpp
+  util/MPIPrettyUnitTestResultPrinter.cpp
+  util/vec.cpp
+  util/mat.cpp
+  util/util.cpp
+  util/special_functions.cpp
+  models/square_tb_spectrum.cpp
+  models/Rashba_Hamiltonian.cpp
+  observables/pauli.cpp
+  observables/rho0.cpp
+  disorder/collision.cpp
   dm_graph.cpp
 )
 

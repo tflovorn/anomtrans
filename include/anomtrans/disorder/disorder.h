@@ -7,9 +7,9 @@
 #include <utility>
 #include <tuple>
 #include <petscksp.h>
-#include "vec.h"
-#include "constants.h"
-#include "util.h"
+#include "util/vec.h"
+#include "util/constants.h"
+#include "util/util.h"
 
 namespace anomtrans {
 

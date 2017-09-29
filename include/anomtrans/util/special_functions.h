@@ -2,7 +2,7 @@
 #define ANOMTRANS_SPECIAL_FUNCTIONS_H
 
 #include <cmath>
-#include "constants.h"
+#include "util/constants.h"
 
 namespace anomtrans {
 

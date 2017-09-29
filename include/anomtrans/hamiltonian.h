@@ -6,8 +6,8 @@
 #include <array>
 #include <vector>
 #include <petscksp.h>
-#include "util.h"
-#include "mat.h"
+#include "util/util.h"
+#include "util/mat.h"
 #include "grid_basis.h"
 
 namespace anomtrans {

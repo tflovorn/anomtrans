@@ -12,14 +12,14 @@
 #include <mpi.h>
 #include <petscksp.h>
 #include <json.hpp>
-#include "MPIPrettyUnitTestResultPrinter.h"
-#include "constants.h"
-#include "util.h"
+#include "util/MPIPrettyUnitTestResultPrinter.h"
+#include "util/constants.h"
+#include "util/util.h"
 #include "grid_basis.h"
-#include "square_tb_spectrum.h"
-#include "energy.h"
-#include "vec.h"
-#include "rho0.h"
+#include "models/square_tb_spectrum.h"
+#include "observables/energy.h"
+#include "util/vec.h"
+#include "observables/rho0.h"
 #include "derivative.h"
 
 using json = nlohmann::json;

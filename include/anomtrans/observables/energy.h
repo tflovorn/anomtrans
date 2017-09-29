@@ -5,10 +5,10 @@
 #include <vector>
 #include <algorithm>
 #include <petscksp.h>
-#include "vec.h"
+#include "util/vec.h"
 #include "grid_basis.h"
 #include "derivative.h"
-#include "util.h"
+#include "util/util.h"
 
 namespace anomtrans {
 

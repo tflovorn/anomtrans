@@ -6,7 +6,7 @@
 #include <array>
 #include <tuple>
 #include <petscksp.h>
-#include "vec.h"
+#include "util/vec.h"
 
 namespace anomtrans {
 

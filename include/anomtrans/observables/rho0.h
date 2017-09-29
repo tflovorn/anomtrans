@@ -2,8 +2,8 @@
 #define ANOMTRANS_RHO0_H
 
 #include <petscksp.h>
-#include "vec.h"
-#include "special_functions.h"
+#include "util/vec.h"
+#include "util/special_functions.h"
 
 namespace anomtrans {
 

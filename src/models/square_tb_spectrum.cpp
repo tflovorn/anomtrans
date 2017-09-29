@@ -1,4 +1,4 @@
-#include "square_tb_spectrum.h"
+#include "models/square_tb_spectrum.h"
 
 namespace anomtrans {
 

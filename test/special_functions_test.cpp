@@ -2,8 +2,8 @@
 #include <gtest/gtest.h>
 #include <mpi.h>
 #include <petscksp.h>
-#include "MPIPrettyUnitTestResultPrinter.h"
-#include "special_functions.h"
+#include "util/MPIPrettyUnitTestResultPrinter.h"
+#include "util/special_functions.h"
 
 int main(int argc, char* argv[]) {
   ::testing::InitGoogleTest(&argc, argv);

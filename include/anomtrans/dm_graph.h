@@ -8,11 +8,11 @@
 #include <memory>
 #include <utility>
 #include <petscksp.h>
-#include "mat.h"
+#include "util/mat.h"
 #include "grid_basis.h"
-#include "rho0.h"
+#include "observables/rho0.h"
 #include "driving.h"
-#include "collision_od.h"
+#include "disorder/collision_od.h"
 
 namespace anomtrans {
 

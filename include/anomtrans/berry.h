@@ -6,9 +6,9 @@
 #include <vector>
 #include <tuple>
 #include <petscksp.h>
-#include "mat.h"
+#include "util/mat.h"
 #include "grid_basis.h"
-#include "util.h"
+#include "util/util.h"
 
 namespace anomtrans {
 

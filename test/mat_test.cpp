@@ -1,9 +1,9 @@
 #include <gtest/gtest.h>
 #include <mpi.h>
 #include <petscksp.h>
-#include "MPIPrettyUnitTestResultPrinter.h"
-#include "vec.h"
-#include "mat.h"
+#include "util/MPIPrettyUnitTestResultPrinter.h"
+#include "util/vec.h"
+#include "util/mat.h"
 
 int main(int argc, char* argv[]) {
   ::testing::InitGoogleTest(&argc, argv);

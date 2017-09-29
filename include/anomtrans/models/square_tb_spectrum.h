@@ -6,7 +6,7 @@
 #include <tuple>
 #include <complex>
 #include <petscksp.h>
-#include "constants.h"
+#include "util/constants.h"
 #include "grid_basis.h"
 
 namespace anomtrans {
