@@ -12,7 +12,7 @@ list(APPEND SOURCES
   dm_graph.cpp
 )
 
-add_library(anomtrans STATIC "${SOURCES}")
+add_library(anomtrans STATIC ${SOURCES})
 set_target_properties(anomtrans PROPERTIES
   COMPILE_FLAGS "${CMAKE_CXX_FLAGS} $ENV{ANOMTRANS_COMPILE_FLAGS}"
 )

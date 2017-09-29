@@ -32,7 +32,8 @@ include_directories(${EIGEN_INCLUDE_DIR})
 # Libraries to link.
 add_library(petsc SHARED IMPORTED)
 set_target_properties(petsc PROPERTIES IMPORTED_LOCATION "$ENV{PETSC_LIB}/libpetsc.so")
-set(ANOMTRANS_LIBS gtest gtest_main petsc)
+set(ANOMTRANS_LIBS petsc)
+set(ANOMTRANS_TEST_LIBS ${ANOMTRANS_LIBS} gtest gtest_main anomtrans)
 
 enable_testing()
 
@@ -48,7 +49,7 @@ function(add_mpi_test name)
   set_target_properties(${name} PROPERTIES
     COMPILE_FLAGS "${CMAKE_CXX_FLAGS} $ENV{ANOMTRANS_TEST_COMPILE_FLAGS}"
   )
-  target_link_libraries(${name} ${ANOMTRANS_LIBS} anomtrans)
+target_link_libraries(${name} ${ANOMTRANS_TEST_LIBS})
   set(test_parameters $ENV{ANOMTRANS_TEST_MPI_NUMPROCS_PREFIX} $ENV{ANOMTRANS_TEST_MPI_NUMPROCS} $ENV{ANOMTRANS_TEST_AFFINITY} "./${name}")
   add_test(NAME ${name} COMMAND $ENV{ANOMTRANS_TEST_MPI_CMD} ${test_parameters})
   set_property(TEST ${name} PROPERTY
