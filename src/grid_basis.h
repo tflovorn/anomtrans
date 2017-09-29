@@ -1,10 +1,12 @@
 #ifndef ANOMTRANS_GRID_BASIS_H
 #define ANOMTRANS_GRID_BASIS_H
 
+#include <cassert>
 #include <cstddef>
 #include <array>
 #include <tuple>
 #include <petscksp.h>
+#include "vec.h"
 
 namespace anomtrans {
 
@@ -208,6 +210,71 @@ kmVals<dim> km_at(kComps<dim> Nk, kmComps<dim> ikm_comps) {
   }
   kmVals<dim> km(ks, std::get<1>(ikm_comps));
   return km;
+}
+
+/** @brief Collect the elements <km|S|km'> for all k onto a vector on rank 0.
+ *         Analogous to vec.h -> collect_contents(), but for k-diagonal matrices
+ *         and with fixed band indices.
+ *  @note Placed here to avoid mat.h dependency on grid_basis.h. Prefer to place in mat instead?
+ */
+template <std::size_t k_dim>
+std::vector<PetscScalar> collect_band_elem(kmBasis<k_dim> kmb, Mat S,
+    unsigned int m, unsigned int mp) {
+  // Check that kmb has expected properties:
+  // number of total points is divisible by number of bands;
+  // points are ordered with all ks for one band first, then all ks for the next band, ...
+  assert(kmb.end_ikm % kmb.Nbands == 0);
+  kComps<k_dim> Nk_m1;
+  PetscInt Nk_tot = 1;
+  for (std::size_t d = 0; d < k_dim; d++) {
+    Nk_m1.at(d) = kmb.Nk.at(d) - 1;
+    Nk_tot *= kmb.Nk.at(d);
+  }
+  assert(kmb.compose(std::make_tuple(Nk_m1, 0u)) == Nk_tot - 1);
+
+  // Construct a vector to hold the result: one value for each k.
+  Vec S_mmp;
+  PetscErrorCode ierr = VecCreateMPI(PETSC_COMM_WORLD, PETSC_DECIDE,
+      kmb.end_ikm / kmb.Nbands, &S_mmp);CHKERRXX(ierr);
+
+  PetscInt begin, end;
+  ierr = MatGetOwnershipRange(S, &begin, &end);CHKERRXX(ierr);
+
+  std::vector<PetscInt> local_rows;
+  std::vector<PetscScalar> local_values;
+
+  for (PetscInt local_row = begin; local_row < end; local_row++) {
+    // Are we on a row with band index m?
+    kComps<k_dim> this_k;
+    unsigned int this_m;
+    std::tie(this_k, this_m) = kmb.decompose(local_row);
+
+    if (this_m != m) {
+      // Not on row with band index m - skip this row.
+      continue;
+    }
+
+    // On row with band index m - process this row.
+    // S_mmp index includes only one band value, (m, mp).
+    local_rows.push_back(kmb.compose(std::make_tuple(this_k, 0u)));
+
+    kmComps<k_dim> kmp = std::make_tuple(this_k, mp);
+    PetscInt ikmp = kmb.compose(kmp);
+
+    PetscScalar value;
+    ierr = MatGetValues(S, 1, &local_row, 1, &ikmp, &value);CHKERRXX(ierr);
+
+    local_values.push_back(value);
+  }
+
+  assert(local_rows.size() == local_values.size());
+  ierr = VecSetValues(S_mmp, local_rows.size(), local_rows.data(), local_values.data(),
+      INSERT_VALUES);CHKERRXX(ierr);
+
+  ierr = VecAssemblyBegin(S_mmp);CHKERRXX(ierr);
+  ierr = VecAssemblyEnd(S_mmp);CHKERRXX(ierr);
+
+  return collect_contents(S_mmp);
 }
 
 } // namespace anomtrans
