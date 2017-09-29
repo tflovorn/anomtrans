@@ -9,6 +9,7 @@
 #include <petscksp.h>
 #include "constants.h"
 #include "grid_basis.h"
+#include "pauli.h"
 
 namespace anomtrans {
 
@@ -49,6 +50,11 @@ public:
    *         gradient(ikm, mp) = <k, m|grad_k H|k, mp>.
    */
   std::array<std::complex<double>, 2> gradient(kmComps<2> ikm_comps, unsigned int mp) const;
+
+  /** @brief Spin, evaluated in the eigenbasis (units of hbar):
+   *         spin(ikm, mp)[a] = <km|S_a|km'>
+   */
+  std::array<std::complex<double>, 3> spin(PetscInt ikm, unsigned int mp) const;
 };
 
 /** @brief k-space Hamiltonian for square lattice (or higher-dimensional version of square
@@ -100,6 +106,11 @@ public:
    *         gradient(ikm, mp) = <k, m|grad_k H|k, mp>.
    */
   std::array<std::complex<double>, 2> gradient(kmComps<2> ikm_comps, unsigned int mp) const;
+
+  /** @brief Spin, evaluated in the eigenbasis (units of hbar):
+   *         spin(ikm, mp)[a] = <km|S_a|km'>
+   */
+  std::array<std::complex<double>, 3> spin(PetscInt ikm, unsigned int mp) const;
 };
 
 } // namespace anomtrans

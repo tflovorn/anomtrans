@@ -132,6 +132,49 @@ std::array<std::complex<double>, 2> Rashba_Hamiltonian::gradient(kmComps<2> ikm_
   return gradient_impl(kx_a, ky_a, t0, tr, um, vm, ump, vmp);
 }
 
+namespace {
+
+std::array<std::complex<double>, 3> spin_impl(std::array<std::complex<double>, 2> um,
+    std::array<std::complex<double>, 2> ump) {
+  auto pauli = pauli_matrices();
+  std::array<std::complex<double>, 3> result = {0.0, 0.0, 0.0};
+
+  // <km|S_a|km'> = \sum_{l,sigma,sigma'} [U_k]_{l,sigma;m} [U_k]^*_{l,sigma';m'} <sigma|S_a|sigma'>
+  // For Rashba, only one orbital index (l value).
+  for (unsigned int s = 0; s < 2; s++) {
+    for (unsigned int sp = 0; sp < 2; sp++) {
+      for (std::size_t d = 0; d < 3; d++) {
+        // Small, fixed number of elements (4) contributing to each <km|S_a|km'> -
+        // don't bother with Kahan sum here.
+        // For general H, this number is 4*(Nbands/2), providing motivation
+        // for Kahan summation.
+        result.at(d) += 0.5 * um.at(s) * std::conj(ump.at(sp)) * pauli.at(d)(s, sp);
+      }
+    }
+  }
+
+  return result;
+}
+
+}
+
+std::array<std::complex<double>, 3> Rashba_Hamiltonian::spin(PetscInt ikm, unsigned int mp) const {
+  kComps<2> k;
+  unsigned int m;
+  std::tie(k, m) = kmb.decompose(ikm);
+
+  if (m > 1 or mp > 1) {
+    throw std::invalid_argument("Rashba_magnetic_Hamiltonian is not defined for Nbands > 2");
+  }
+
+  PetscInt ikmp = kmb.compose(std::make_tuple(k, mp));
+
+  std::array<std::complex<double>, 2> um = {basis_component(ikm, 0), basis_component(ikm, 1)};
+  std::array<std::complex<double>, 2> ump = {basis_component(ikmp, 0), basis_component(ikmp, 1)};
+
+  return spin_impl(um, ump);
+}
+
 Rashba_magnetic_Hamiltonian::Rashba_magnetic_Hamiltonian(double _t0, double _tr, double _M, kmBasis<2> _kmb)
   : t0(_t0), tr(_tr), M(_M), kmb(_kmb) {
     assert(kmb.Nbands == 2);
@@ -283,6 +326,23 @@ std::array<std::complex<double>, 2> Rashba_magnetic_Hamiltonian::gradient(kmComp
   std::complex<double> vmp = basis_component(ikmp, 1);
 
   return gradient_impl(kx_a, ky_a, t0, tr, um, vm, ump, vmp);
+}
+
+std::array<std::complex<double>, 3> Rashba_magnetic_Hamiltonian::spin(PetscInt ikm, unsigned int mp) const {
+  kComps<2> k;
+  unsigned int m;
+  std::tie(k, m) = kmb.decompose(ikm);
+
+  if (m > 1 or mp > 1) {
+    throw std::invalid_argument("Rashba_magnetic_Hamiltonian is not defined for Nbands > 2");
+  }
+
+  PetscInt ikmp = kmb.compose(std::make_tuple(k, mp));
+
+  std::array<std::complex<double>, 2> um = {basis_component(ikm, 0), basis_component(ikm, 1)};
+  std::array<std::complex<double>, 2> ump = {basis_component(ikmp, 0), basis_component(ikmp, 1)};
+
+  return spin_impl(um, ump);
 }
 
 } // namespace anomtrans
