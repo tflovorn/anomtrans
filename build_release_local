@@ -23,6 +23,7 @@ export BOOST_INC="/usr/include"
 # Turn off Eigen OpenMP parallelization - assume all parallelization is done
 # through MPI.
 export ANOMTRANS_TEST_COMPILE_FLAGS="-Wall -pedantic -std=c++11 -O3 -march=native -mtune=native -DEIGEN_DONT_PARALLELIZE"
+export ANOMTRANS_COMPILE_FLAGS="$ANOMTRANS_TEST_COMPILE_FLAGS"
 
 #rm -r Obj
 mkdir Obj

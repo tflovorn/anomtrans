@@ -20,6 +20,7 @@ export BOOST_INC=${TACC_BOOST_INC}
 
 # icpc 16 fully supports c++11, but not c++14
 export ANOMTRANS_TEST_COMPILE_FLAGS="-Wall -std=c++11 -DEIGEN_DONT_PARALLELIZE"
+export ANOMTRANS_COMPILE_FLAGS="$ANOMTRANS_TEST_COMPILE_FLAGS"
 
 #rm -r Obj_test
 mkdir Obj_test
