@@ -19,7 +19,7 @@ export PETSC_LIB=${TACC_PETSC_LIB}
 export BOOST_INC=${TACC_BOOST_INC}
 
 # icpc 16 fully supports c++11, but not c++14
-export ANOMTRANS_TEST_COMPILE_FLAGS="-Wall -std=c++11 -O3 -xHost"
+export ANOMTRANS_TEST_COMPILE_FLAGS="-Wall -std=c++11 -O3 -xHost -DEIGEN_DONT_PARALLELIZE"
 
 #rm -r Obj
 mkdir Obj

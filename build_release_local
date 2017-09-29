@@ -20,7 +20,9 @@ export BOOST_INC="/usr/include"
 
 # On g++ 5.3.1 could use -std=c++14 here, but would prefer to maintain
 # compatibility with icpc 16 which does not fully support c++14.
-export ANOMTRANS_TEST_COMPILE_FLAGS="-Wall -pedantic -std=c++11 -O3 -march=native -mtune=native"
+# Turn off Eigen OpenMP parallelization - assume all parallelization is done
+# through MPI.
+export ANOMTRANS_TEST_COMPILE_FLAGS="-Wall -pedantic -std=c++11 -O3 -march=native -mtune=native -DEIGEN_DONT_PARALLELIZE"
 
 #rm -r Obj
 mkdir Obj

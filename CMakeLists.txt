@@ -11,9 +11,9 @@ set(CMAKE_INSTALL_PREFIX ${CMAKE_BINARY_DIR})
 set(JSON_INCLUDE_DIR "dependencies/json/src")
 set(GOOGLETEST_DIR "dependencies/googletest")
 set(GOOGLETEST_INCLUDE_DIR "dependencies/googletest/googletest/include")
+set(EIGEN_INCLUDE_DIR "dependencies/Eigen")
 
-# Include paths on Lonestar5.
-# TODO should provide mechanism for local implementation.
+# System-provided dependencies.
 set(PETSC_INCLUDE_DIR "$ENV{PETSC_DIR}/include")
 set(BOOST_INCLUDE_DIR $ENV{BOOST_INC})
 set(PETSC_ARCH_INCLUDE_DIR "$ENV{PETSC_DIR}/$ENV{PETSC_ARCH}/include")
@@ -27,6 +27,7 @@ include_directories(${BOOST_INCLUDE_DIR})
 include_directories(${PETSC_INCLUDE_DIR})
 include_directories(${PETSC_ARCH_INCLUDE_DIR})
 include_directories(SYSTEM ${JSON_INCLUDE_DIR})
+include_directories(${EIGEN_INCLUDE_DIR})
 
 # Libraries to link.
 add_library(petsc SHARED IMPORTED)
