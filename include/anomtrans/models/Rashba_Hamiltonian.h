@@ -9,7 +9,7 @@
 #include <petscksp.h>
 #include "util/constants.h"
 #include "grid_basis.h"
-#include "observables/pauli.h"
+#include "observables/spin.h"
 
 namespace anomtrans {
 

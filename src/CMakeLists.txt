@@ -6,7 +6,7 @@ list(APPEND SOURCES
   util/special_functions.cpp
   models/square_tb_spectrum.cpp
   models/Rashba_Hamiltonian.cpp
-  observables/pauli.cpp
+  observables/spin.cpp
   observables/rho0.cpp
   disorder/collision.cpp
   dm_graph.cpp

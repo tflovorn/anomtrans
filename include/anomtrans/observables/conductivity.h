@@ -13,6 +13,9 @@ namespace anomtrans {
  *         \hbar <v> = \hbar Tr[v <rho>] = \sum_{kmm'} <km|\grad_k H_k|km'> <rho>_k^{mm'}.
  *  @returns The Cartesian components of \hbar <v>.
  *  @todo Return PetscReal instead of PetscScalar? Output should be guaranteed to be real.
+ *  @todo Implement using helper function that constructs [v]_{km, km'} matrix.
+ *        Allow for use with spin current.
+ *  @todo Add (trivial) function to calculate current (-v in e/hbar units).
  */
 template <std::size_t k_dim, typename Hamiltonian>
 std::array<PetscScalar, k_dim> calculate_velocity_ev(const kmBasis<k_dim> &kmb,
