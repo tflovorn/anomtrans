@@ -79,6 +79,12 @@ def _ignore_key(key):
 
     return False
 
+def _one_band_list(key):
+    if key.startswith("_oneband"):
+        return True
+
+    return False
+
 def split_bands(val, Nbands):
     # Naive implementation: assume values are ordered s.t. values for each band are grouped.
     # Entries [0:prod(Nk)] are band 0, [prod(Nk):2*prod(Nk)] are band 1, ...
@@ -168,11 +174,16 @@ def _main():
         if is_list(val[0]):
             # val is a list of lists
             for subval_index, subval_all_bands in enumerate(val):
-                subval_split = split_bands(subval_all_bands, Nbands)
-                for band_index, subval_band in enumerate(subval_split):
+                if _one_band_list(key):
                     # TODO incorporate plot titles
                     title = None
-                    plot_2d_bz_slice("{}_{}_m{}_{}".format(args.prefix, key, band_index, subval_index), title, all_k0s, all_k1s, subval_band)
+                    plot_2d_bz_slice("{}_{}_{}".format(args.prefix, key, subval_index), title, all_k0s, all_k1s, subval_all_bands)
+                else:
+                    subval_split = split_bands(subval_all_bands, Nbands)
+                    for band_index, subval_band in enumerate(subval_split):
+                        # TODO incorporate plot titles
+                        title = None
+                        plot_2d_bz_slice("{}_{}_m{}_{}".format(args.prefix, key, band_index, subval_index), title, all_k0s, all_k1s, subval_band)
         else:
             # val is a single list
             val_split = split_bands(val, Nbands)

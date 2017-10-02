@@ -99,6 +99,7 @@ TEST( Rashba_electric, Rashba_electric ) {
   Vec Ekm = anomtrans::get_energies(kmb, H);
 
   std::array<Mat, k_dim> v_op = anomtrans::calculate_velocity(kmb, H);
+  std::array<Mat, 3> spin_op = anomtrans::calculate_spin_operator(kmb, H);
 
   PetscInt Ekm_min_index, Ekm_max_index;
   PetscReal Ekm_min, Ekm_max;
@@ -168,6 +169,9 @@ TEST( Rashba_electric, Rashba_electric ) {
   std::vector<std::vector<PetscReal>> all_S_E_pm_ext_real;
   std::vector<std::vector<PetscReal>> all_S_E_pm_ext_imag;
   std::vector<PetscReal> all_sigma_xxs;
+  std::vector<PetscReal> all_sys;
+  std::vector<PetscReal> all_js_sz_vys_intrinsic;
+  std::vector<PetscReal> all_js_sz_vys_extrinsic;
   // For each mu, construct <n_E^(-1)> and <S_E^(0)>.
   for (auto mu : mus) {
     auto dm_rho0 = anomtrans::make_eq_node(Ekm, beta, mu);
@@ -205,6 +209,10 @@ TEST( Rashba_electric, Rashba_electric ) {
     // part of the longitudinal conductivity.
     // sigma_xx = -e Tr[v_x <rho_{E_x}>] / E_y
     PetscScalar sigma_xx = anomtrans::calculate_current_ev(v_op, dm_n_E->rho).at(0);
+    all_sigma_xxs.push_back(sigma_xx.real());
+
+    PetscScalar sy = anomtrans::calculate_spin_ev(spin_op, dm_n_E->rho).at(1);
+    all_sys.push_back(sy.real());
 
     auto collected_rho0 = anomtrans::split_scalars(anomtrans::collect_contents(rho0_km)).first;
     all_rho0.push_back(collected_rho0);
@@ -213,6 +221,14 @@ TEST( Rashba_electric, Rashba_electric ) {
 
     auto dm_S_E_intrinsic = dm_rho0->children[anomtrans::DMDerivedBy::P_inv_DE];
     auto dm_S_E_extrinsic = dm_n_E->children[anomtrans::DMDerivedBy::P_inv_Kod];
+
+    PetscScalar js_sz_vy_intrinsic = anomtrans::calculate_spin_current_ev(spin_op, v_op,
+        dm_S_E_intrinsic->rho).at(2).at(1);
+    all_js_sz_vys_intrinsic.push_back(js_sz_vy_intrinsic.real());
+
+    PetscScalar js_sz_vy_extrinsic = anomtrans::calculate_spin_current_ev(spin_op, v_op,
+        dm_S_E_extrinsic->rho).at(2).at(1);
+    all_js_sz_vys_extrinsic.push_back(js_sz_vy_extrinsic.real());
 
     auto collected_S_E_pm_int = anomtrans::split_scalars(anomtrans::collect_band_elem(kmb, dm_S_E_intrinsic->rho, 0, 1));
     all_S_E_pm_int_real.push_back(collected_S_E_pm_int.first);
@@ -229,8 +245,6 @@ TEST( Rashba_electric, Rashba_electric ) {
     auto collected_S_E_pm = anomtrans::split_scalars(anomtrans::collect_band_elem(kmb, S_E_total, 0, 1));
     all_S_E_pm_real.push_back(collected_S_E_pm.first);
     all_S_E_pm_imag.push_back(collected_S_E_pm.second);
-
-    all_sigma_xxs.push_back(sigma_xx.real());
 
     ierr = MatDestroy(&S_E_total);CHKERRXX(ierr);
     ierr = VecDestroy(&n_E);CHKERRXX(ierr);
@@ -272,13 +286,16 @@ TEST( Rashba_electric, Rashba_electric ) {
       {"Ekm", collected_Ekm},
       {"rho0", all_rho0},
       {"n_E", all_n_E},
-      {"S_E_pm_real", all_S_E_pm_real},
-      {"S_E_pm_imag", all_S_E_pm_imag},
-      {"S_E_pm_int_real", all_S_E_pm_int_real},
-      {"S_E_pm_int_imag", all_S_E_pm_int_imag},
-      {"S_E_pm_ext_real", all_S_E_pm_ext_real},
-      {"S_E_pm_ext_imag", all_S_E_pm_ext_imag},
+      {"_oneband_S_E_pm_real", all_S_E_pm_real},
+      {"_oneband_S_E_pm_imag", all_S_E_pm_imag},
+      {"_oneband_S_E_pm_int_real", all_S_E_pm_int_real},
+      {"_oneband_S_E_pm_int_imag", all_S_E_pm_int_imag},
+      {"_oneband_S_E_pm_ext_real", all_S_E_pm_ext_real},
+      {"_oneband_S_E_pm_ext_imag", all_S_E_pm_ext_imag},
       {"_series_sigma_xx", all_sigma_xxs},
+      {"_series_sy", all_sys},
+      {"_series_js_sz_vy_intrinsic", all_js_sz_vys_intrinsic},
+      {"_series_js_sz_vy_extrinsic", all_js_sz_vys_extrinsic}
     };
 
     std::stringstream outpath;
@@ -338,11 +355,11 @@ TEST( Rashba_electric, Rashba_electric ) {
     ASSERT_TRUE( anomtrans::check_equal_within(j_out["n_E"].get<std::vector<std::vector<PetscReal>>>(),
         j_known["n_E"].get<std::vector<std::vector<PetscReal>>>(),
         100.0*macheps, 10.0*macheps) );
-    ASSERT_TRUE( anomtrans::check_equal_within(j_out["S_E_pm_real"].get<std::vector<std::vector<PetscReal>>>(),
-        j_known["S_E_pm_real"].get<std::vector<std::vector<PetscReal>>>(),
+    ASSERT_TRUE( anomtrans::check_equal_within(j_out["_oneband_S_E_pm_real"].get<std::vector<std::vector<PetscReal>>>(),
+        j_known["_oneband_S_E_pm_real"].get<std::vector<std::vector<PetscReal>>>(),
         100.0*macheps, 10.0*macheps) );
-    ASSERT_TRUE( anomtrans::check_equal_within(j_out["S_E_pm_imag"].get<std::vector<std::vector<PetscReal>>>(),
-        j_known["S_E_pm_imag"].get<std::vector<std::vector<PetscReal>>>(),
+    ASSERT_TRUE( anomtrans::check_equal_within(j_out["_oneband_S_E_pm_imag"].get<std::vector<std::vector<PetscReal>>>(),
+        j_known["_oneband_S_E_pm_imag"].get<std::vector<std::vector<PetscReal>>>(),
         100.0*macheps, 10.0*macheps) );
   }
 }

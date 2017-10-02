@@ -230,6 +230,10 @@ kmVals<dim> km_at(kComps<dim> Nk, kmComps<dim> ikm_comps) {
  *  @note Placed here to avoid mat.h dependency on grid_basis.h. Prefer to place in mat instead?
  *  @todo Generalize to `f` which returns an array of PetscScalars, in the same manner
  *        as vector_index_apply_multiple().
+ *  @todo Should use MATMPIBAIJ (block matrix) for this to avoid a lot of overhead.
+ *        May need to change kmBasis ordering to support this - go from (k moves the fastest)
+ *        to (m moves the fastest), i.e. keep elements with the same k-point together in blocks.
+ *        This could also help to support caching strategies for eigenvectors etc.
  */
 template <std::size_t k_dim, typename ElemFunc>
 Mat construct_k_diagonal_Mat(kmBasis<k_dim> kmb, ElemFunc f) {

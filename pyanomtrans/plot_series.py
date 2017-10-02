@@ -70,10 +70,11 @@ def _main():
         else:
             plot_series("{}_{}".format(args.prefix, key), ys)
 
-    n_H_ys = [sigma_yy**2 / sigma_xy for sigma_xy, sigma_yy in
-            zip(series_data['_series_Hall_conductivity'], series_data['_series_sigma_yy'])]
-    plot_series("{}_{}".format(args.prefix, "n_H"), n_H_ys, xs=fdata['mus'],
-            xlabel="$\\mu$", ylabel="$n_H$")
+    if '_series_Hall_conductivity' in series_data and '_series_sigma_yy' in series_data:
+        n_H_ys = [sigma_yy**2 / sigma_xy for sigma_xy, sigma_yy in
+                zip(series_data['_series_Hall_conductivity'], series_data['_series_sigma_yy'])]
+        plot_series("{}_{}".format(args.prefix, "n_H"), n_H_ys, xs=fdata['mus'],
+                xlabel="$\\mu$", ylabel="$n_H$")
 
 if __name__ == '__main__':
     _main()
