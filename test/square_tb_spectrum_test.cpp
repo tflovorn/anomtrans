@@ -96,6 +96,8 @@ TEST( square_TB_Hall, square_TB_Hall ) {
 
   Vec Ekm = anomtrans::get_energies(kmb, H);
 
+  std::array<Mat, k_dim> v_op = anomtrans::calculate_velocity(kmb, H);
+
   PetscInt Ekm_min_index, Ekm_max_index;
   PetscReal Ekm_min, Ekm_max;
   PetscErrorCode ierr = VecMin(Ekm, &Ekm_min_index, &Ekm_min);CHKERRXX(ierr);
@@ -200,7 +202,7 @@ TEST( square_TB_Hall, square_TB_Hall ) {
     // Have obtained linear response to electric field. Can calculate this
     // part of the longitudinal conductivity.
     // sigma_yy = -e Tr[v_y <rho_{E_y}>] / E_y
-    PetscScalar sigma_yy = -calculate_velocity_ev(kmb, H, dm_n_E->rho).at(1);
+    PetscScalar sigma_yy = anomtrans::calculate_conductivity_ev(v_op, dm_n_E->rho).at(1);
 
     anomtrans::add_next_order_magnetic(dm_n_E, kmb, DH0_cross_Bhat, d_dk_Cart, R, ksp, Bhat_dot_Omega,
         H, sigma, disorder_term_od, berry_broadening);
@@ -212,7 +214,7 @@ TEST( square_TB_Hall, square_TB_Hall ) {
     // Have obtained linear response to E_y B_z. Can calculate this part of
     // the transverse conductivity.
     // sigma_{xy, Hall} = -e Tr[v_x <rho_{E_y B_z}>] / (E_y B_z)
-    PetscScalar sigma_Hall = -calculate_velocity_ev(kmb, H, dm_n_EB->rho).at(0);
+    PetscScalar sigma_Hall = anomtrans::calculate_conductivity_ev(v_op, dm_n_EB->rho).at(0);
 
     auto collected_rho0 = anomtrans::split_scalars(anomtrans::collect_contents(rho0_km)).first;
     all_rho0.push_back(collected_rho0);
@@ -238,6 +240,7 @@ TEST( square_TB_Hall, square_TB_Hall ) {
     ierr = MatDestroy(&(d_dk_Cart.at(dc)));CHKERRXX(ierr);
     ierr = MatDestroy(&(DH0_cross_Bhat.at(dc)));CHKERRXX(ierr);
     ierr = MatDestroy(&(R.at(dc)));CHKERRXX(ierr);
+    ierr = MatDestroy(&(v_op.at(dc)));CHKERRXX(ierr);
     ierr = VecDestroy(&(Omega.at(dc)));CHKERRXX(ierr);
   }
 

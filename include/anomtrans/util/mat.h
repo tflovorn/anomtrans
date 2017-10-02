@@ -147,6 +147,44 @@ Mat Mat_from_sum_fn(F coeffs, std::array<Mat, len> Bs,
   return A;
 }
 
+/** @brief Calculate the trace the product of the matrices given by xs, in the order of the
+ *         elements of xs.
+ *  @todo Add fill parameter as input?
+ */
+template <std::size_t num_Mats>
+PetscScalar Mat_product_trace(std::array<Mat, num_Mats> xs) {
+  static_assert(num_Mats > 0, "must have at least one Mat to trace over");
+
+  // TODO - can use constexpr if when available.
+  if (num_Mats == 1) {
+    PetscScalar tr;
+    PetscErrorCode ierr = MatGetTrace(xs.at(0), &tr);CHKERRXX(ierr);
+    return tr;
+  } else if (num_Mats == 2) {
+    // TODO can optimize this?
+    // Only diagonal elements of AB needed.
+    Mat prod;
+    PetscErrorCode ierr = MatMatMult(xs.at(0), xs.at(1), MAT_INITIAL_MATRIX,
+        PETSC_DEFAULT, &prod);CHKERRXX(ierr);
+
+    PetscScalar tr;
+    ierr = MatGetTrace(prod, &tr);CHKERRXX(ierr);
+    return tr;
+  } else if (num_Mats == 3) {
+    // TODO can optimize this?
+    // Only diagonal elements of ABC needed.
+    Mat prod;
+    PetscErrorCode ierr = MatMatMatMult(xs.at(0), xs.at(1), xs.at(2), MAT_INITIAL_MATRIX,
+        PETSC_DEFAULT, &prod);CHKERRXX(ierr);
+
+    PetscScalar tr;
+    ierr = MatGetTrace(prod, &tr);CHKERRXX(ierr);
+    return tr;
+  } else {
+    throw std::invalid_argument("num_Mats > 3 in Mat_product_trace not implemented");
+  }
+}
+
 } // namespace anomtrans
 
 #endif // ANOMTRANS_MAT_H

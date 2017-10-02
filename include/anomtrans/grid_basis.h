@@ -7,6 +7,7 @@
 #include <tuple>
 #include <petscksp.h>
 #include "util/vec.h"
+#include "util/mat.h"
 
 namespace anomtrans {
 
@@ -220,6 +221,46 @@ kmVals<dim> km_at(kComps<dim> Nk, kmComps<dim> ikm_comps) {
   }
   kmVals<dim> km(ks, std::get<1>(ikm_comps));
   return km;
+}
+
+/** @brief Construct a k-diagonal matrix <km|A|km'>, where the elements are given
+ *         by the function `f` with the signature
+ *         PetscScalar f(PetscInt ikm, unsigned int mp)
+ *         where the arguments specify km and m'.
+ *  @note Placed here to avoid mat.h dependency on grid_basis.h. Prefer to place in mat instead?
+ *  @todo Generalize to `f` which returns an array of PetscScalars, in the same manner
+ *        as vector_index_apply_multiple().
+ */
+template <std::size_t k_dim, typename ElemFunc>
+Mat construct_k_diagonal_Mat(kmBasis<k_dim> kmb, ElemFunc f) {
+  Mat A = make_Mat(kmb.end_ikm, kmb.end_ikm, kmb.Nbands);
+  PetscInt begin, end;
+  PetscErrorCode ierr = MatGetOwnershipRange(A, &begin, &end);CHKERRXX(ierr);
+
+  for (PetscInt ikm = begin; ikm < end; ikm++) {
+    std::vector<PetscInt> row_cols;
+    std::vector<PetscScalar> row_vals;
+    row_cols.reserve(kmb.Nbands);
+    row_vals.reserve(kmb.Nbands);
+
+    auto k = std::get<0>(kmb.decompose(ikm));
+
+    for (unsigned int mp = 0; mp < kmb.Nbands; mp++) {
+      PetscInt ikmp = kmb.compose(std::make_tuple(k, mp));
+      row_cols.push_back(ikmp);
+
+      row_vals.push_back(f(ikm, mp));
+    }
+
+    assert(row_cols.size() == row_vals.size());
+    ierr = MatSetValues(A, 1, &ikm, row_cols.size(), row_cols.data(), row_vals.data(),
+        INSERT_VALUES);CHKERRXX(ierr);
+  }
+
+  ierr = MatAssemblyBegin(A, MAT_FINAL_ASSEMBLY);CHKERRXX(ierr);
+  ierr = MatAssemblyEnd(A, MAT_FINAL_ASSEMBLY);CHKERRXX(ierr);
+
+  return A;
 }
 
 /** @brief Collect the elements <km|S|km'> for all k onto a vector on rank 0.

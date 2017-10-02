@@ -25,32 +25,10 @@ std::array<Mat, 3> calculate_spin_operator(const kmBasis<k_dim> &kmb,
   std::array<Mat, 3> spin;
 
   for (std::size_t dc = 0; dc < 3; dc++) {
-    spin.at(dc) = make_Mat(kmb.end_ikm, kmb.end_ikm, kmb.Nbands);
-    PetscInt begin, end;
-    PetscErrorCode ierr = MatGetOwnershipRange(spin.at(dc), &begin, &end);CHKERRXX(ierr);
-
-    for (PetscInt ikm = begin; ikm < end; ikm++) {
-      std::vector<PetscInt> row_cols;
-      std::vector<PetscScalar> row_vals;
-      row_cols.reserve(kmb.Nbands);
-      row_vals.reserve(kmb.Nbands);
-
-      auto k = std::get<0>(kmb.decompose(ikm));
-
-      for (unsigned int mp = 0; mp < kmb.Nbands; mp++) {
-        PetscInt ikmp = kmb.compose(std::make_tuple(k, mp));
-        row_cols.push_back(ikmp);
-
-        row_vals.push_back(H.spin(ikm, mp));
-      }
-
-      assert(row_cols.size() == row_vals.size());
-      ierr = MatSetValues(spin.at(dc), 1, &ikm, row_cols.size(), row_cols.data(), row_vals.data(),
-          INSERT_VALUES);CHKERRXX(ierr);
-    }
-
-    ierr = MatAssemblyBegin(spin.at(dc), MAT_FINAL_ASSEMBLY);CHKERRXX(ierr);
-    ierr = MatAssemblyEnd(spin.at(dc), MAT_FINAL_ASSEMBLY);CHKERRXX(ierr);
+    auto spin_elem = [&H, dc](PetscInt ikm, unsigned int mp)->PetscScalar {
+      return H.spin(ikm, mp).at(dc);
+    };
+    spin.at(dc) = construct_k_diagonal_Mat(kmb, spin_elem);
   }
 
   return spin;

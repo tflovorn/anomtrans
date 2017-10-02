@@ -98,6 +98,8 @@ TEST( Rashba_electric, Rashba_electric ) {
 
   Vec Ekm = anomtrans::get_energies(kmb, H);
 
+  std::array<Mat, k_dim> v_op = anomtrans::calculate_velocity(kmb, H);
+
   PetscInt Ekm_min_index, Ekm_max_index;
   PetscReal Ekm_min, Ekm_max;
   PetscErrorCode ierr = VecMin(Ekm, &Ekm_min_index, &Ekm_min);CHKERRXX(ierr);
@@ -198,7 +200,7 @@ TEST( Rashba_electric, Rashba_electric ) {
     // Have obtained linear response to electric field. Can calculate this
     // part of the longitudinal conductivity.
     // sigma_xx = -e Tr[v_x <rho_{E_x}>] / E_y
-    PetscScalar sigma_xx = -calculate_velocity_ev(kmb, H, dm_n_E->rho).at(0);
+    PetscScalar sigma_xx = anomtrans::calculate_conductivity_ev(v_op, dm_n_E->rho).at(0);
 
     auto collected_rho0 = anomtrans::split_scalars(anomtrans::collect_contents(rho0_km)).first;
     all_rho0.push_back(collected_rho0);
@@ -224,6 +226,7 @@ TEST( Rashba_electric, Rashba_electric ) {
   for (std::size_t dc = 0; dc < k_dim; dc++) {
     ierr = MatDestroy(&(d_dk_Cart.at(dc)));CHKERRXX(ierr);
     ierr = MatDestroy(&(R.at(dc)));CHKERRXX(ierr);
+    ierr = MatDestroy(&(v_op.at(dc)));CHKERRXX(ierr);
     ierr = VecDestroy(&(Omega.at(dc)));CHKERRXX(ierr);
   }
 
