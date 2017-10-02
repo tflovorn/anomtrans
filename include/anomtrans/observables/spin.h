@@ -52,13 +52,23 @@ std::array<PetscScalar, 3> calculate_spin_ev(std::array<Mat, 3> spin, Mat rho);
  *  @param rho The density matrix <rho>.
  *  @todo Return PetscReal instead of PetscScalar? Output should be guaranteed to be real.
  */
-/*
 template <std::size_t k_dim>
 std::array<std::array<PetscScalar, k_dim>, 3> calculate_spin_current_ev(std::array<Mat, 3> spin,
     std::array<Mat, k_dim> v, Mat rho) {
+  std::array<std::array<PetscScalar, k_dim>, 3> js_ev;
 
+  for (std::size_t dc_s = 0; dc_s < 3; dc_s++) {
+    for (std::size_t dc_v = 0; dc_v < k_dim; dc_v++) {
+      std::array<Mat, 3> prod_Mats_sv = {spin.at(dc_s), v.at(dc_v), rho};
+      std::array<Mat, 3> prod_Mats_vs = {v.at(dc_v), spin.at(dc_s), rho};
+
+      js_ev.at(dc_s).at(dc_v) = 0.5 * (Mat_product_trace(prod_Mats_sv)
+          + Mat_product_trace(prod_Mats_vs));
+    }
+  }
+
+  return js_ev;
 }
-*/
 
 } // namespace anomtrans
 
