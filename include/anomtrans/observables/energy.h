@@ -136,7 +136,8 @@ Mat apply_precession_term(const kmBasis<k_dim> &kmb, Hamiltonian H, Mat rho, dou
       assert(std::get<0>(kmp) == std::get<0>(km));
 
       double ediff = H.energy(km) - H.energy(kmp);
-      PetscScalar elem = std::complex<double>(0.0, -ediff/(std::pow(ediff, 2.0) + std::pow(broadening, 2.0)));
+      PetscScalar coeff = std::complex<double>(0.0, -ediff/(std::pow(ediff, 2.0) + std::pow(broadening, 2.0)));
+      PetscScalar elem = coeff * vals[column_index];
 
       result_row.push_back(elem);
     }
