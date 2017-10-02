@@ -15,7 +15,7 @@
 #include "disorder/disorder.h"
 #include "disorder/collision.h"
 #include "driving.h"
-#include "observables/conductivity.h"
+#include "observables/current.h"
 #include "berry.h"
 #include "dm_graph.h"
 
@@ -200,7 +200,7 @@ TEST( Rashba_electric, Rashba_electric ) {
     // Have obtained linear response to electric field. Can calculate this
     // part of the longitudinal conductivity.
     // sigma_xx = -e Tr[v_x <rho_{E_x}>] / E_y
-    PetscScalar sigma_xx = anomtrans::calculate_conductivity_ev(v_op, dm_n_E->rho).at(0);
+    PetscScalar sigma_xx = anomtrans::calculate_current_ev(v_op, dm_n_E->rho).at(0);
 
     auto collected_rho0 = anomtrans::split_scalars(anomtrans::collect_contents(rho0_km)).first;
     all_rho0.push_back(collected_rho0);

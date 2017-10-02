@@ -1,5 +1,5 @@
-#ifndef ANOMTRANS_CONDUCTIVITY_H
-#define ANOMTRANS_CONDUCTIVITY_H
+#ifndef ANOMTRANS_CURRENT_H
+#define ANOMTRANS_CURRENT_H
 
 #include <stdexcept>
 #include <tuple>
@@ -26,14 +26,13 @@ std::array<PetscScalar, k_dim> calculate_velocity_ev(std::array<Mat, k_dim> v, M
   return result;
 }
 
-/** @brief Compute the conductivity, given by the expectation value of the current operator:
+/** @brief Compute the expectation value of the current operator:
  *         \sigma_a = Tr[j_a <rho>] = -e/hbar Tr[v_a <rho>].
- *         Here <rho> includes a factor of 1/|E|.
  *  @returns The Cartesian components of \sigma_a, in units of hbar/e.
  *  @todo Return PetscReal instead of PetscScalar? Output should be guaranteed to be real.
  */
 template <std::size_t k_dim>
-std::array<PetscScalar, k_dim> calculate_conductivity_ev(std::array<Mat, k_dim> v, Mat rho) {
+std::array<PetscScalar, k_dim> calculate_current_ev(std::array<Mat, k_dim> v, Mat rho) {
   auto v_ev = calculate_velocity_ev(v, rho);
 
   std::array<PetscScalar, k_dim> conductivity;
@@ -65,4 +64,4 @@ std::array<Mat, k_dim> calculate_velocity(const kmBasis<k_dim> &kmb,
 
 } // namespace anomtrans
 
-#endif // ANOMTRANS_CONDUCTIVITY_H
+#endif // ANOMTRANS_CURRENT_H
