@@ -104,23 +104,33 @@ public:
   }
 };
 
+/** @brief Components of a k-point, specified by integer indices between
+ *         0 and (Nk - 1) in each reciprocal lattice coordinate direction.
+ */
 template <std::size_t dim>
 using kComps = std::array<unsigned int, dim>;
 
+/** @brief Difference between the kComps of two k-points.
+ */
 template <std::size_t dim>
 using dkComps = std::array<int, dim>;
 
+/** @brief A (k-point, band) pair which identifies one point in the kmBasis.
+ */
 template <std::size_t dim>
 using kmComps = std::tuple<kComps<dim>, unsigned int>;
 
+/** @brief Components of a k-point in real coordinates (reciprocal lattice
+ *         or Cartesian).
+ */
 template <std::size_t dim>
 using kVals = std::array<double, dim>;
 
+/** @brief A (k-point, band) pair with the k-point specified in real coordinates
+ *         (reciprocal lattice or Cartesian).
+ */
 template <std::size_t dim>
 using kmVals = std::tuple<kVals<dim>, unsigned int>;
-
-template <std::size_t dim>
-using DimMatrix = std::array<std::array<double, dim>, dim>;
 
 /** @brief Provides translation of the composite (ik, m) index into an element
  *         of a linear sequence, as well as the reverse process.

@@ -10,7 +10,6 @@
 #include <boost/optional.hpp>
 #include <json.hpp>
 #include <petscksp.h>
-#include "grid_basis.h"
 
 namespace anomtrans {
 
@@ -49,6 +48,11 @@ std::array<PetscScalar, 3> cross(std::array<PetscScalar, u_dim> u_in, std::array
 
   return cross;
 }
+
+/** @brief A (dim x dim) matrix represented as nested arrays.
+ */
+template <std::size_t dim>
+using DimMatrix = std::array<std::array<double, dim>, dim>;
 
 /** @brief A vector in lattice coordinates.
  */

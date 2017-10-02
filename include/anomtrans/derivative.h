@@ -14,6 +14,7 @@
 #include "grid_basis.h"
 #include "util/vec.h"
 #include "util/mat.h"
+#include "util/util.h"
 
 namespace anomtrans {
 
