@@ -169,6 +169,8 @@ PetscScalar Mat_product_trace(std::array<Mat, num_Mats> xs) {
 
     PetscScalar tr;
     ierr = MatGetTrace(prod, &tr);CHKERRXX(ierr);
+
+    ierr = MatDestroy(&prod);CHKERRXX(ierr);
     return tr;
   } else if (num_Mats == 3) {
     // TODO can optimize this?
@@ -179,6 +181,8 @@ PetscScalar Mat_product_trace(std::array<Mat, num_Mats> xs) {
 
     PetscScalar tr;
     ierr = MatGetTrace(prod, &tr);CHKERRXX(ierr);
+
+    ierr = MatDestroy(&prod);CHKERRXX(ierr);
     return tr;
   } else {
     throw std::invalid_argument("num_Mats > 3 in Mat_product_trace not implemented");
