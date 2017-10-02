@@ -163,6 +163,10 @@ TEST( Rashba_electric, Rashba_electric ) {
   std::vector<std::vector<PetscReal>> all_n_E;
   std::vector<std::vector<PetscReal>> all_S_E_pm_real;
   std::vector<std::vector<PetscReal>> all_S_E_pm_imag;
+  std::vector<std::vector<PetscReal>> all_S_E_pm_int_real;
+  std::vector<std::vector<PetscReal>> all_S_E_pm_int_imag;
+  std::vector<std::vector<PetscReal>> all_S_E_pm_ext_real;
+  std::vector<std::vector<PetscReal>> all_S_E_pm_ext_imag;
   std::vector<PetscReal> all_sigma_xxs;
   // For each mu, construct <n_E^(-1)> and <S_E^(0)>.
   for (auto mu : mus) {
@@ -207,13 +211,28 @@ TEST( Rashba_electric, Rashba_electric ) {
     auto collected_n_E = anomtrans::split_scalars(anomtrans::collect_contents(n_E)).first;
     all_n_E.push_back(collected_n_E);
 
-    auto dm_S_E = dm_rho0->children[anomtrans::DMDerivedBy::P_inv_DE];
-    auto collected_S_E_pm = anomtrans::split_scalars(anomtrans::collect_band_elem(kmb, dm_S_E->rho, 0, 1));
+    auto dm_S_E_intrinsic = dm_rho0->children[anomtrans::DMDerivedBy::P_inv_DE];
+    auto dm_S_E_extrinsic = dm_n_E->children[anomtrans::DMDerivedBy::P_inv_Kod];
+
+    auto collected_S_E_pm_int = anomtrans::split_scalars(anomtrans::collect_band_elem(kmb, dm_S_E_intrinsic->rho, 0, 1));
+    all_S_E_pm_int_real.push_back(collected_S_E_pm_int.first);
+    all_S_E_pm_int_imag.push_back(collected_S_E_pm_int.second);
+
+    auto collected_S_E_pm_ext = anomtrans::split_scalars(anomtrans::collect_band_elem(kmb, dm_S_E_extrinsic->rho, 0, 1));
+    all_S_E_pm_ext_real.push_back(collected_S_E_pm_ext.first);
+    all_S_E_pm_ext_imag.push_back(collected_S_E_pm_ext.second);
+
+    Mat S_E_total;
+    ierr = MatDuplicate(dm_S_E_intrinsic->rho, MAT_COPY_VALUES, &S_E_total);CHKERRXX(ierr);
+    ierr = MatAXPY(S_E_total, 1.0, dm_S_E_extrinsic->rho, DIFFERENT_NONZERO_PATTERN);CHKERRXX(ierr);
+
+    auto collected_S_E_pm = anomtrans::split_scalars(anomtrans::collect_band_elem(kmb, S_E_total, 0, 1));
     all_S_E_pm_real.push_back(collected_S_E_pm.first);
     all_S_E_pm_imag.push_back(collected_S_E_pm.second);
 
     all_sigma_xxs.push_back(sigma_xx.real());
 
+    ierr = MatDestroy(&S_E_total);CHKERRXX(ierr);
     ierr = VecDestroy(&n_E);CHKERRXX(ierr);
     ierr = MatNullSpaceDestroy(&nullspace);CHKERRXX(ierr);
     ierr = VecDestroy(&rho0_normalized);CHKERRXX(ierr);
@@ -255,6 +274,10 @@ TEST( Rashba_electric, Rashba_electric ) {
       {"n_E", all_n_E},
       {"S_E_pm_real", all_S_E_pm_real},
       {"S_E_pm_imag", all_S_E_pm_imag},
+      {"S_E_pm_int_real", all_S_E_pm_int_real},
+      {"S_E_pm_int_imag", all_S_E_pm_int_imag},
+      {"S_E_pm_ext_real", all_S_E_pm_ext_real},
+      {"S_E_pm_ext_imag", all_S_E_pm_ext_imag},
       {"_series_sigma_xx", all_sigma_xxs},
     };
 

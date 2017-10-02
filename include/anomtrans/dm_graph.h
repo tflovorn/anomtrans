@@ -139,33 +139,47 @@ void add_linear_response_electric(std::shared_ptr<DMGraphNode> eq_node,
   //               * (E_{km} - E_{km'}) / ((E_{km} - E_{km'})^2 + \eta^2)
   // Here \eta is the broadening applied to treat degeneracies, chosen to be the same
   // as the broadening used in the calculation of the Berry connection.
+  // Keep the intrinsic P^{-1} D_B(<rho_EB^(N-1)> and extrinsic P^{-1} K^{od}(<n_EB^(N)>)
+  // parts separate.
+  // Intrinsic part of S:
   set_Mat_diagonal(D_E_rho0, 0.0);
+  Mat S_E_intrinsic = apply_precession_term(kmb, H, D_E_rho0, berry_broadening);
+
+  DMKind S_E_intrinsic_node_kind = DMKind::S;
+  int S_E_intrinsic_impurity_order = 0;
+  std::string S_E_intrinsic_name = "S_E^{(0)}"; // TODO intrinsic vs extrinsic in name
+  DMGraphNode::ParentsMap S_E_intrinsic_parents {
+    {DMDerivedBy::P_inv_DE, std::weak_ptr<DMGraphNode>(eq_node)},
+  };
+  auto S_E_intrinsic_node = std::make_shared<DMGraphNode>(S_E_intrinsic, S_E_intrinsic_node_kind,
+      S_E_intrinsic_impurity_order, S_E_intrinsic_name, S_E_intrinsic_parents);
+
+  eq_node->children[DMDerivedBy::P_inv_DE] = S_E_intrinsic_node;
+
+  // Extrinsic part of S:
   Vec n_E_all = scatter_to_all(n_E);
   auto n_E_all_std = std::get<1>(get_local_contents(n_E_all));
   Mat K_od_n_E = apply_collision_od(kmb, H, sigma, disorder_term_od, n_E_all_std);
-  // Replace D_E_rho0 with D_E_rho0 - K_od_n_E.
-  // TODO - can SAME_NONZERO_PATTERN be used here?
-  ierr = MatAXPY(D_E_rho0, -1.0, K_od_n_E, DIFFERENT_NONZERO_PATTERN);CHKERRXX(ierr);
+  ierr = MatScale(K_od_n_E, -1.0);CHKERRXX(ierr);
 
-  Mat S_E = apply_precession_term(kmb, H, D_E_rho0, berry_broadening);
+  Mat S_E_extrinsic = apply_precession_term(kmb, H, K_od_n_E, berry_broadening);
 
-  DMKind S_E_node_kind = DMKind::S;
-  int S_E_impurity_order = 0;
-  std::string S_E_name = "S_E^{(0)}";
-  DMGraphNode::ParentsMap S_E_parents {
-    {DMDerivedBy::P_inv_DE, std::weak_ptr<DMGraphNode>(eq_node)},
+  DMKind S_E_extrinsic_node_kind = DMKind::S;
+  int S_E_extrinsic_impurity_order = 0;
+  std::string S_E_extrinsic_name = "S_E^{(0)}";
+  DMGraphNode::ParentsMap S_E_extrinsic_parents {
     {DMDerivedBy::P_inv_Kod, std::weak_ptr<DMGraphNode>(n_E_node)}
   };
-  auto S_E_node = std::make_shared<DMGraphNode>(S_E, S_E_node_kind, S_E_impurity_order,
-      S_E_name, S_E_parents);
+  auto S_E_extrinsic_node = std::make_shared<DMGraphNode>(S_E_extrinsic, S_E_extrinsic_node_kind,
+      S_E_extrinsic_impurity_order, S_E_extrinsic_name, S_E_extrinsic_parents);
 
-  eq_node->children[DMDerivedBy::P_inv_DE] = S_E_node;
-  n_E_node->children[DMDerivedBy::P_inv_Kod] = S_E_node;
+  n_E_node->children[DMDerivedBy::P_inv_Kod] = S_E_extrinsic_node;
 
   ierr = VecDestroy(&n_E);CHKERRXX(ierr);
   ierr = VecDestroy(&n_E_all);CHKERRXX(ierr);
   ierr = VecDestroy(&D_E_rho0_diag);CHKERRXX(ierr);
   ierr = MatDestroy(&D_E_rho0);CHKERRXX(ierr);
+  ierr = MatDestroy(&K_od_n_E);CHKERRXX(ierr);
 }
 
 /** @brief Add children to `node` corresponding to the next order of the expansion in powers
@@ -208,34 +222,49 @@ void add_next_order_magnetic(std::shared_ptr<DMGraphNode> parent_node,
 
   parent_node->children[DMDerivedBy::Kdd_inv_DB] = child_n_B_node;
 
-  // Construct <S_EB^N)>_k^{mm'} = [P^{-1} [D_B(<rho_EB^{N-1}>) - K^{od}(<n_EB^N>)]]_k^{mm'}
+  // Construct <S_EB^(N)>_k^{mm'} = [P^{-1} [D_B(<rho_EB^{N-1}>) - K^{od}(<n_EB^N>)]]_k^{mm'}
   //   = -i\hbar [D_E(<rho_EB^{N-1}>) - K^{od}(<n_EB^N>)]]_k^{mm'} / (E_{km} - E_{km'})
   //   \approx -i\hbar [D_E(<rho_EB^{N-1}>) - K^{od}(<n_EB^N>)]]_k^{mm'}
   //               * (E_{km} - E_{km'}) / ((E_{km} - E_{km'})^2 + \eta^2)
   // Here \eta is the broadening applied to treat degeneracies, chosen to be the same
   // as the broadening used in the calculation of the Berry connection.
+  // Keep the intrinsic P^{-1} D_B(<rho_EB^(N-1)> and extrinsic P^{-1} K^{od}(<n_EB^(N)>)
+  // parts separate.
+  // Intrinsic part of S:
   set_Mat_diagonal(D_B_rho, 0.0);
+  Mat child_S_B_intrinsic = apply_precession_term(kmb, H, D_B_rho, berry_broadening);
+
+  DMKind child_S_B_intrinsic_node_kind = DMKind::S;
+  int child_S_B_intrinsic_impurity_order = parent_node->impurity_order;
+  std::string child_S_B_intrinsic_name = ""; // TODO
+  DMGraphNode::ParentsMap child_S_B_intrinsic_parents {
+    {DMDerivedBy::P_inv_DB, std::weak_ptr<DMGraphNode>(parent_node)},
+  };
+  auto child_S_B_intrinsic_node = std::make_shared<DMGraphNode>(child_S_B_intrinsic,
+      child_S_B_intrinsic_node_kind, child_S_B_intrinsic_impurity_order,
+      child_S_B_intrinsic_name, child_S_B_intrinsic_parents);
+
+  parent_node->children[DMDerivedBy::P_inv_DB] = child_S_B_intrinsic_node;
+
+  // Extrinsic part of S:
   Vec child_n_B_all = scatter_to_all(child_n_B);
   auto child_n_B_all_std = std::get<1>(get_local_contents(child_n_B_all));
   Mat K_od_child_n_B = apply_collision_od(kmb, H, sigma, disorder_term_od, child_n_B_all_std);
-  // Replace D_B_rho with D_B_rho - K_od_child_n_B.
-  // TODO - can SAME_NONZERO_PATTERN be used here?
-  ierr = MatAXPY(D_B_rho, -1.0, K_od_child_n_B, DIFFERENT_NONZERO_PATTERN);CHKERRXX(ierr);
+  ierr = MatScale(K_od_child_n_B, -1.0);CHKERRXX(ierr);
 
-  Mat child_S_B = apply_precession_term(kmb, H, D_B_rho, berry_broadening);
+  Mat child_S_B_extrinsic = apply_precession_term(kmb, H, K_od_child_n_B, berry_broadening);
 
-  DMKind child_S_B_node_kind = DMKind::S;
-  int child_S_B_impurity_order = parent_node->impurity_order;
-  std::string child_S_B_name = ""; // TODO
-  DMGraphNode::ParentsMap child_S_B_parents {
-    {DMDerivedBy::P_inv_DB, std::weak_ptr<DMGraphNode>(parent_node)},
-    {DMDerivedBy::P_inv_Kod, std::weak_ptr<DMGraphNode>(child_n_B_node)}
+  DMKind child_S_B_extrinsic_node_kind = DMKind::S;
+  int child_S_B_extrinsic_impurity_order = parent_node->impurity_order;
+  std::string child_S_B_extrinsic_name = ""; // TODO
+  DMGraphNode::ParentsMap child_S_B_extrinsic_parents {
+    {DMDerivedBy::P_inv_Kod, std::weak_ptr<DMGraphNode>(child_n_B_node)},
   };
-  auto child_S_B_node = std::make_shared<DMGraphNode>(child_S_B, child_S_B_node_kind,
-      child_S_B_impurity_order, child_S_B_name, child_S_B_parents);
+  auto child_S_B_extrinsic_node = std::make_shared<DMGraphNode>(child_S_B_extrinsic,
+      child_S_B_extrinsic_node_kind, child_S_B_extrinsic_impurity_order,
+      child_S_B_extrinsic_name, child_S_B_extrinsic_parents);
 
-  parent_node->children[DMDerivedBy::P_inv_DB] = child_S_B_node;
-  child_n_B_node->children[DMDerivedBy::P_inv_Kod] = child_S_B_node;
+  child_n_B_node->children[DMDerivedBy::P_inv_Kod] = child_S_B_extrinsic_node;
 
   if (parent_node->node_kind != DMKind::S) {
     // Construct xi child.
@@ -268,6 +297,7 @@ void add_next_order_magnetic(std::shared_ptr<DMGraphNode> parent_node,
   ierr = VecDestroy(&child_n_B_all);CHKERRXX(ierr);
   ierr = VecDestroy(&D_B_rho_diag);CHKERRXX(ierr);
   ierr = MatDestroy(&D_B_rho);CHKERRXX(ierr);
+  ierr = MatDestroy(&K_od_child_n_B);CHKERRXX(ierr);
 }
 
 } // namespace anomtrans
