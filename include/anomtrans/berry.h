@@ -22,57 +22,25 @@ std::array<Mat, k_dim> make_berry_connection(const kmBasis<k_dim> &kmb, const Ha
     double broadening) {
   static_assert(k_dim > 0, "must have number of spatial dimensions > 0");
 
-  std::array<Mat, k_dim> result;
-  for (std::size_t dc = 0; dc < k_dim; dc++) {
-    result.at(dc) = make_Mat(kmb.end_ikm, kmb.end_ikm, kmb.Nbands);
-  }
+  auto R_elem = [&kmb, &H, broadening](PetscInt ikm, unsigned int mp)->std::array<PetscScalar, k_dim> {
+    kmComps<k_dim> km = kmb.decompose(ikm);
+    kmComps<k_dim> kmp = std::make_tuple(std::get<0>(km), mp);
 
-  PetscInt begin, end;
-  PetscErrorCode ierr = MatGetOwnershipRange(result.at(0), &begin, &end);CHKERRXX(ierr);
+    double ediff = H.energy(kmp) - H.energy(km);
+    std::complex<double> coeff(0.0, ediff / (std::pow(ediff, 2.0) + std::pow(broadening, 2.0)));
+    auto grad = H.gradient(km, mp);
 
-  for (PetscInt local_row = begin; local_row < end; local_row++) {
-    std::vector<PetscInt> result_row_cols;
-    result_row_cols.reserve(kmb.Nbands);
-
-    std::array<std::vector<std::complex<double>>, k_dim> result_row_vals;
+    std::array<PetscScalar, k_dim> result;
     for (std::size_t dc = 0; dc < k_dim; dc++) {
-      result_row_vals.at(dc).reserve(kmb.Nbands);
+      result.at(dc) = coeff * grad.at(dc);
     }
 
-    kmComps<k_dim> km = kmb.decompose(local_row);
-    unsigned int m = std::get<1>(km);
+    return result;
+  };
 
-    for (unsigned int mp = 0; mp < kmb.Nbands; mp++) {
-      if (mp == m) {
-        continue;
-      }
+  std::array<Mat, k_dim> R = construct_k_diagonal_Mat_array<k_dim>(kmb, R_elem);
 
-      kmComps<k_dim> kmp = std::make_tuple(std::get<0>(km), mp);
-
-      double ediff = H.energy(kmp) - H.energy(km);
-      std::complex<double> coeff(0.0, ediff / (std::pow(ediff, 2.0) + std::pow(broadening, 2.0)));
-      auto grad = H.gradient(km, mp);
-
-      result_row_cols.push_back(kmb.compose(kmp));
-
-      for (std::size_t dc = 0; dc < k_dim; dc++) {
-        std::complex<double> val = coeff * grad.at(dc);
-        result_row_vals.at(dc).push_back(val);
-      }
-    }
-
-    for (std::size_t dc = 0; dc < k_dim; dc++) {
-      PetscErrorCode ierr = MatSetValues(result.at(dc), 1, &local_row, result_row_cols.size(),
-          result_row_cols.data(), result_row_vals.at(dc).data(), INSERT_VALUES);CHKERRXX(ierr);
-    }
-  }
-
-  for (std::size_t dc = 0; dc < k_dim; dc++) {
-    PetscErrorCode ierr = MatAssemblyBegin(result.at(dc), MAT_FINAL_ASSEMBLY);CHKERRXX(ierr);
-    ierr = MatAssemblyEnd(result.at(dc), MAT_FINAL_ASSEMBLY);CHKERRXX(ierr);
-  }
-
-  return result;
+  return R;
 }
 
 /** @brief Calculate the Berry curvature for the given Hamiltonian.
