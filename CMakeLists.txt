@@ -38,6 +38,11 @@ set_target_properties(petsc PROPERTIES IMPORTED_LOCATION "$ENV{PETSC_LIB}/libpet
 set(ANOMTRANS_LIBS petsc)
 set(ANOMTRANS_TEST_LIBS ${ANOMTRANS_LIBS} gtest gtest_main anomtrans)
 
+if(DEFINED ENV{ANOMTRANS_TEST_LINK_SAN})
+  set(ANOMTRANS_LIBS ${ANOMTRANS_LIBS} ubsan)
+  set(ANOMTRANS_TEST_LIBS ${ANOMTRANS_TEST_LIBS} ubsan)
+endif()
+
 enable_testing()
 
 # Unit testing with MPI programs, following the approach at:
@@ -52,7 +57,7 @@ function(add_mpi_test name)
   set_target_properties(${name} PROPERTIES
     COMPILE_FLAGS "${CMAKE_CXX_FLAGS} $ENV{ANOMTRANS_TEST_COMPILE_FLAGS}"
   )
-target_link_libraries(${name} ${ANOMTRANS_TEST_LIBS})
+  target_link_libraries(${name} ${ANOMTRANS_TEST_LIBS})
   set(test_parameters $ENV{ANOMTRANS_TEST_MPI_NUMPROCS_PREFIX} $ENV{ANOMTRANS_TEST_MPI_NUMPROCS} $ENV{ANOMTRANS_TEST_AFFINITY} "./${name}")
   add_test(NAME ${name} COMMAND $ENV{ANOMTRANS_TEST_MPI_CMD} ${test_parameters})
   set_property(TEST ${name} PROPERTY

@@ -87,7 +87,7 @@ Set up ~/.vimrc -- `vim ~/.vimrc`, then add:
 
 Get g++, gfortran, CMake, OpenMPI, valgrind, boost, doxygen, matplotlib, scipy:
 
-    sudo apt-get install g++ gfortran cmake libopenmpi-dev openmpi-bin valgrind libboost-all-dev doxygen graphviz python-matplotlib python-tk python3-matplotlib python3-tk python3-setuptools python3-scipy
+    sudo apt-get install g++ gfortran cmake libopenmpi-dev openmpi-bin valgrind libboost-all-dev doxygen graphviz python-matplotlib python-tk python3-matplotlib python3-tk python3-setuptools python3-scipy libubsan0 lib64ubsan0
 
 Note that the Boost package is Boost 1.58.
 
