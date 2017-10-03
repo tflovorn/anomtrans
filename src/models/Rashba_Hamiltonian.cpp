@@ -37,8 +37,8 @@ std::complex<double> u_component(kVals<2> k) {
   double kx_a = 2.0*pi*k.at(0);
   double ky_a = 2.0*pi*k.at(1);
 
-  if ((k.at(0) == 0.0 and k.at(1) == 0.0)
-      or (k.at(0) == 0.5 and k.at(1) == 0.5)) {
+  if ((k.at(0) == 0.0 or k.at(0) == 0.5)
+      and (k.at(1) == 0.0 or k.at(1) == 0.5)) {
     // At k = (0, 0) and k = (1/2, 1/2), bands are degenerate
     // and the u component is not well-defined.
     // Choose the u value obtained by approaching k = 0 along
@@ -263,8 +263,8 @@ std::complex<double> Rashba_magnetic_Hamiltonian::basis_component(const PetscInt
     throw std::invalid_argument("Rashba_magnetic_Hamiltonian is not defined for Nbands > 2");
   }
 
-  if ((k.at(0) == 0.0 and k.at(1) == 0.0)
-      or (k.at(0) == 0.5 and k.at(1) == 0.5)) {
+  if ((k.at(0) == 0.0 or k.at(0) == 0.5)
+      and (k.at(1) == 0.0 or k.at(1) == 0.5)) {
     // At k = (0, 0) and k = (1/2, 1/2), the eigenvector components are not well-defined.
     // Choose the values obtained by approaching along the path such that Hr/|Hr| = 1 
     // with M != 0.
@@ -300,8 +300,8 @@ std::complex<double> Rashba_magnetic_Hamiltonian::basis_component(const PetscInt
   }
 }
 
-std::array<std::complex<double>, 2> Rashba_magnetic_Hamiltonian::gradient(kmComps<2> ikm_comps, unsigned int mp) const {
-
+std::array<std::complex<double>, 2> Rashba_magnetic_Hamiltonian::gradient(kmComps<2> ikm_comps,
+    unsigned int mp) const {
   kmVals<2> km = km_at(kmb.Nk, ikm_comps);
   kVals<2> k = std::get<0>(km);
   unsigned int m = std::get<1>(km);
