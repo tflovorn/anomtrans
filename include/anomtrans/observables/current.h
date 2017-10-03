@@ -49,15 +49,12 @@ std::array<PetscScalar, k_dim> calculate_current_ev(std::array<Mat, k_dim> v, Ma
 template <std::size_t k_dim, typename Hamiltonian>
 std::array<Mat, k_dim> calculate_velocity(const kmBasis<k_dim> &kmb,
     const Hamiltonian &H) {
-  std::array<Mat, k_dim> v;
+  auto v_elem = [&kmb, &H](PetscInt ikm, unsigned int mp)->std::array<PetscScalar, k_dim> {
+    auto ikm_comps = kmb.decompose(ikm);
+    return H.gradient(ikm_comps, mp);
+  };
 
-  for (std::size_t dc = 0; dc < k_dim; dc++) {
-    auto v_elem = [&kmb, &H, dc](PetscInt ikm, unsigned int mp)->PetscScalar {
-      auto ikm_comps = kmb.decompose(ikm);
-      return H.gradient(ikm_comps, mp).at(dc);
-    };
-    v.at(dc) = construct_k_diagonal_Mat(kmb, v_elem);
-  }
+  std::array<Mat, k_dim> v = construct_k_diagonal_Mat_array<k_dim>(kmb, v_elem);
 
   return v;
 }

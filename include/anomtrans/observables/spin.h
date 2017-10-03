@@ -22,14 +22,11 @@ std::array<Eigen::Matrix2cd, 3> pauli_matrices();
 template <std::size_t k_dim, typename Hamiltonian>
 std::array<Mat, 3> calculate_spin_operator(const kmBasis<k_dim> &kmb,
     const Hamiltonian &H) {
-  std::array<Mat, 3> spin;
+  auto spin_elem = [&H](PetscInt ikm, unsigned int mp)->std::array<PetscScalar, 3> {
+    return H.spin(ikm, mp);
+  };
 
-  for (std::size_t dc = 0; dc < 3; dc++) {
-    auto spin_elem = [&H, dc](PetscInt ikm, unsigned int mp)->PetscScalar {
-      return H.spin(ikm, mp).at(dc);
-    };
-    spin.at(dc) = construct_k_diagonal_Mat(kmb, spin_elem);
-  }
+  std::array<Mat, 3> spin = construct_k_diagonal_Mat_array<3>(kmb, spin_elem);
 
   return spin;
 }

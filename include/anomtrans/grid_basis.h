@@ -223,6 +223,65 @@ kmVals<dim> km_at(kComps<dim> Nk, kmComps<dim> ikm_comps) {
   return km;
 }
 
+/** @brief Construct an array of k-diagonal matrices <km|A_i|km'>, where the elements are given
+ *         by the function `f` with the signature
+ *         std::array<PetscScalar, out_dim> f(PetscInt ikm, unsigned int mp)
+ *         where the arguments specify km and m' and the elements of the output correspond to i.
+ *  @note Placed here to avoid mat.h dependency on grid_basis.h. Prefer to place in mat instead?
+ *  @todo Should use MATMPIBAIJ (block matrix) for this to avoid a lot of overhead.
+ *        May need to change kmBasis ordering to support this - go from (k moves the fastest)
+ *        to (m moves the fastest), i.e. keep elements with the same k-point together in blocks.
+ *        This could also help to support caching strategies for eigenvectors etc.
+ */
+template <std::size_t out_dim, std::size_t k_dim, typename ElemFunc>
+std::array<Mat, out_dim> construct_k_diagonal_Mat_array(kmBasis<k_dim> kmb, ElemFunc f) {
+  static_assert(out_dim > 0, "must have at least one output element");
+
+  std::array<Mat, out_dim> As;
+  for (std::size_t d = 0; d < out_dim; d++) {
+    As.at(d) = make_Mat(kmb.end_ikm, kmb.end_ikm, kmb.Nbands);
+  }
+
+  PetscInt begin, end;
+  PetscErrorCode ierr = MatGetOwnershipRange(As.at(0), &begin, &end);CHKERRXX(ierr);
+
+  for (PetscInt ikm = begin; ikm < end; ikm++) {
+    std::vector<PetscInt> row_cols;
+    std::array<std::vector<PetscScalar>, out_dim> row_vals;
+    row_cols.reserve(kmb.Nbands);
+
+    for (std::size_t d = 0; d < out_dim; d++) {
+      row_vals.at(d).reserve(kmb.Nbands);
+    }
+
+    auto k = std::get<0>(kmb.decompose(ikm));
+
+    for (unsigned int mp = 0; mp < kmb.Nbands; mp++) {
+      PetscInt ikmp = kmb.compose(std::make_tuple(k, mp));
+      row_cols.push_back(ikmp);
+
+      auto elems = f(ikm, mp);
+
+      for (std::size_t d = 0; d < out_dim; d++) {
+        row_vals.at(d).push_back(elems.at(d));
+      }
+    }
+
+    for (std::size_t d = 0; d < out_dim; d++) {
+      assert(row_cols.size() == row_vals.at(d).size());
+      ierr = MatSetValues(As.at(d), 1, &ikm, row_cols.size(), row_cols.data(), row_vals.at(d).data(),
+          INSERT_VALUES);CHKERRXX(ierr);
+    }
+  }
+
+  for (std::size_t d = 0; d < out_dim; d++) {
+    ierr = MatAssemblyBegin(As.at(d), MAT_FINAL_ASSEMBLY);CHKERRXX(ierr);
+    ierr = MatAssemblyEnd(As.at(d), MAT_FINAL_ASSEMBLY);CHKERRXX(ierr);
+  }
+
+  return As;
+}
+
 /** @brief Construct a k-diagonal matrix <km|A|km'>, where the elements are given
  *         by the function `f` with the signature
  *         PetscScalar f(PetscInt ikm, unsigned int mp)
@@ -237,34 +296,11 @@ kmVals<dim> km_at(kComps<dim> Nk, kmComps<dim> ikm_comps) {
  */
 template <std::size_t k_dim, typename ElemFunc>
 Mat construct_k_diagonal_Mat(kmBasis<k_dim> kmb, ElemFunc f) {
-  Mat A = make_Mat(kmb.end_ikm, kmb.end_ikm, kmb.Nbands);
-  PetscInt begin, end;
-  PetscErrorCode ierr = MatGetOwnershipRange(A, &begin, &end);CHKERRXX(ierr);
+  auto f_array = [&f](PetscInt ikm, unsigned int mp)->std::array<PetscScalar, 1> {
+    return {f(ikm, mp)};
+  };
 
-  for (PetscInt ikm = begin; ikm < end; ikm++) {
-    std::vector<PetscInt> row_cols;
-    std::vector<PetscScalar> row_vals;
-    row_cols.reserve(kmb.Nbands);
-    row_vals.reserve(kmb.Nbands);
-
-    auto k = std::get<0>(kmb.decompose(ikm));
-
-    for (unsigned int mp = 0; mp < kmb.Nbands; mp++) {
-      PetscInt ikmp = kmb.compose(std::make_tuple(k, mp));
-      row_cols.push_back(ikmp);
-
-      row_vals.push_back(f(ikm, mp));
-    }
-
-    assert(row_cols.size() == row_vals.size());
-    ierr = MatSetValues(A, 1, &ikm, row_cols.size(), row_cols.data(), row_vals.data(),
-        INSERT_VALUES);CHKERRXX(ierr);
-  }
-
-  ierr = MatAssemblyBegin(A, MAT_FINAL_ASSEMBLY);CHKERRXX(ierr);
-  ierr = MatAssemblyEnd(A, MAT_FINAL_ASSEMBLY);CHKERRXX(ierr);
-
-  return A;
+  return construct_k_diagonal_Mat_array(kmb, f).at(0);
 }
 
 /** @brief Collect the elements <km|S|km'> for all k onto a vector on rank 0.
