@@ -7,6 +7,7 @@
 #include <tuple>
 #include <complex>
 #include <petscksp.h>
+#include <Eigen/Core>
 #include "util/constants.h"
 #include "grid_basis.h"
 #include "observables/spin.h"
@@ -18,6 +19,11 @@ namespace anomtrans {
  *  @note The lattice spacing a is set to 1.
  */
 class Rashba_Hamiltonian {
+  std::complex<double> u_component(kVals<2> k) const;
+
+  Eigen::Matrix2cd evecs(kVals<2> k) const;
+
+  std::array<Eigen::Matrix2cd, 2> grad_H(kVals<2> k) const;
 public:
   /** @brief Nearest-neighbor orbital-preserving hopping amplitude.
    */
@@ -70,6 +76,9 @@ class Rashba_magnetic_Hamiltonian {
    */
   double lambda(double kx_a, double ky_a) const;
 
+  Eigen::Matrix2cd evecs(kVals<2> k) const;
+
+  std::array<Eigen::Matrix2cd, 2> grad_H(kVals<2> k) const;
 public:
   /** @brief Nearest-neighbor orbital-preserving hopping amplitude.
    */
