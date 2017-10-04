@@ -29,6 +29,72 @@ int main(int argc, char* argv[]) {
   return test_result;
 }
 
+/** @brief Check that commutator(A, B) correctly calculates AB - BA.
+ */
+TEST( mat, commutator ) {
+  Mat A = anomtrans::make_Mat(2, 2, 2);
+  Mat B = anomtrans::make_Mat(2, 2, 2);
+
+  std::vector<PetscInt> used_cols = {0, 1};
+  std::vector<std::vector<PetscScalar>> A_elems = {{1.0, 2.0}, {3.0, 4.0}};
+  std::vector<std::vector<PetscScalar>> B_elems = {{5.0, 6.0}, {7.0, 8.0}};
+
+  // Construct A = [[1, 2], and B = [[5, 6],
+  //                [3, 4]]          [7, 8]].
+  // TODO - add a utility function to generate a PETSc Mat from an
+  // Eigen Matrix to generalize this. Eigen Matrix construction is transparent.
+  // Also add function to convert the other way, from PETSc Mat to Eigen Matrix.
+  PetscInt begin, end;
+  PetscErrorCode ierr = MatGetOwnershipRange(A, &begin, &end);CHKERRXX(ierr);
+
+  for (PetscInt local_row = begin; local_row < end; local_row++) {
+    std::vector<PetscScalar> A_row_elems = A_elems.at(local_row);
+    std::vector<PetscScalar> B_row_elems = B_elems.at(local_row);
+
+    assert(used_cols.size() == A_row_elems.size());
+    assert(used_cols.size() == B_row_elems.size());
+    ierr = MatSetValues(A, 1, &local_row, used_cols.size(), used_cols.data(),
+        A_row_elems.data(), INSERT_VALUES);CHKERRXX(ierr);
+    ierr = MatSetValues(B, 1, &local_row, used_cols.size(), used_cols.data(),
+        B_row_elems.data(), INSERT_VALUES);CHKERRXX(ierr);
+  }
+
+  ierr = MatAssemblyBegin(A, MAT_FINAL_ASSEMBLY);CHKERRXX(ierr);
+  ierr = MatAssemblyEnd(A, MAT_FINAL_ASSEMBLY);CHKERRXX(ierr);
+
+  ierr = MatAssemblyBegin(B, MAT_FINAL_ASSEMBLY);CHKERRXX(ierr);
+  ierr = MatAssemblyEnd(B, MAT_FINAL_ASSEMBLY);CHKERRXX(ierr);
+
+  // AB - BA = [[-4, 12],
+  //            [12, 4]].   Check that commutator(A, B) has this value.
+  Mat comm = anomtrans::commutator(A, B);
+
+  std::vector<std::vector<PetscScalar>> expected_elems = {{-4.0, -12.0}, {12.0, 4.0}};
+
+  auto macheps = std::numeric_limits<PetscReal>::epsilon();
+
+  for (PetscInt local_row = begin; local_row < end; local_row++) {
+    PetscInt ncols;
+    const PetscInt *cols;
+    const PetscScalar *vals;
+    ierr = MatGetRow(comm, local_row, &ncols, &cols, &vals);CHKERRXX(ierr);
+
+    for (PetscInt col_index = 0; col_index < ncols; col_index++) {
+      PetscInt col = cols[col_index];
+      PetscScalar val = vals[col_index];
+
+      ASSERT_TRUE(anomtrans::scalars_approx_equal(expected_elems.at(local_row).at(col), val,
+            -1.0, 10.0*macheps));
+    }
+
+    ierr = MatRestoreRow(comm, local_row, &ncols, &cols, &vals);CHKERRXX(ierr);
+  }
+
+  ierr = MatDestroy(&comm);CHKERRXX(ierr);
+  ierr = MatDestroy(&A);CHKERRXX(ierr);
+  ierr = MatDestroy(&B);CHKERRXX(ierr);
+}
+
 /** @brief Use make_diag_Mat to create a diagonal matrix and verify it has
  *         the expected structure and values.
  */
