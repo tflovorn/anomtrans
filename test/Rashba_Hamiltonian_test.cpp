@@ -1,10 +1,12 @@
 #include <cstddef>
+#include <cmath>
 #include <gtest/gtest.h>
 #include <mpi.h>
 #include <petscksp.h>
 #include <json.hpp>
 #include "util/MPIPrettyUnitTestResultPrinter.h"
 #include "util/util.h"
+#include "util/constants.h"
 #include "grid_basis.h"
 #include "models/Rashba_Hamiltonian.h"
 #include "observables/energy.h"
@@ -39,6 +41,129 @@ int main(int argc, char* argv[]) {
   int ierr = PetscFinalize();CHKERRXX(ierr);
 
   return test_result;
+}
+
+/** @brief Check that the Berry connection for the Rashba model has the expected form.
+ */
+TEST( Rashba_electric, berry_connection ) {
+  const std::size_t k_dim = 2;
+
+  double t = 1.0;
+  double tr = 0.2;
+  assert(tr > 0.0);
+
+  std::array<unsigned int, k_dim> Nk = {8, 8};
+
+  // Choose berry_broadening small enough that
+  // (E_k^- - E_k^+)^2 + berry_broadening^2
+  // always rounds to (E_k^- - E_k^+)^2 except in the case of a degeneracy.
+  auto macheps = std::numeric_limits<PetscReal>::epsilon();
+  double berry_broadening = macheps * 1e-3 * tr;
+
+  unsigned int Nbands = 2;
+  anomtrans::kmBasis<k_dim> kmb(Nk, Nbands);
+
+  anomtrans::Rashba_Hamiltonian H(t, tr, kmb);
+  std::array<Mat, k_dim> R = anomtrans::make_berry_connection(kmb, H, berry_broadening);
+
+  auto Rpm_expected = [](anomtrans::kVals<k_dim> k)->std::array<PetscScalar, k_dim> {
+    // Assumes a = 1 and k-points where denom = 0 are avoided.
+    double kx_a = 2.0*anomtrans::pi*k.at(0);
+    double ky_a = 2.0*anomtrans::pi*k.at(1);
+
+    double sx = std::sin(kx_a);
+    double cx = std::cos(kx_a);
+    double sy = std::sin(ky_a);
+    double cy = std::cos(ky_a);
+
+    double denom = 2.0 * (std::pow(sx, 2.0) + std::pow(sy, 2.0));
+
+    return {-cx * sy / denom, cy * sx / denom};
+  };
+
+  auto ediff_expected = [tr](anomtrans::kVals<k_dim> k)->double {
+    double kx_a = 2.0*anomtrans::pi*k.at(0);
+    double ky_a = 2.0*anomtrans::pi*k.at(1);
+
+    double sx = std::sin(kx_a);
+    double sy = std::sin(ky_a);
+
+    return -4.0 * tr * std::sqrt(std::pow(sx, 2.0) + std::pow(sy, 2.0));
+  };
+
+  auto grad_expected = [t, tr](anomtrans::kVals<k_dim> k)->std::array<PetscScalar, k_dim> {
+    double kx_a = 2.0*anomtrans::pi*k.at(0);
+    double ky_a = 2.0*anomtrans::pi*k.at(1);
+
+    double sx = std::sin(kx_a);
+    double cx = std::cos(kx_a);
+    double sy = std::sin(ky_a);
+    double cy = std::cos(ky_a);
+
+    double denom = std::sqrt(std::pow(sx, 2.0) + std::pow(sy, 2.0));
+
+    double num_im_x = -2.0 * tr * cx * sy;
+    double num_im_y = 2.0 * tr * cy * sx;
+
+    return {std::complex<double>(0.0, num_im_x / denom),
+        std::complex<double>(0.0, num_im_y / denom)};
+  };
+
+  PetscInt begin, end;
+  PetscErrorCode ierr = MatGetOwnershipRange(R.at(0), &begin, &end);CHKERRXX(ierr);
+
+  for (PetscInt ikm = begin; ikm < end; ikm++) {
+    anomtrans::kmComps<k_dim> km = kmb.decompose(ikm);
+    unsigned int m = std::get<1>(km);
+
+    if (m == 1) {
+      // Interested only in R^{+,-}. Skip R^{-, m'}.
+      continue;
+    }
+
+    auto k_val = std::get<0>(anomtrans::km_at(kmb.Nk, km));
+    if ((k_val.at(0) == 0.0 or k_val.at(0) == 0.5)
+        and (k_val.at(1) == 0.0 or k_val.at(1) == 0.5)) {
+      // Avoid points where the chosen eigenbasis becomes singular.
+      continue;
+    }
+
+    auto Rk_pm = Rpm_expected(k_val);
+
+    for (std::size_t dc = 0; dc < k_dim; dc++) {
+      PetscInt ncols;
+      const PetscInt *cols;
+      const PetscScalar *vals;
+      ierr = MatGetRow(R.at(dc), ikm, &ncols, &cols, &vals);CHKERRXX(ierr);
+
+      for (PetscInt col_index = 0; col_index < ncols; col_index++) {
+        PetscInt col = cols[col_index];
+        PetscScalar val = vals[col_index];
+
+        anomtrans::kmComps<k_dim> kmp = kmb.decompose(col);
+        unsigned int mp = std::get<1>(kmp);
+
+        // R should be k-diagonal: entries for k' != k should not be present.
+        ASSERT_TRUE(std::get<0>(kmp) == std::get<0>(km));
+
+        if (mp == 0) {
+          // Interested only in R^{+, -}. Skip R^{+, +}.
+          continue;
+        }
+
+        double ediff = H.energy(kmp) - H.energy(km);
+        ASSERT_TRUE(anomtrans::scalars_approx_equal(ediff_expected(k_val), ediff, 10.0*macheps*tr, 10.0*macheps));
+
+        auto grad_k_expect = grad_expected(k_val).at(dc);
+        auto grad = H.gradient(km, mp).at(dc);
+
+        ASSERT_TRUE(anomtrans::scalars_approx_equal(grad_k_expect, grad, 100.0*macheps*tr, 100.0*macheps));
+        ASSERT_TRUE(anomtrans::scalars_approx_equal(Rk_pm.at(dc), val, 100.0*macheps, 100.0*macheps));
+      }
+
+      ierr = MatRestoreRow(R.at(dc), ikm, &ncols, &cols, &vals);CHKERRXX(ierr);
+    }
+  }
 }
 
 /** @brief Check that the electric-field response n_E and S_E of the Rashba

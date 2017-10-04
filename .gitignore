@@ -8,3 +8,4 @@ pyanomtrans.egg-info
 *.png
 test_output.err
 slurm-*.out
+*.sage.py

@@ -250,6 +250,7 @@ Mat apply_deriv(kmBasis<k_dim> kmb, Mat deriv, Mat rho) {
       result_row_vals.push_back(it->second);
     }
 
+    assert(result_row_cols.size() == result_row_vals.size());
     ierr = MatSetValues(result, 1, &km, result_row_cols.size(),
         result_row_cols.data(), result_row_vals.data(), INSERT_VALUES);CHKERRXX(ierr);
   }
