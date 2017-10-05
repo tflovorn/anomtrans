@@ -126,6 +126,7 @@ Mat apply_precession_term(const kmBasis<k_dim> &kmb, Hamiltonian H, Mat rho, dou
 
     auto km = kmb.decompose(ikm);
 
+    std::vector<PetscInt> result_cols;
     std::vector<PetscScalar> result_row;
 
     for (PetscInt column_index = 0; column_index < ncols; column_index++) {
@@ -135,15 +136,21 @@ Mat apply_precession_term(const kmBasis<k_dim> &kmb, Hamiltonian H, Mat rho, dou
       // Prefer to check this with if/throw? Choosing assert() here since it's in inner loop.
       assert(std::get<0>(kmp) == std::get<0>(km));
 
+      // P^{-1} is applied only to purely off-diagonal matrices. Skip diagonal elements.
+      if (std::get<1>(km) == std::get<1>(kmp)) {
+        continue;
+      }
+
       double ediff = H.energy(km) - H.energy(kmp);
       PetscScalar coeff = std::complex<double>(0.0, -ediff/(std::pow(ediff, 2.0) + std::pow(broadening, 2.0)));
       PetscScalar elem = coeff * vals[column_index];
 
+      result_cols.push_back(ikmp);
       result_row.push_back(elem);
     }
 
-    assert(result_row.size() == static_cast<std::size_t>(ncols));
-    ierr = MatSetValues(result, 1, &ikm, ncols, cols, result_row.data(), INSERT_VALUES);CHKERRXX(ierr);
+    assert(result_row.size() == result_cols.size());
+    ierr = MatSetValues(result, 1, &ikm, result_cols.size(), result_cols.data(), result_row.data(), INSERT_VALUES);CHKERRXX(ierr);
 
     ierr = MatRestoreRow(rho, ikm, &ncols, &cols, &vals);CHKERRXX(ierr);
   }
