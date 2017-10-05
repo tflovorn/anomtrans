@@ -139,7 +139,7 @@ void add_linear_response_electric(std::shared_ptr<DMGraphNode> eq_node,
   //               * (E_{km} - E_{km'}) / ((E_{km} - E_{km'})^2 + \eta^2)
   // Here \eta is the broadening applied to treat degeneracies, chosen to be the same
   // as the broadening used in the calculation of the Berry connection.
-  // Keep the intrinsic P^{-1} D_B(<rho_EB^(N-1)> and extrinsic P^{-1} K^{od}(<n_EB^(N)>)
+  // Keep the intrinsic P^{-1} D_E(<rho_0>) and extrinsic P^{-1} K^{od}(<n_E^(-1)>)
   // parts separate.
   // Intrinsic part of S:
   set_Mat_diagonal(D_E_rho0, 0.0);
