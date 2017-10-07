@@ -16,11 +16,12 @@ namespace anomtrans {
  *  @todo Return PetscReal instead of PetscScalar? Output should be guaranteed to be real.
  */
 template <std::size_t k_dim>
-std::array<PetscScalar, k_dim> calculate_velocity_ev(std::array<Mat, k_dim> v, Mat rho) {
+std::array<PetscScalar, k_dim> calculate_velocity_ev(const kmBasis<k_dim> &kmb,
+    std::array<Mat, k_dim> v, Mat rho) {
   std::array<PetscScalar, k_dim> result;
   for (std::size_t dc = 0; dc < k_dim; dc++) {
     std::array<Mat, 2> prod_Mats = {v.at(dc), rho};
-    result.at(dc) = Mat_product_trace(prod_Mats);
+    result.at(dc) = Mat_product_trace_normalized(kmb, prod_Mats);
   }
 
   return result;
@@ -32,8 +33,9 @@ std::array<PetscScalar, k_dim> calculate_velocity_ev(std::array<Mat, k_dim> v, M
  *  @todo Return PetscReal instead of PetscScalar? Output should be guaranteed to be real.
  */
 template <std::size_t k_dim>
-std::array<PetscScalar, k_dim> calculate_current_ev(std::array<Mat, k_dim> v, Mat rho) {
-  auto v_ev = calculate_velocity_ev(v, rho);
+std::array<PetscScalar, k_dim> calculate_current_ev(const kmBasis<k_dim> &kmb,
+    std::array<Mat, k_dim> v, Mat rho) {
+  auto v_ev = calculate_velocity_ev(kmb, v, rho);
 
   std::array<PetscScalar, k_dim> conductivity;
   std::transform(v_ev.begin(), v_ev.end(), conductivity.begin(),

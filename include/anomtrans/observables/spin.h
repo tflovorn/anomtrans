@@ -37,7 +37,16 @@ std::array<Mat, 3> calculate_spin_operator(const kmBasis<k_dim> &kmb,
  *  @param rho The density matrix <rho>.
  *  @todo Return PetscReal instead of PetscScalar? Output should be guaranteed to be real.
  */
-std::array<PetscScalar, 3> calculate_spin_ev(std::array<Mat, 3> spin, Mat rho);
+template <std::size_t k_dim>
+std::array<PetscScalar, 3> calculate_spin_ev(const kmBasis<k_dim> &kmb, std::array<Mat, 3> spin, Mat rho) {
+  std::array<PetscScalar, 3> result;
+  for (std::size_t dc = 0; dc < 3; dc++) {
+    std::array<Mat, 2> prod_Mats = {spin.at(dc), rho};
+    result.at(dc) = Mat_product_trace_normalized(kmb, prod_Mats);
+  }
+
+  return result;
+}
 
 /** @brief Compute the spin current expectation value
  *         (1/2) Tr[(S_a v_b + v_b s_a) <rho>].
@@ -50,8 +59,8 @@ std::array<PetscScalar, 3> calculate_spin_ev(std::array<Mat, 3> spin, Mat rho);
  *  @todo Return PetscReal instead of PetscScalar? Output should be guaranteed to be real.
  */
 template <std::size_t k_dim>
-std::array<std::array<PetscScalar, k_dim>, 3> calculate_spin_current_ev(std::array<Mat, 3> spin,
-    std::array<Mat, k_dim> v, Mat rho) {
+std::array<std::array<PetscScalar, k_dim>, 3> calculate_spin_current_ev(const kmBasis<k_dim> &kmb,
+    std::array<Mat, 3> spin, std::array<Mat, k_dim> v, Mat rho) {
   std::array<std::array<PetscScalar, k_dim>, 3> js_ev;
 
   for (std::size_t dc_s = 0; dc_s < 3; dc_s++) {
@@ -59,8 +68,8 @@ std::array<std::array<PetscScalar, k_dim>, 3> calculate_spin_current_ev(std::arr
       std::array<Mat, 3> prod_Mats_sv = {spin.at(dc_s), v.at(dc_v), rho};
       std::array<Mat, 3> prod_Mats_vs = {v.at(dc_v), spin.at(dc_s), rho};
 
-      js_ev.at(dc_s).at(dc_v) = 0.5 * (Mat_product_trace(prod_Mats_sv)
-          + Mat_product_trace(prod_Mats_vs));
+      js_ev.at(dc_s).at(dc_v) = 0.5 * (Mat_product_trace_normalized(kmb, prod_Mats_sv)
+          + Mat_product_trace_normalized(kmb, prod_Mats_vs));
     }
   }
 

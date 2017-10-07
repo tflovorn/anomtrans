@@ -76,6 +76,13 @@ public:
         Delta_vals(get_Delta_vals(_approx_type, _approx_order)) {}
 };
 
+/** @brief Construct a row of the finite difference derivative operator with
+ *         the given stencil along the given direction in reciprocal lattice
+ *         coordinates.
+ *  @note Assumes total distance along the BZ in any direction in reciprocal
+ *        lattice coordinates is 1. Will need to generalize this to allow
+ *        representation of continuum models.
+ */
 template <std::size_t k_dim>
 IndexValPairs finite_difference(const kmBasis<k_dim> &kmb,
     const DerivStencil<1> &stencil, PetscInt row_ikm, std::size_t deriv_dir) {
@@ -99,7 +106,7 @@ IndexValPairs finite_difference(const kmBasis<k_dim> &kmb,
     }
 
     column_ikms.push_back(kmb.add(row_ikm, Delta));
-    column_vals.push_back(k_d_spacing * vals_1d.at(Delta_index));
+    column_vals.push_back(vals_1d.at(Delta_index) / k_d_spacing);
   }
 
   return IndexValPairs(column_ikms, column_vals);

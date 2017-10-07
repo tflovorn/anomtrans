@@ -3,6 +3,7 @@
 
 #include <cassert>
 #include <cstddef>
+#include <complex>
 #include <array>
 #include <tuple>
 #include <petscksp.h>
@@ -366,6 +367,21 @@ std::vector<PetscScalar> collect_band_elem(kmBasis<k_dim> kmb, Mat S,
   ierr = VecAssemblyEnd(S_mmp);CHKERRXX(ierr);
 
   return collect_contents(S_mmp);
+}
+
+/** @brief Calculate the trace the product of the matrices given by xs, in the order of the
+ *         elements of xs, normalized by the number of k-points sampled.
+ *  @todo Add fill parameter as input?
+ */
+template <std::size_t k_dim, std::size_t num_Mats>
+PetscScalar Mat_product_trace_normalized(const kmBasis<k_dim> &kmb, std::array<Mat, num_Mats> xs) {
+  static_assert(num_Mats > 0, "must have at least one Mat to trace over");
+  PetscInt Nk_tot = 1;
+  for (std::size_t d = 0; d < k_dim; d++) {
+    Nk_tot *= kmb.Nk.at(d);
+  }
+
+  return Mat_product_trace(xs) / std::complex<double>(Nk_tot, 0.0);
 }
 
 } // namespace anomtrans

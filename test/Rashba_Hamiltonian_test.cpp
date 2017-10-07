@@ -211,7 +211,7 @@ TEST( Rashba_electric, Rashba_electric ) {
   // For the disorder form used, this quantity scales out of K: the distribution
   // of rho^(1) over k's has no dependence on it; is acts as an overall scale.
   // (TODO - sure this is correct?)
-  double U0 = 0.1*t;
+  double U0 = 1.0*t;
 
   double sigma_min = anomtrans::get_sigma_min(max_energy_difference);
 
@@ -277,7 +277,7 @@ TEST( Rashba_electric, Rashba_electric ) {
       d_dk_Cart, Ehat_grad_expected_elems_per_row);
 
   // TODO - what is a good way to choose broadening for Berry connection?
-  double berry_broadening = 1e-4;
+  double berry_broadening = 1e-8;
   auto R = anomtrans::make_berry_connection(kmb, H, berry_broadening);
   auto Ehat_dot_R = anomtrans::Mat_from_sum_const(anomtrans::make_complex_array(Ehat), R, kmb.Nbands);
 
@@ -333,10 +333,10 @@ TEST( Rashba_electric, Rashba_electric ) {
     // Have obtained linear response to electric field. Can calculate this
     // part of the longitudinal conductivity.
     // sigma_xx = -e Tr[v_x <rho_{E_x}>] / E_y
-    PetscScalar sigma_xx = anomtrans::calculate_current_ev(v_op, dm_n_E->rho).at(0);
+    PetscScalar sigma_xx = anomtrans::calculate_current_ev(kmb, v_op, dm_n_E->rho).at(0);
     all_sigma_xxs.push_back(sigma_xx.real());
 
-    PetscScalar sy = anomtrans::calculate_spin_ev(spin_op, dm_n_E->rho).at(1);
+    PetscScalar sy = anomtrans::calculate_spin_ev(kmb, spin_op, dm_n_E->rho).at(1);
     all_sys.push_back(sy.real());
 
     auto collected_rho0 = anomtrans::split_scalars(anomtrans::collect_contents(rho0_km)).first;
@@ -347,11 +347,11 @@ TEST( Rashba_electric, Rashba_electric ) {
     auto dm_S_E_intrinsic = dm_rho0->children[anomtrans::DMDerivedBy::P_inv_DE];
     auto dm_S_E_extrinsic = dm_n_E->children[anomtrans::DMDerivedBy::P_inv_Kod];
 
-    PetscScalar js_sz_vy_intrinsic = anomtrans::calculate_spin_current_ev(spin_op, v_op,
+    PetscScalar js_sz_vy_intrinsic = anomtrans::calculate_spin_current_ev(kmb, spin_op, v_op,
         dm_S_E_intrinsic->rho).at(2).at(1);
     all_js_sz_vys_intrinsic.push_back(js_sz_vy_intrinsic.real());
 
-    PetscScalar js_sz_vy_extrinsic = anomtrans::calculate_spin_current_ev(spin_op, v_op,
+    PetscScalar js_sz_vy_extrinsic = anomtrans::calculate_spin_current_ev(kmb, spin_op, v_op,
         dm_S_E_extrinsic->rho).at(2).at(1);
     all_js_sz_vys_extrinsic.push_back(js_sz_vy_extrinsic.real());
 

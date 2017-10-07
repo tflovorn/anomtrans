@@ -87,7 +87,7 @@ TEST( Rashba_magnetized_electric, Rashba_magnetized_electric ) {
   // For the disorder form used, this quantity scales out of K: the distribution
   // of rho^(1) over k's has no dependence on it; is acts as an overall scale.
   // (TODO - sure this is correct?)
-  double U0 = 0.1*t;
+  double U0 = 1.0*t;
 
   double sigma_min = anomtrans::get_sigma_min(max_energy_difference);
 
@@ -207,7 +207,7 @@ TEST( Rashba_magnetized_electric, Rashba_magnetized_electric ) {
     // Have obtained linear response to electric field. Can calculate this
     // part of the longitudinal conductivity.
     // sigma_xx = -e Tr[v_x <rho_{E_x}>] / E_y
-    PetscScalar sigma_xx = anomtrans::calculate_current_ev(v_op, dm_n_E->rho).at(0);
+    PetscScalar sigma_xx = anomtrans::calculate_current_ev(kmb, v_op, dm_n_E->rho).at(0);
     all_sigma_xxs.push_back(sigma_xx.real());
 
     auto collected_rho0 = anomtrans::split_scalars(anomtrans::collect_contents(rho0_km)).first;
@@ -218,10 +218,10 @@ TEST( Rashba_magnetized_electric, Rashba_magnetized_electric ) {
     auto dm_S_E_intrinsic = dm_rho0->children[anomtrans::DMDerivedBy::P_inv_DE];
     auto dm_S_E_extrinsic = dm_n_E->children[anomtrans::DMDerivedBy::P_inv_Kod];
 
-    PetscScalar sigma_xy_anom_intrinsic = anomtrans::calculate_current_ev(v_op, dm_S_E_intrinsic->rho).at(1);
+    PetscScalar sigma_xy_anom_intrinsic = anomtrans::calculate_current_ev(kmb, v_op, dm_S_E_intrinsic->rho).at(1);
     all_sigma_xy_anom_intrinsics.push_back(sigma_xy_anom_intrinsic.real());
 
-    PetscScalar sigma_xy_anom_extrinsic = anomtrans::calculate_current_ev(v_op, dm_S_E_extrinsic->rho).at(1);
+    PetscScalar sigma_xy_anom_extrinsic = anomtrans::calculate_current_ev(kmb, v_op, dm_S_E_extrinsic->rho).at(1);
     all_sigma_xy_anom_extrinsics.push_back(sigma_xy_anom_extrinsic.real());
 
     auto collected_S_E_pm_int = anomtrans::split_scalars(anomtrans::collect_band_elem(kmb, dm_S_E_intrinsic->rho, 0, 1));

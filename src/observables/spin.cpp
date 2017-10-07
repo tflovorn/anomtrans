@@ -16,14 +16,4 @@ std::array<Eigen::Matrix2cd, 3> pauli_matrices() {
   return {sigma_x, sigma_y, sigma_z};
 }
 
-std::array<PetscScalar, 3> calculate_spin_ev(std::array<Mat, 3> spin, Mat rho) {
-  std::array<PetscScalar, 3> result;
-  for (std::size_t dc = 0; dc < 3; dc++) {
-    std::array<Mat, 2> prod_Mats = {spin.at(dc), rho};
-    result.at(dc) = Mat_product_trace(prod_Mats);
-  }
-
-  return result;
-}
-
 } // namespace anomtrans

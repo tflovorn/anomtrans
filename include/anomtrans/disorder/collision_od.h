@@ -86,6 +86,7 @@ Mat apply_collision_od(const kmBasis<k_dim> &kmb, const Hamiltonian &H, const do
         PetscReal ndiff = n_all.at(ikm).real() - n_all.at(ikpmp).real();
         double delta_fac = delta_Gaussian(sigma, eps_km - eps_kpmp);
 
+        // TODO - use Kahan sum.
         total += pi * U_part * ndiff * delta_fac;
       };
 
@@ -100,6 +101,7 @@ Mat apply_collision_od(const kmBasis<k_dim> &kmb, const Hamiltonian &H, const do
         PetscReal ndiff = n_all.at(ikmpp).real() - n_all.at(ikpmp).real();
         double delta_fac = delta_Gaussian(sigma, eps_kmpp - eps_kpmp);
 
+        // TODO - use Kahan sum.
         total += pi * U_part * ndiff * delta_fac;
       };
 

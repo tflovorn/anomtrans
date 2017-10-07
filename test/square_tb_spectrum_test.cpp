@@ -83,7 +83,7 @@ TEST( square_TB_Hall, square_TB_Hall ) {
   // For the disorder form used, this quantity scales out of K: the distribution
   // of rho^(1) over k's has no dependence on it; is acts as an overall scale.
   // (TODO - sure this is correct?)
-  double U0 = 0.1*t;
+  double U0 = 1.0*t;
 
   double sigma_min = anomtrans::get_sigma_min(max_energy_difference);
 
@@ -202,7 +202,7 @@ TEST( square_TB_Hall, square_TB_Hall ) {
     // Have obtained linear response to electric field. Can calculate this
     // part of the longitudinal conductivity.
     // sigma_yy = -e Tr[v_y <rho_{E_y}>] / E_y
-    PetscScalar sigma_yy = anomtrans::calculate_current_ev(v_op, dm_n_E->rho).at(1);
+    PetscScalar sigma_yy = anomtrans::calculate_current_ev(kmb, v_op, dm_n_E->rho).at(1);
 
     anomtrans::add_next_order_magnetic(dm_n_E, kmb, DH0_cross_Bhat, d_dk_Cart, R, ksp, Bhat_dot_Omega,
         H, sigma, disorder_term_od, berry_broadening);
@@ -214,7 +214,7 @@ TEST( square_TB_Hall, square_TB_Hall ) {
     // Have obtained linear response to E_y B_z. Can calculate this part of
     // the transverse conductivity.
     // sigma_{xy, Hall} = -e Tr[v_x <rho_{E_y B_z}>] / (E_y B_z)
-    PetscScalar sigma_Hall = anomtrans::calculate_current_ev(v_op, dm_n_EB->rho).at(0);
+    PetscScalar sigma_Hall = anomtrans::calculate_current_ev(kmb, v_op, dm_n_EB->rho).at(0);
 
     auto collected_rho0 = anomtrans::split_scalars(anomtrans::collect_contents(rho0_km)).first;
     all_rho0.push_back(collected_rho0);
