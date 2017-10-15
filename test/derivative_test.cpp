@@ -44,7 +44,144 @@ int main(int argc, char* argv[]) {
   return test_result;
 }
 
-TEST( Derivative, square_TB_fermi_surface ) {
+TEST( derivative, linear ) {
+  const std::size_t k_dim = 3;
+  std::array<unsigned int, k_dim> Nk = {8, 8, 8};
+  unsigned int Nbands = 1;
+  anomtrans::kmBasis<k_dim> kmb(Nk, Nbands);
+
+  std::array<PetscScalar, k_dim> coeffs = {1.0, 2.0, 3.0};
+
+  // f(k) = \sum_d c_d k_d
+  // The derivative df/dk_d = c_d is given exactly by the first-order
+  // forward finite difference and second-order central difference.
+  auto f_linear = [&kmb, &coeffs](PetscInt ikm)->PetscScalar {
+    auto k = std::get<0>(anomtrans::km_at(kmb.Nk, kmb.decompose(ikm)));
+
+    PetscScalar result = 0.0;
+    for (std::size_t d = 0; d < k_dim; d++) {
+      result += coeffs.at(d) * k.at(d);
+    }
+    return result;
+  };
+
+  Vec f_vals = anomtrans::vector_index_apply(kmb.end_ikm, f_linear);
+
+  auto check_deriv = [&kmb, &coeffs, f_vals](anomtrans::DerivStencil<1> stencil) {
+    auto d_dk = anomtrans::make_d_dk_recip(kmb, stencil);
+
+    Vec df_dk;
+    PetscErrorCode ierr = VecDuplicate(f_vals, &df_dk);CHKERRXX(ierr);
+
+    for (std::size_t d = 0; d < k_dim; d++) {
+      ierr = MatMult(d_dk.at(d), f_vals, df_dk);CHKERRXX(ierr);
+
+      std::vector<PetscInt> df_dk_ikms;
+      std::vector<PetscScalar> df_dk_vals;
+      std::tie(df_dk_ikms, df_dk_vals) = anomtrans::get_local_contents(df_dk);
+
+      auto macheps = std::numeric_limits<PetscReal>::epsilon();
+      auto eps_abs = 2.0 * macheps * std::abs(coeffs.at(d));
+      auto eps_rel = 2.0 * macheps;
+
+      auto expected = coeffs.at(d);
+
+      for (std::size_t i = 0; i < df_dk_ikms.size(); i++) {
+        auto ikm = df_dk_ikms.at(i);
+        auto v = df_dk_vals.at(i);
+
+        auto k_comps = std::get<0>(kmb.decompose(ikm));
+        if (k_comps.at(d) == 0 or k_comps.at(d) == kmb.Nk.at(d) - 1) {
+          // Our function f_linear is not periodic, so the derivative is incorrect
+          // at the boundary of the Brillouin zone.
+          continue;
+        }
+
+        ASSERT_TRUE(anomtrans::scalars_approx_equal(v, expected, eps_abs, eps_rel));
+      }
+    }
+
+    ierr = VecDestroy(&df_dk);CHKERRXX(ierr);
+  };
+
+  anomtrans::DerivStencil<1> stencil_forward(anomtrans::DerivApproxType::forward, 1);
+  anomtrans::DerivStencil<1> stencil_central(anomtrans::DerivApproxType::central, 2);
+
+  check_deriv(stencil_forward);
+  check_deriv(stencil_central);
+
+  PetscErrorCode ierr = VecDestroy(&f_vals);CHKERRXX(ierr);
+}
+
+TEST( derivative, quadratic ) {
+  const std::size_t k_dim = 3;
+  std::array<unsigned int, k_dim> Nk = {8, 8, 8};
+  unsigned int Nbands = 1;
+  anomtrans::kmBasis<k_dim> kmb(Nk, Nbands);
+
+  std::array<PetscScalar, k_dim> coeffs = {1.0, 2.0, 3.0};
+
+  // f(k) = \sum_d c_d (k_d)^2
+  // The derivative df/dk_d = 2 * c_d * k_d is given exactly by
+  // the second-order central difference.
+  auto f_quad = [&kmb, &coeffs](PetscInt ikm)->PetscScalar {
+    auto k = std::get<0>(anomtrans::km_at(kmb.Nk, kmb.decompose(ikm)));
+
+    PetscScalar result = 0.0;
+    for (std::size_t d = 0; d < k_dim; d++) {
+      result += coeffs.at(d) * std::pow(k.at(d), 2.0);
+    }
+    return result;
+  };
+
+  Vec f_vals = anomtrans::vector_index_apply(kmb.end_ikm, f_quad);
+
+  auto check_deriv = [&kmb, &coeffs, f_vals](anomtrans::DerivStencil<1> stencil) {
+    auto d_dk = anomtrans::make_d_dk_recip(kmb, stencil);
+
+    Vec df_dk;
+    PetscErrorCode ierr = VecDuplicate(f_vals, &df_dk);CHKERRXX(ierr);
+
+    for (std::size_t d = 0; d < k_dim; d++) {
+      ierr = MatMult(d_dk.at(d), f_vals, df_dk);CHKERRXX(ierr);
+
+      std::vector<PetscInt> df_dk_ikms;
+      std::vector<PetscScalar> df_dk_vals;
+      std::tie(df_dk_ikms, df_dk_vals) = anomtrans::get_local_contents(df_dk);
+
+      auto macheps = std::numeric_limits<PetscReal>::epsilon();
+      auto eps_abs = 2.0 * macheps * std::abs(coeffs.at(d));
+      auto eps_rel = 2.0 * macheps;
+
+      for (std::size_t i = 0; i < df_dk_ikms.size(); i++) {
+        auto ikm = df_dk_ikms.at(i);
+        auto v = df_dk_vals.at(i);
+
+        auto k_comps = std::get<0>(kmb.decompose(ikm));
+        if (k_comps.at(d) == 0 or k_comps.at(d) == kmb.Nk.at(d) - 1) {
+          // Our function f_quad is not periodic, so the derivative is incorrect
+          // at the boundary of the Brillouin zone.
+          continue;
+        }
+
+        auto k = std::get<0>(anomtrans::km_at(kmb.Nk, kmb.decompose(ikm)));
+        auto expected = 2.0 * coeffs.at(d) * k.at(d);
+
+        ASSERT_TRUE(anomtrans::scalars_approx_equal(v, expected, eps_abs, eps_rel));
+      }
+    }
+
+    ierr = VecDestroy(&df_dk);CHKERRXX(ierr);
+  };
+
+  anomtrans::DerivStencil<1> stencil_central(anomtrans::DerivApproxType::central, 2);
+
+  check_deriv(stencil_central);
+
+  PetscErrorCode ierr = VecDestroy(&f_vals);CHKERRXX(ierr);
+}
+
+TEST( derivative, square_TB_fermi_surface ) {
   int rank;
   MPI_Comm_rank(PETSC_COMM_WORLD, &rank);
 

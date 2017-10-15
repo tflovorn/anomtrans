@@ -46,11 +46,16 @@ class DerivStencil {
   static DeltaValPairs get_Delta_vals(DerivApproxType approx_type,
       unsigned int approx_order) {
     const std::map<DerivSpecifier, std::vector<PetscInt>> all_Deltas_1d {
+      // {1, 0} --> uses f(x + h) and f(x)
       {DerivSpecifier(1, DerivApproxType::forward, 1), {1, 0}},
+      // {1, -1} --> uses f(x + h) and f(x - h)
       {DerivSpecifier(1, DerivApproxType::central, 2), {1, -1}}
     };
+
     const std::map<DerivSpecifier, std::vector<PetscScalar>> all_vals_1d {
+      // {1, -1} --> f(x + h) - f(x)
       {DerivSpecifier(1, DerivApproxType::forward, 1), {1.0, -1.0}},
+      // {1/2, -1/2} --> (1/2) f(x + h) - (1/2) f(x - h)
       {DerivSpecifier(1, DerivApproxType::central, 2), {0.5, -0.5}}
     };
 
