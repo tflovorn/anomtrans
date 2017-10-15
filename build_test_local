@@ -22,7 +22,10 @@ export BOOST_INC="/usr/include"
 # compatibility with icpc 16 which does not fully support c++14.
 # Turn off Eigen OpenMP parallelization - assume all parallelization is done
 # through MPI.
-export ANOMTRANS_TEST_COMPILE_FLAGS="-Wall -pedantic -fsanitize=undefined -fsanitize=float-divide-by-zero -std=c++11 -DEIGEN_DONT_PARALLELIZE"
+# Turn off unused parameter warning to avoid warnings when parameters are present
+# to satisfy an interface. Would prefer to use C++17 [[maybe_unused]] attribute for
+# this purpose.
+export ANOMTRANS_TEST_COMPILE_FLAGS="-Wall -Wextra -Wno-unused-parameter -pedantic -fsanitize=undefined -fsanitize=float-divide-by-zero -std=c++11 -DEIGEN_DONT_PARALLELIZE"
 export ANOMTRANS_COMPILE_FLAGS="$ANOMTRANS_TEST_COMPILE_FLAGS"
 export ANOMTRANS_TEST_LINK_SAN="TRUE"
 

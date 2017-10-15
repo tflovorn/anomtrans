@@ -53,7 +53,6 @@ Mat make_diag_Mat(Vec v) {
 
   for (PetscInt local_row = begin; local_row < end; local_row++) {
     std::size_t value_index = local_row - begin;
-    assert(value_index >= 0);
     assert(static_cast<int>(value_index) < end - begin);
 
     PetscScalar value = local_values[value_index];
