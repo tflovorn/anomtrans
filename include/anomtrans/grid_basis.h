@@ -3,6 +3,7 @@
 
 #include <cassert>
 #include <cstddef>
+#include <exception>
 #include <complex>
 #include <array>
 #include <tuple>
@@ -59,8 +60,17 @@ class GridBasis {
 public:
   const PetscInt end_iall;
 
+  /** @pre Each dimension of the GridBasis must have at least one element,
+   *       i.e. all elements of `sizes` must be > 0.
+   */
   GridBasis(std::array<unsigned int, ncomp> _sizes)
-      : sizes(_sizes), coeffs(get_coeffs(_sizes)), end_iall(get_end_iall(_sizes)) {}
+      : sizes(_sizes), coeffs(get_coeffs(_sizes)), end_iall(get_end_iall(_sizes)) {
+    for (auto dim_elems : sizes) {
+      if (dim_elems < 1) {
+        throw std::invalid_argument("each dimension of a GridBasis must have at least one element");
+      }
+    }
+  }
 
   /** @brief Convert a linear sequence index `iall` into the corresponding
    *         composite index.
