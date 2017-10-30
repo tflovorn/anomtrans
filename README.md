@@ -1,3 +1,13 @@
+# Overview
+
+A numerical implementation of a novel framework for calculation of reponse coefficients, including inter-band coherence and inter-valley scattering effects.
+
+The formalism implemented here is presented in:
+
+[Culcer, Sekine, and MacDonald, Phys. Rev. B 96, 035106 (2017)](https://journals.aps.org/prb/abstract/10.1103/PhysRevB.96.035106)
+
+[Sekine, Culcer, and MacDonald, arXiv:1706.01200](https://arxiv.org/abs/1706.01200)
+
 # Installation and usage on Lonestar5
 
 ## Dependencies
