@@ -72,27 +72,6 @@ To build and test in release mode:
 
 # Local setup and usage from a fresh Mint 18.1 MATE install
 
-## Basics
-
-Get Vim:
-
-    sudo apt-get install vim
-
-Set up ~/.vimrc -- `vim ~/.vimrc`, then add:
-
-    filetype plugin indent on
-
-    set tabstop=4
-    set shiftwidth=4
-    set expandtab
-
-    syntax on
-
-    au BufRead,BufNewFile Makefile* set noexpandtab
-
-    au BufRead,BufNewFile *.cpp,*.h,CMakeLists.txt set tabstop=2
-    au BufRead,BufNewFile *.cpp,*.h,CMakeLists.txt set shiftwidth=2
-
 ## Dependencies
 
 Get g++, gfortran, CMake, OpenMPI, valgrind, boost, doxygen, matplotlib, scipy:
@@ -173,3 +152,18 @@ Exceptions thrown by `anomtrans` functions are intended to be a 'panic' type of 
 They should not be caught unless explicitly noted as being safe to catch.
 The lack of RAII for PETSc objects makes exception safety cumbersome, and in general
 it is not attempted here to provide this type of safety.
+
+Whitespace conventions of the code are satisfied by the following `~/.vimrc`:
+
+    filetype plugin indent on
+
+    set tabstop=4
+    set shiftwidth=4
+    set expandtab
+
+    syntax on
+
+    au BufRead,BufNewFile Makefile* set noexpandtab
+
+    au BufRead,BufNewFile *.cpp,*.h,CMakeLists.txt set tabstop=2
+    au BufRead,BufNewFile *.cpp,*.h,CMakeLists.txt set shiftwidth=2
