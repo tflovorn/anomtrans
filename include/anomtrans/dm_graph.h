@@ -116,6 +116,59 @@ std::shared_ptr<DMNodeType> make_eq_node(Vec Ekm, double beta, double mu) {
  */
 //DMGraphNode::ChildrenMap add_linear_response_magnetic(DMGraphNode &eq_node);
 
+namespace internal {
+
+template <typename DMNodeType, std::size_t k_dim, typename Hamiltonian, typename UU_OD>
+std::map<typename DMNodeType::DerivedByType, Mat> get_response_electric(Mat D_E_rho,
+    const kmBasis<k_dim> &kmb, KSP Kdd_ksp,
+    const Hamiltonian &H, const double sigma, const UU_OD &disorder_term_od,
+    double berry_broadening) {
+  // Construct <n_E^(-1)> = Kdd^{-1} D_E (<rho>).
+  Vec D_E_rho_diag;
+  PetscErrorCode ierr = VecCreateMPI(PETSC_COMM_WORLD, PETSC_DECIDE, kmb.end_ikm,
+      &D_E_rho_diag);CHKERRXX(ierr);
+  ierr = MatGetDiagonal(D_E_rho, D_E_rho_diag);CHKERRXX(ierr);
+
+  Vec n_E;
+  ierr = VecDuplicate(D_E_rho_diag, &n_E);CHKERRXX(ierr);
+  ierr = KSPSolve(Kdd_ksp, D_E_rho_diag, n_E);CHKERRXX(ierr);
+
+  Mat n_E_Mat = make_diag_Mat(n_E);
+
+  // Construct <S_E>_k^{mm'} = [P^{-1} [D_E(<rho>) - K^{od}(<n_E>)]]_k^{mm'}
+  //   = -i\hbar [D_E(<rho>) - K^{od}(<n_E>)]]_k^{mm'} / (E_{km} - E_{km'})
+  //   \approx -i\hbar [D_E(<rho>) - K^{od}(<n_E>)]]_k^{mm'}
+  //               * (E_{km} - E_{km'}) / ((E_{km} - E_{km'})^2 + \eta^2)
+  // Here \eta is the broadening applied to treat degeneracies, chosen to be the same
+  // as the broadening used in the calculation of the Berry connection.
+  // Keep the intrinsic P^{-1} D_E(<rho_0>) and extrinsic P^{-1} K^{od}(<n_E^(-1)>)
+  // parts separate.
+  // Intrinsic part of S:
+  set_Mat_diagonal(D_E_rho, 0.0);
+  Mat S_E_intrinsic = apply_precession_term(kmb, H, D_E_rho, berry_broadening);
+
+  // Extrinsic part of S:
+  Vec n_E_all = scatter_to_all(n_E);
+  auto n_E_all_std = std::get<1>(get_local_contents(n_E_all));
+  Mat K_od_n_E = apply_collision_od(kmb, H, sigma, disorder_term_od, n_E_all_std);
+  ierr = MatScale(K_od_n_E, -1.0);CHKERRXX(ierr);
+
+  Mat S_E_extrinsic = apply_precession_term(kmb, H, K_od_n_E, berry_broadening);
+
+  ierr = VecDestroy(&n_E);CHKERRXX(ierr);
+  ierr = VecDestroy(&n_E_all);CHKERRXX(ierr);
+  ierr = VecDestroy(&D_E_rho_diag);CHKERRXX(ierr);
+  ierr = MatDestroy(&K_od_n_E);CHKERRXX(ierr);
+
+  return std::map<typename DMNodeType::DerivedByType, Mat> {
+      {DMNodeType::DerivedByType::Kdd_inv_DE, n_E_Mat},
+      {DMNodeType::DerivedByType::P_inv_DE, S_E_intrinsic},
+      {DMNodeType::DerivedByType::P_inv_Kod, S_E_extrinsic}
+  };
+}
+
+} // namespace internal
+
 /** @brief Given a node containing the equilibrium density matrix,
  *         add children to it corresponding to linear response to an applied electric
  *         field and return a list of those children.
@@ -133,19 +186,12 @@ void add_linear_response_electric(std::shared_ptr<StaticDMGraphNode> eq_node,
   // eq_node must be the equilibrium density matrix, which has no parents.
   assert(eq_node->parents.size() == 0);
 
-  // Construct <n_E^(-1)> = Kdd^{-1} D_E (<rho_0>).
   Mat D_E_rho0 = apply_driving_electric(kmb, Ehat_dot_grad_k, Ehat_dot_R, eq_node->rho);
 
-  Vec D_E_rho0_diag;
-  PetscErrorCode ierr = VecCreateMPI(PETSC_COMM_WORLD, PETSC_DECIDE, kmb.end_ikm,
-      &D_E_rho0_diag);CHKERRXX(ierr);
-  ierr = MatGetDiagonal(D_E_rho0, D_E_rho0_diag);CHKERRXX(ierr);
+  auto child_Mats = internal::get_response_electric<StaticDMGraphNode>(D_E_rho0, kmb, Kdd_ksp,
+      H, sigma, disorder_term_od, berry_broadening);
 
-  Vec n_E;
-  ierr = VecDuplicate(D_E_rho0_diag, &n_E);CHKERRXX(ierr);
-  ierr = KSPSolve(Kdd_ksp, D_E_rho0_diag, n_E);CHKERRXX(ierr);
-
-  Mat n_E_Mat = make_diag_Mat(n_E);
+  Mat n_E_Mat = child_Mats[StaticDMDerivedBy::Kdd_inv_DE];
   auto n_E_node_kind = StaticDMKind::n;
   int n_E_impurity_order = -1;
   std::string n_E_name = "n_E^{(-1)}";
@@ -157,18 +203,7 @@ void add_linear_response_electric(std::shared_ptr<StaticDMGraphNode> eq_node,
 
   eq_node->children[StaticDMDerivedBy::Kdd_inv_DE] = n_E_node;
 
-  // Construct <S_E^(0)>_k^{mm'} = [P^{-1} [D_E(<rho_0>) - K^{od}(<n_E>)]]_k^{mm'}
-  //   = -i\hbar [D_E(<rho_0>) - K^{od}(<n_E>)]]_k^{mm'} / (E_{km} - E_{km'})
-  //   \approx -i\hbar [D_E(<rho_0>) - K^{od}(<n_E>)]]_k^{mm'}
-  //               * (E_{km} - E_{km'}) / ((E_{km} - E_{km'})^2 + \eta^2)
-  // Here \eta is the broadening applied to treat degeneracies, chosen to be the same
-  // as the broadening used in the calculation of the Berry connection.
-  // Keep the intrinsic P^{-1} D_E(<rho_0>) and extrinsic P^{-1} K^{od}(<n_E^(-1)>)
-  // parts separate.
-  // Intrinsic part of S:
-  set_Mat_diagonal(D_E_rho0, 0.0);
-  Mat S_E_intrinsic = apply_precession_term(kmb, H, D_E_rho0, berry_broadening);
-
+  Mat S_E_intrinsic = child_Mats[StaticDMDerivedBy::P_inv_DE];
   auto S_E_intrinsic_node_kind = StaticDMKind::S;
   int S_E_intrinsic_impurity_order = 0;
   std::string S_E_intrinsic_name = "S_E^{(0)}"; // TODO intrinsic vs extrinsic in name
@@ -180,14 +215,7 @@ void add_linear_response_electric(std::shared_ptr<StaticDMGraphNode> eq_node,
 
   eq_node->children[StaticDMDerivedBy::P_inv_DE] = S_E_intrinsic_node;
 
-  // Extrinsic part of S:
-  Vec n_E_all = scatter_to_all(n_E);
-  auto n_E_all_std = std::get<1>(get_local_contents(n_E_all));
-  Mat K_od_n_E = apply_collision_od(kmb, H, sigma, disorder_term_od, n_E_all_std);
-  ierr = MatScale(K_od_n_E, -1.0);CHKERRXX(ierr);
-
-  Mat S_E_extrinsic = apply_precession_term(kmb, H, K_od_n_E, berry_broadening);
-
+  Mat S_E_extrinsic = child_Mats[StaticDMDerivedBy::P_inv_Kod];
   auto S_E_extrinsic_node_kind = StaticDMKind::S;
   int S_E_extrinsic_impurity_order = 0;
   std::string S_E_extrinsic_name = "S_E^{(0)}";
@@ -199,11 +227,7 @@ void add_linear_response_electric(std::shared_ptr<StaticDMGraphNode> eq_node,
 
   n_E_node->children[StaticDMDerivedBy::P_inv_Kod] = S_E_extrinsic_node;
 
-  ierr = VecDestroy(&n_E);CHKERRXX(ierr);
-  ierr = VecDestroy(&n_E_all);CHKERRXX(ierr);
-  ierr = VecDestroy(&D_E_rho0_diag);CHKERRXX(ierr);
-  ierr = MatDestroy(&D_E_rho0);CHKERRXX(ierr);
-  ierr = MatDestroy(&K_od_n_E);CHKERRXX(ierr);
+  PetscErrorCode ierr = MatDestroy(&D_E_rho0);CHKERRXX(ierr);
 }
 
 /** @brief Add children to `node` corresponding to the next order of the expansion in powers
