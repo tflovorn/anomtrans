@@ -173,7 +173,7 @@ TEST( Rashba_magnetized_electric, Rashba_magnetized_electric ) {
   std::vector<PetscReal> all_sigma_xy_anom_extrinsics;
   // For each mu, construct <n_E^(-1)> and <S_E^(0)>.
   for (auto mu : mus) {
-    auto dm_rho0 = anomtrans::make_eq_node(Ekm, beta, mu);
+    auto dm_rho0 = anomtrans::make_eq_node<anomtrans::StaticDMGraphNode>(Ekm, beta, mu);
     Vec rho0_km;
     ierr = VecDuplicate(Ekm, &rho0_km);CHKERRXX(ierr);
     ierr = MatGetDiagonal(dm_rho0->rho, rho0_km);CHKERRXX(ierr);
@@ -199,7 +199,7 @@ TEST( Rashba_magnetized_electric, Rashba_magnetized_electric ) {
 
     anomtrans::add_linear_response_electric(dm_rho0, kmb, Ehat_dot_grad_k, Ehat_dot_R, ksp,
         H, sigma, disorder_term_od, berry_broadening);
-    auto dm_n_E = dm_rho0->children[anomtrans::DMDerivedBy::Kdd_inv_DE];
+    auto dm_n_E = dm_rho0->children[anomtrans::StaticDMDerivedBy::Kdd_inv_DE];
     Vec n_E;
     ierr = VecDuplicate(rho0_km, &n_E);CHKERRXX(ierr);
     ierr = MatGetDiagonal(dm_n_E->rho, n_E);CHKERRXX(ierr);
@@ -215,8 +215,8 @@ TEST( Rashba_magnetized_electric, Rashba_magnetized_electric ) {
     auto collected_n_E = anomtrans::split_scalars(anomtrans::collect_contents(n_E)).first;
     all_n_E.push_back(collected_n_E);
 
-    auto dm_S_E_intrinsic = dm_rho0->children[anomtrans::DMDerivedBy::P_inv_DE];
-    auto dm_S_E_extrinsic = dm_n_E->children[anomtrans::DMDerivedBy::P_inv_Kod];
+    auto dm_S_E_intrinsic = dm_rho0->children[anomtrans::StaticDMDerivedBy::P_inv_DE];
+    auto dm_S_E_extrinsic = dm_n_E->children[anomtrans::StaticDMDerivedBy::P_inv_Kod];
 
     PetscScalar sigma_xy_anom_intrinsic = anomtrans::calculate_current_ev(kmb, v_op, dm_S_E_intrinsic->rho).at(1);
     all_sigma_xy_anom_intrinsics.push_back(sigma_xy_anom_intrinsic.real());

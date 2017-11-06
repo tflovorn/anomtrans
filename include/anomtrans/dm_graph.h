@@ -16,19 +16,14 @@
 
 namespace anomtrans {
 
-/** @brief Kind of density matrix contribution: n = diagonal (n), S = off-diagonal,
- *         xi = diagonal via P^{-1} D_B ~ B dot Omega.
- */
-enum struct DMKind { n, S, xi };
-
-/** @brief Identifier for the operation used to derive a child node from a parent node.
- */
-enum struct DMDerivedBy { P_inv_DB, B_dot_Omega, Kdd_inv_DE, P_inv_DE, P_inv_Kod, Kdd_inv_DB };
-
+template <typename NodeMatKind, typename NodeDerivedBy>
 class DMGraphNode {
 public:
-  using ParentsMap = std::map<DMDerivedBy, std::weak_ptr<DMGraphNode>>;
-  using ChildrenMap = std::map<DMDerivedBy, std::shared_ptr<DMGraphNode>>;
+  using MatKindType = NodeMatKind;
+  using DerivedByType = NodeDerivedBy;
+
+  using ParentsMap = std::map<NodeDerivedBy, std::weak_ptr<DMGraphNode<NodeMatKind, NodeDerivedBy>>>;
+  using ChildrenMap = std::map<NodeDerivedBy, std::shared_ptr<DMGraphNode<NodeMatKind, NodeDerivedBy>>>;
 
   /** @brief Density matrix given by this node. This matrix is owned by this node,
    *         i.e. the node is responsible for destroying it.
@@ -38,7 +33,7 @@ public:
    */
   Mat rho;
 
-  const DMKind node_kind;
+  const NodeMatKind node_kind;
 
   /** @brief Order of this node in the expansion in powers of impurity density.
    */
@@ -57,7 +52,7 @@ public:
    *  @todo Could initialize node_kind, impurity_order, name based on parents
    *        instead of passing these in here.
    */
-  DMGraphNode(Mat _rho, DMKind _node_kind, int _impurity_order, std::string _name,
+  DMGraphNode(Mat _rho, NodeMatKind _node_kind, int _impurity_order, std::string _name,
       ParentsMap _parents)
       : rho(_rho), node_kind(_node_kind), impurity_order(_impurity_order),
         name(_name), parents(_parents) {}
@@ -71,8 +66,22 @@ public:
    *         without duplicates. The keys of the map are given by the names of the nodes.
    *         The nodes are ordered by increasing impurity order.
    */
-  //std::map<std::string, std::shared_ptr<DMGraphNode>> unique_descendants();
+  //std::map<std::string, std::shared_ptr<DMGraphNode<NodeMatKind, NodeDerivedBy>>> unique_descendants();
 };
+
+/** @brief Kind of density matrix contribution: n = diagonal (n), S = off-diagonal,
+ *         xi = diagonal via P^{-1} D_B ~ B dot Omega.
+ */
+enum struct StaticDMKind { n, S, xi };
+
+/** @brief Identifier for the operation used to derive a child node from a parent node.
+ */
+enum struct StaticDMDerivedBy { P_inv_DB, B_dot_Omega, Kdd_inv_DE, P_inv_DE, P_inv_Kod, Kdd_inv_DB };
+
+/** @brief Graph node for linear response to a static electric field and nonlinear
+ *         response to a weak static magnetic field.
+ */
+using StaticDMGraphNode = DMGraphNode<StaticDMKind, StaticDMDerivedBy>;
 
 /** @brief Construct the node containing the equilibrium density matrix
  *         (which has no parent nodes).
@@ -81,7 +90,22 @@ public:
  *        Tricky using tie due to intermediate default construction.
  *        Works better with structured bindings?
  */
-std::shared_ptr<DMGraphNode> make_eq_node(Vec Ekm, double beta, double mu);
+template <typename DMNodeType>
+std::shared_ptr<DMNodeType> make_eq_node(Vec Ekm, double beta, double mu) {
+    Vec rho0_km = make_rho0(Ekm, beta, mu);
+    Mat rho0_km_Mat = make_diag_Mat(rho0_km);
+
+    auto node_kind = DMNodeType::MatKindType::n;
+    int impurity_order = 0;
+    std::string name = "\\rho_0";
+    typename DMNodeType::ParentsMap parents;
+
+    auto rho0_node = std::make_shared<DMNodeType>(rho0_km_Mat, node_kind, impurity_order, name, parents);
+
+    PetscErrorCode ierr = VecDestroy(&rho0_km);CHKERRXX(ierr);
+
+    return rho0_node;
+}
 
 /** @brief Given a node containing the equilibrium density matrix,
  *         add children to it corresponding to linear response to an applied magnetic
@@ -102,7 +126,7 @@ std::shared_ptr<DMGraphNode> make_eq_node(Vec Ekm, double beta, double mu);
  *                called (the nullspace of Kdd is the <rho_0> vector).
  */
 template <std::size_t k_dim, typename Hamiltonian, typename UU_OD>
-void add_linear_response_electric(std::shared_ptr<DMGraphNode> eq_node,
+void add_linear_response_electric(std::shared_ptr<StaticDMGraphNode> eq_node,
     const kmBasis<k_dim> &kmb, Mat Ehat_dot_grad_k, Mat Ehat_dot_R, KSP Kdd_ksp,
     const Hamiltonian &H, const double sigma, const UU_OD &disorder_term_od,
     double berry_broadening) {
@@ -122,16 +146,16 @@ void add_linear_response_electric(std::shared_ptr<DMGraphNode> eq_node,
   ierr = KSPSolve(Kdd_ksp, D_E_rho0_diag, n_E);CHKERRXX(ierr);
 
   Mat n_E_Mat = make_diag_Mat(n_E);
-  DMKind n_E_node_kind = DMKind::n;
+  auto n_E_node_kind = StaticDMKind::n;
   int n_E_impurity_order = -1;
   std::string n_E_name = "n_E^{(-1)}";
-  DMGraphNode::ParentsMap n_E_parents {
-    {DMDerivedBy::Kdd_inv_DE, std::weak_ptr<DMGraphNode>(eq_node)}
+  StaticDMGraphNode::ParentsMap n_E_parents {
+    {StaticDMDerivedBy::Kdd_inv_DE, std::weak_ptr<StaticDMGraphNode>(eq_node)}
   };
-  auto n_E_node = std::make_shared<DMGraphNode>(n_E_Mat, n_E_node_kind, n_E_impurity_order,
+  auto n_E_node = std::make_shared<StaticDMGraphNode>(n_E_Mat, n_E_node_kind, n_E_impurity_order,
       n_E_name, n_E_parents);
 
-  eq_node->children[DMDerivedBy::Kdd_inv_DE] = n_E_node;
+  eq_node->children[StaticDMDerivedBy::Kdd_inv_DE] = n_E_node;
 
   // Construct <S_E^(0)>_k^{mm'} = [P^{-1} [D_E(<rho_0>) - K^{od}(<n_E>)]]_k^{mm'}
   //   = -i\hbar [D_E(<rho_0>) - K^{od}(<n_E>)]]_k^{mm'} / (E_{km} - E_{km'})
@@ -145,16 +169,16 @@ void add_linear_response_electric(std::shared_ptr<DMGraphNode> eq_node,
   set_Mat_diagonal(D_E_rho0, 0.0);
   Mat S_E_intrinsic = apply_precession_term(kmb, H, D_E_rho0, berry_broadening);
 
-  DMKind S_E_intrinsic_node_kind = DMKind::S;
+  auto S_E_intrinsic_node_kind = StaticDMKind::S;
   int S_E_intrinsic_impurity_order = 0;
   std::string S_E_intrinsic_name = "S_E^{(0)}"; // TODO intrinsic vs extrinsic in name
-  DMGraphNode::ParentsMap S_E_intrinsic_parents {
-    {DMDerivedBy::P_inv_DE, std::weak_ptr<DMGraphNode>(eq_node)},
+  StaticDMGraphNode::ParentsMap S_E_intrinsic_parents {
+    {StaticDMDerivedBy::P_inv_DE, std::weak_ptr<StaticDMGraphNode>(eq_node)},
   };
-  auto S_E_intrinsic_node = std::make_shared<DMGraphNode>(S_E_intrinsic, S_E_intrinsic_node_kind,
+  auto S_E_intrinsic_node = std::make_shared<StaticDMGraphNode>(S_E_intrinsic, S_E_intrinsic_node_kind,
       S_E_intrinsic_impurity_order, S_E_intrinsic_name, S_E_intrinsic_parents);
 
-  eq_node->children[DMDerivedBy::P_inv_DE] = S_E_intrinsic_node;
+  eq_node->children[StaticDMDerivedBy::P_inv_DE] = S_E_intrinsic_node;
 
   // Extrinsic part of S:
   Vec n_E_all = scatter_to_all(n_E);
@@ -164,16 +188,16 @@ void add_linear_response_electric(std::shared_ptr<DMGraphNode> eq_node,
 
   Mat S_E_extrinsic = apply_precession_term(kmb, H, K_od_n_E, berry_broadening);
 
-  DMKind S_E_extrinsic_node_kind = DMKind::S;
+  auto S_E_extrinsic_node_kind = StaticDMKind::S;
   int S_E_extrinsic_impurity_order = 0;
   std::string S_E_extrinsic_name = "S_E^{(0)}";
-  DMGraphNode::ParentsMap S_E_extrinsic_parents {
-    {DMDerivedBy::P_inv_Kod, std::weak_ptr<DMGraphNode>(n_E_node)}
+  StaticDMGraphNode::ParentsMap S_E_extrinsic_parents {
+    {StaticDMDerivedBy::P_inv_Kod, std::weak_ptr<StaticDMGraphNode>(n_E_node)}
   };
-  auto S_E_extrinsic_node = std::make_shared<DMGraphNode>(S_E_extrinsic, S_E_extrinsic_node_kind,
+  auto S_E_extrinsic_node = std::make_shared<StaticDMGraphNode>(S_E_extrinsic, S_E_extrinsic_node_kind,
       S_E_extrinsic_impurity_order, S_E_extrinsic_name, S_E_extrinsic_parents);
 
-  n_E_node->children[DMDerivedBy::P_inv_Kod] = S_E_extrinsic_node;
+  n_E_node->children[StaticDMDerivedBy::P_inv_Kod] = S_E_extrinsic_node;
 
   ierr = VecDestroy(&n_E);CHKERRXX(ierr);
   ierr = VecDestroy(&n_E_all);CHKERRXX(ierr);
@@ -190,7 +214,7 @@ void add_linear_response_electric(std::shared_ptr<DMGraphNode> eq_node,
  *                called (the nullspace of Kdd is the <rho_0> vector).
  */
 template <std::size_t k_dim, typename Hamiltonian, typename UU_OD>
-void add_next_order_magnetic(std::shared_ptr<DMGraphNode> parent_node,
+void add_next_order_magnetic(std::shared_ptr<StaticDMGraphNode> parent_node,
     const kmBasis<k_dim> &kmb, std::array<Mat, k_dim> DH0_cross_Bhat,
     std::array<Mat, k_dim> d_dk_Cart, std::array<Mat, k_dim> R, KSP Kdd_ksp,
     Vec Bhat_dot_Omega, const Hamiltonian &H, const double sigma, const UU_OD &disorder_term_od,
@@ -211,16 +235,16 @@ void add_next_order_magnetic(std::shared_ptr<DMGraphNode> parent_node,
   ierr = KSPSolve(Kdd_ksp, D_B_rho_diag, child_n_B);CHKERRXX(ierr);
 
   Mat child_n_B_Mat = make_diag_Mat(child_n_B);
-  DMKind child_n_B_node_kind = DMKind::n;
+  auto child_n_B_node_kind = StaticDMKind::n;
   int child_n_B_impurity_order = parent_node->impurity_order - 1;
   std::string child_n_B_name = ""; // TODO
-  DMGraphNode::ParentsMap child_n_B_parents {
-    {DMDerivedBy::Kdd_inv_DB, std::weak_ptr<DMGraphNode>(parent_node)}
+  StaticDMGraphNode::ParentsMap child_n_B_parents {
+    {StaticDMDerivedBy::Kdd_inv_DB, std::weak_ptr<StaticDMGraphNode>(parent_node)}
   };
-  auto child_n_B_node = std::make_shared<DMGraphNode>(child_n_B_Mat, child_n_B_node_kind,
+  auto child_n_B_node = std::make_shared<StaticDMGraphNode>(child_n_B_Mat, child_n_B_node_kind,
       child_n_B_impurity_order, child_n_B_name, child_n_B_parents);
 
-  parent_node->children[DMDerivedBy::Kdd_inv_DB] = child_n_B_node;
+  parent_node->children[StaticDMDerivedBy::Kdd_inv_DB] = child_n_B_node;
 
   // Construct <S_EB^(N)>_k^{mm'} = [P^{-1} [D_B(<rho_EB^{N-1}>) - K^{od}(<n_EB^N>)]]_k^{mm'}
   //   = -i\hbar [D_E(<rho_EB^{N-1}>) - K^{od}(<n_EB^N>)]]_k^{mm'} / (E_{km} - E_{km'})
@@ -234,17 +258,17 @@ void add_next_order_magnetic(std::shared_ptr<DMGraphNode> parent_node,
   set_Mat_diagonal(D_B_rho, 0.0);
   Mat child_S_B_intrinsic = apply_precession_term(kmb, H, D_B_rho, berry_broadening);
 
-  DMKind child_S_B_intrinsic_node_kind = DMKind::S;
+  auto child_S_B_intrinsic_node_kind = StaticDMKind::S;
   int child_S_B_intrinsic_impurity_order = parent_node->impurity_order;
   std::string child_S_B_intrinsic_name = ""; // TODO
-  DMGraphNode::ParentsMap child_S_B_intrinsic_parents {
-    {DMDerivedBy::P_inv_DB, std::weak_ptr<DMGraphNode>(parent_node)},
+  StaticDMGraphNode::ParentsMap child_S_B_intrinsic_parents {
+    {StaticDMDerivedBy::P_inv_DB, std::weak_ptr<StaticDMGraphNode>(parent_node)},
   };
-  auto child_S_B_intrinsic_node = std::make_shared<DMGraphNode>(child_S_B_intrinsic,
+  auto child_S_B_intrinsic_node = std::make_shared<StaticDMGraphNode>(child_S_B_intrinsic,
       child_S_B_intrinsic_node_kind, child_S_B_intrinsic_impurity_order,
       child_S_B_intrinsic_name, child_S_B_intrinsic_parents);
 
-  parent_node->children[DMDerivedBy::P_inv_DB] = child_S_B_intrinsic_node;
+  parent_node->children[StaticDMDerivedBy::P_inv_DB] = child_S_B_intrinsic_node;
 
   // Extrinsic part of S:
   Vec child_n_B_all = scatter_to_all(child_n_B);
@@ -254,19 +278,19 @@ void add_next_order_magnetic(std::shared_ptr<DMGraphNode> parent_node,
 
   Mat child_S_B_extrinsic = apply_precession_term(kmb, H, K_od_child_n_B, berry_broadening);
 
-  DMKind child_S_B_extrinsic_node_kind = DMKind::S;
+  auto child_S_B_extrinsic_node_kind = StaticDMKind::S;
   int child_S_B_extrinsic_impurity_order = parent_node->impurity_order;
   std::string child_S_B_extrinsic_name = ""; // TODO
-  DMGraphNode::ParentsMap child_S_B_extrinsic_parents {
-    {DMDerivedBy::P_inv_Kod, std::weak_ptr<DMGraphNode>(child_n_B_node)},
+  StaticDMGraphNode::ParentsMap child_S_B_extrinsic_parents {
+    {StaticDMDerivedBy::P_inv_Kod, std::weak_ptr<StaticDMGraphNode>(child_n_B_node)},
   };
-  auto child_S_B_extrinsic_node = std::make_shared<DMGraphNode>(child_S_B_extrinsic,
+  auto child_S_B_extrinsic_node = std::make_shared<StaticDMGraphNode>(child_S_B_extrinsic,
       child_S_B_extrinsic_node_kind, child_S_B_extrinsic_impurity_order,
       child_S_B_extrinsic_name, child_S_B_extrinsic_parents);
 
-  child_n_B_node->children[DMDerivedBy::P_inv_Kod] = child_S_B_extrinsic_node;
+  child_n_B_node->children[StaticDMDerivedBy::P_inv_Kod] = child_S_B_extrinsic_node;
 
-  if (parent_node->node_kind != DMKind::S) {
+  if (parent_node->node_kind != StaticDMKind::S) {
     // Construct xi child.
     // xi and n have xi children, but S does not.
     Vec parent_diag;
@@ -279,16 +303,16 @@ void add_next_order_magnetic(std::shared_ptr<DMGraphNode> parent_node,
     ierr = VecPointwiseMult(xi, parent_diag, Bhat_dot_Omega);CHKERRXX(ierr);
 
     Mat child_xi_Mat = make_diag_Mat(xi);
-    DMKind child_xi_node_kind = DMKind::xi;
+    auto child_xi_node_kind = StaticDMKind::xi;
     int child_xi_impurity_order = parent_node->impurity_order;
     std::string child_xi_name = ""; // TODO
-    DMGraphNode::ParentsMap child_xi_parents {
-      {DMDerivedBy::B_dot_Omega, std::weak_ptr<DMGraphNode>(parent_node)}
+    StaticDMGraphNode::ParentsMap child_xi_parents {
+      {StaticDMDerivedBy::B_dot_Omega, std::weak_ptr<StaticDMGraphNode>(parent_node)}
     };
-    auto child_xi_node = std::make_shared<DMGraphNode>(child_xi_Mat, child_xi_node_kind,
+    auto child_xi_node = std::make_shared<StaticDMGraphNode>(child_xi_Mat, child_xi_node_kind,
         child_xi_impurity_order, child_xi_name, child_xi_parents);
 
-    parent_node->children[DMDerivedBy::B_dot_Omega] = child_xi_node;
+    parent_node->children[StaticDMDerivedBy::B_dot_Omega] = child_xi_node;
 
     ierr = VecDestroy(&xi);CHKERRXX(ierr);
   }

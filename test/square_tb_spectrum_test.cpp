@@ -168,7 +168,7 @@ TEST( square_TB_Hall, square_TB_Hall ) {
   // K rho1_B0 = Dbar_E(rho0)
   // K rho1_Bfinite = -Dbar_B rho1_B0
   for (auto mu : mus) {
-    auto dm_rho0 = anomtrans::make_eq_node(Ekm, beta, mu);
+    auto dm_rho0 = anomtrans::make_eq_node<anomtrans::StaticDMGraphNode>(Ekm, beta, mu);
     Vec rho0_km;
     ierr = VecDuplicate(Ekm, &rho0_km);CHKERRXX(ierr);
     ierr = MatGetDiagonal(dm_rho0->rho, rho0_km);CHKERRXX(ierr);
@@ -194,7 +194,7 @@ TEST( square_TB_Hall, square_TB_Hall ) {
 
     anomtrans::add_linear_response_electric(dm_rho0, kmb, Ehat_dot_grad_k, Ehat_dot_R, ksp,
         H, sigma, disorder_term_od, berry_broadening);
-    auto dm_n_E = dm_rho0->children[anomtrans::DMDerivedBy::Kdd_inv_DE];
+    auto dm_n_E = dm_rho0->children[anomtrans::StaticDMDerivedBy::Kdd_inv_DE];
     Vec rho1_B0;
     ierr = VecDuplicate(rho0_km, &rho1_B0);CHKERRXX(ierr);
     ierr = MatGetDiagonal(dm_n_E->rho, rho1_B0);CHKERRXX(ierr);
@@ -206,7 +206,7 @@ TEST( square_TB_Hall, square_TB_Hall ) {
 
     anomtrans::add_next_order_magnetic(dm_n_E, kmb, DH0_cross_Bhat, d_dk_Cart, R, ksp, Bhat_dot_Omega,
         H, sigma, disorder_term_od, berry_broadening);
-    auto dm_n_EB = dm_n_E->children[anomtrans::DMDerivedBy::Kdd_inv_DB];
+    auto dm_n_EB = dm_n_E->children[anomtrans::StaticDMDerivedBy::Kdd_inv_DB];
     Vec rho1_Bfinite;
     ierr = VecDuplicate(rho0_km, &rho1_Bfinite);CHKERRXX(ierr);
     ierr = MatGetDiagonal(dm_n_EB->rho, rho1_Bfinite);CHKERRXX(ierr);
