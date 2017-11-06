@@ -118,6 +118,97 @@ void add_dynamic_electric_n_nonzero(boost::optional<std::shared_ptr<DynDMGraphNo
   ierr = MatDestroy(&Dtilde);CHKERRXX(ierr);
 }
 
+/** @brief Construct the child node <rho_{n, s+1}> from the parents
+ *         `lower_parent` = <rho^{(i)}_{n - 1, s}> and
+ *         `upper_parent` = <rho^{(i)}_{n + 1, s}>, for n = 0.
+ *         The parents are assumed to be at the same level in the expansion in powers of disorder.
+ *         At least one parent must be present, but both are not required.
+ */
+template <std::size_t k_dim, typename Hamiltonian, typename UU_OD>
+void add_dynamic_electric_n_zero(boost::optional<std::shared_ptr<DynDMGraphNode>> lower_parent,
+    boost::optional<std::shared_ptr<DynDMGraphNode>> upper_parent, int n, double omega,
+    const kmBasis<k_dim> &kmb, Mat Ehat_dot_grad_k, Mat Ehat_dot_R, KSP Kdd_ksp,
+    const Hamiltonian &H, const double sigma, const UU_OD &disorder_term_od,
+    double berry_broadening) {
+  if (n != 0) {
+    throw std::invalid_argument("n must be zero");
+  }
+  auto impurity_order = get_impurity_order(lower_parent, upper_parent);
+  if (not impurity_order) {
+    throw std::invalid_argument("lower_parent and upper_parent must have equal impurity order");
+  }
+
+  Mat Dtilde = construct_driving_sum(lower_parent, upper_parent, kmb, Ehat_dot_grad_k, Ehat_dot_R);
+
+  auto child_Mats = internal::get_response_electric<DynDMGraphNode>(Dtilde, kmb, Kdd_ksp,
+      H, sigma, disorder_term_od, berry_broadening);
+
+  Mat n_Mat = child_Mats[StaticDMDerivedBy::Kdd_inv_DE];
+  auto n_node_kind = DynDMKind::n;
+  int n_impurity_order = *impurity_order - 1;
+  std::string n_name = ""; // TODO
+  DynDMGraphNode::ParentsMap n_parents;
+  if (lower_parent) {
+    n_parents[DynDMDerivedBy::Kdd_inv_DE] = std::weak_ptr<DynDMGraphNode>(lower_parent);
+  }
+  if (upper_parent) {
+    n_parents[DynDMDerivedBy::Kdd_inv_DE] = std::weak_ptr<DynDMGraphNode>(upper_parent);
+  }
+  auto n_node = std::make_shared<DynDMGraphNode>(n_Mat, n_node_kind, n_impurity_order,
+      n_name, n_parents);
+
+  if (lower_parent) {
+    (*lower_parent)->children[DynDMDerivedBy::Kdd_inv_DE] = n_node;
+  }
+  if (upper_parent) {
+    (*upper_parent)->children[DynDMDerivedBy::Kdd_inv_DE] = n_node;
+  }
+
+  Mat S_intrinsic = child_Mats[DynDMDerivedBy::P_inv_DE];
+  auto S_intrinsic_node_kind = DynDMKind::S;
+  int S_intrinsic_impurity_order = impurity_order;
+  std::string S_intrinsic_name = ""; // TODO intrinsic vs extrinsic in name
+  DynDMGraphNode::ParentsMap S_intrinsic_parents;
+  if (lower_parent) {
+    S_intrinsic_parents[DynDMDerivedBy::P_inv_DE] = std::weak_ptr<DynDMGraphNode>(lower_parent);
+  }
+  if (upper_parent) {
+    S_intrinsic_parents[DynDMDerivedBy::P_inv_DE] = std::weak_ptr<DynDMGraphNode>(upper_parent);
+  }
+  auto S_intrinsic_node = std::make_shared<DynDMGraphNode>(S_intrinsic, S_intrinsic_node_kind,
+      S_intrinsic_impurity_order, S_intrinsic_name, S_intrinsic_parents);
+
+  if (lower_parent) {
+    (*lower_parent)->children[DynDMDerivedBy::P_inv_DE] = S_intrinsic_node;
+  }
+  if (upper_parent) {
+    (*upper_parent)->children[DynDMDerivedBy::P_inv_DE] = S_intrinsic_node;
+  }
+
+  Mat S_extrinsic = child_Mats[DynDMDerivedBy::P_inv_Kod];
+  auto S_extrinsic_node_kind = DynDMKind::S;
+  int S_extrinsic_impurity_order = impurity_order;
+  std::string S_extrinsic_name = ""; // TODO
+  DynDMGraphNode::ParentsMap S_extrinsic_parents;
+  if (lower_parent) {
+    S_extrinsic_parents[DynDMDerivedBy::P_inv_Kod] = std::weak_ptr<DynDMGraphNode>(lower_parent);
+  }
+  if (upper_parent) {
+    S_extrinsic_parents[DynDMDerivedBy::P_inv_Kod] = std::weak_ptr<DynDMGraphNode>(upper_parent);
+  }
+  auto S_extrinsic_node = std::make_shared<DynDMGraphNode>(S_extrinsic, S_extrinsic_node_kind,
+      S_extrinsic_impurity_order, S_extrinsic_name, S_extrinsic_parents);
+
+  if (lower_parent) {
+    (*lower_parent)->children[DynDMDerivedBy::P_inv_Kod] = S_extrinsic_node;
+  }
+  if (upper_parent) {
+    (*upper_parent)->children[DynDMDerivedBy::P_inv_Kod] = S_extrinsic_node;
+  }
+
+  PetscErrorCode ierr = MatDestroy(&Dtilde);CHKERRXX(ierr);
+}
+
 /** @brief Construct the driving term
  *         \tilde{D}_{n,s} = (1/2) [D_{E_0}(<rho_{n-1, s}>) + D_{E_0}(<rho_{n+1, s}>)]
  *         from the given parent nodes
