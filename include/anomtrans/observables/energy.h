@@ -116,6 +116,26 @@ std::pair<SortResult, std::vector<PetscInt>> sort_energies(const kmBasis<k_dim> 
  */
 template <std::size_t k_dim, typename Hamiltonian>
 Mat apply_precession_term(const kmBasis<k_dim> &kmb, Hamiltonian H, Mat rho, double broadening) {
+  return apply_precession_term_dynamic(kmb, H, rho, broadening, 0, 0.0);
+}
+
+/** @brief Apply the dynamic precession term P_n^{-1} to the density matrix `rho` and return
+ *         the resulting value
+ *         [P_n^{-1} <rho>]_k^{mm'} =
+ *           -i\hbar <rho>_k^{mm'} / (\hbar * omega * n + E_{km} - E_{km'}).
+ *  @param kmb Object representing the discretization of k-space and the number
+ *             of bands.
+ *  @param H Class instance giving the Hamiltonian of the system. Should have
+ *           the method energy(kmComps<dim>).
+ *  @note Degeneracies are treated by introducing a Lorentzian broadening:
+ *        1 / (E_{km} - E_{km'}) is replaced by
+ *        (E_{km} - E_{km'}) / ((E_{km} - E_{km'})^2 + broadening^2).
+ *  @pre <rho> should be diagonal in k, i.e. <rho>_{km, k'm'} has no entries where k' != k.
+ *  @todo Prefer to act on rho in-place?
+ */
+template <std::size_t k_dim, typename Hamiltonian>
+Mat apply_precession_term_dynamic(const kmBasis<k_dim> &kmb, Hamiltonian H, Mat rho,
+    double broadening, int n, double omega) {
   Mat result;
   PetscErrorCode ierr = MatDuplicate(rho, MAT_SHARE_NONZERO_PATTERN, &result);CHKERRXX(ierr);
 
@@ -146,7 +166,8 @@ Mat apply_precession_term(const kmBasis<k_dim> &kmb, Hamiltonian H, Mat rho, dou
       }
 
       double ediff = H.energy(km) - H.energy(kmp);
-      PetscScalar coeff = std::complex<double>(0.0, -ediff/(std::pow(ediff, 2.0) + std::pow(broadening, 2.0)));
+      double P_elem_imag = omega * n + ediff;
+      PetscScalar coeff = std::complex<double>(0.0, -P_elem_imag/(std::pow(P_elem_imag, 2.0) + std::pow(broadening, 2.0)));
       PetscScalar elem = coeff * vals[column_index];
 
       result_cols.push_back(ikmp);

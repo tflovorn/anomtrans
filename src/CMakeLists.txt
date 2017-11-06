@@ -9,6 +9,7 @@ list(APPEND SOURCES
   observables/spin.cpp
   observables/rho0.cpp
   disorder/collision.cpp
+  dyn_dm_graph.cpp
 )
 
 add_library(anomtrans STATIC ${SOURCES})
