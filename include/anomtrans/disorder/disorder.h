@@ -9,7 +9,7 @@
 #include <petscksp.h>
 #include "util/vec.h"
 #include "util/constants.h"
-#include "util/util.h"
+#include "util/lattice.h"
 
 namespace anomtrans {
 
