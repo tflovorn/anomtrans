@@ -3,12 +3,14 @@
 #include <complex>
 #include <tuple>
 #include <exception>
+#include <fstream>
 #include <sstream>
 #include <map>
 #include <boost/optional.hpp>
 #include <gtest/gtest.h>
 #include <mpi.h>
 #include <petscksp.h>
+#include <json.hpp>
 #include "util/MPIPrettyUnitTestResultPrinter.h"
 #include "util/util.h"
 #include "util/lattice.h"
@@ -22,6 +24,8 @@
 #include "observables/current.h"
 #include "disorder/disorder.h"
 #include "disorder/collision.h"
+
+using json = nlohmann::json;
 
 int main(int argc, char* argv[]) {
   ::testing::InitGoogleTest(&argc, argv);
@@ -145,7 +149,7 @@ TEST( Wannier90_WSe2_dynamic, Wannier90_WSe2_dynamic ) {
   // U0 = how far can bands be driven from their average energy?
   double U0 = 1e-3; // eV
 
-  // E in a1 direction.
+  // E in x direction.
   std::array<double, k_dim> Ehat = {1.0, 0.0};
 
   Vec Ekm = anomtrans::get_energies(kmb, H);
@@ -236,14 +240,42 @@ TEST( Wannier90_WSe2_dynamic, Wannier90_WSe2_dynamic ) {
   auto dm_rho_m1_1 = dm_rho0->children[anomtrans::DynDMDerivedBy::omega_inv_DE_down];
 
   // Add <rho_{2, 2}> and <rho_{-2, 2}>.
-  anomtrans::add_dynamic_electric_n_nonzero(dm_rho_1_1, boost::none, 2, omega, kmb, Ehat_dot_grad_k,
-      Ehat_dot_R, H, berry_broadening);
-  anomtrans::add_dynamic_electric_n_nonzero(boost::none, dm_rho_m1_1, -2, omega, kmb, Ehat_dot_grad_k,
-      Ehat_dot_R, H, berry_broadening);
+  // Disabled: won't use these.
+  //anomtrans::add_dynamic_electric_n_nonzero(dm_rho_1_1, boost::none, 2, omega, kmb, Ehat_dot_grad_k,
+  //    Ehat_dot_R, H, berry_broadening);
+  //anomtrans::add_dynamic_electric_n_nonzero(boost::none, dm_rho_m1_1, -2, omega, kmb, Ehat_dot_grad_k,
+  //    Ehat_dot_R, H, berry_broadening);
 
   // Add <rho_{0, 2}>.
   anomtrans::add_dynamic_electric_n_zero(dm_rho_m1_1, dm_rho_1_1, omega, kmb, Ehat_dot_grad_k,
       Ehat_dot_R, ksp, H, sigma, disorder_term_od, berry_broadening);
+
+  // Valley (anomalous) hall effect at second order in electric field
+  // from <rho_{0, 2}>. Intrinsic contribution. Current in y, electric field in x.
+  auto dm_n_0_2 = dm_rho_m1_1->children[anomtrans::DynDMDerivedBy::Kdd_inv_DE_up];
+  auto dm_S_0_2_intrinsic = dm_rho_m1_1->children[anomtrans::DynDMDerivedBy::P_inv_DE_up];
+  auto dm_S_0_2_extrinsic = dm_rho_m1_1->children[anomtrans::DynDMDerivedBy::P_inv_Kod_up];
+
+  auto sigma_n_0_2 = anomtrans::calculate_current_ev(kmb, v_op, dm_n_0_2->rho);
+  auto sigma_S_0_2_intrinsic = anomtrans::calculate_current_ev(kmb, v_op,
+      dm_S_0_2_intrinsic->rho);
+  auto sigma_S_0_2_extrinsic = anomtrans::calculate_current_ev(kmb, v_op,
+      dm_S_0_2_extrinsic->rho);
+  PetscReal sigma_n_0_2_xx = sigma_n_0_2.at(0).real();
+  PetscReal sigma_n_0_2_xy = sigma_n_0_2.at(1).real();
+  PetscReal sigma_S_0_2_intrinsic_xx = sigma_S_0_2_intrinsic.at(0).real();
+  PetscReal sigma_S_0_2_intrinsic_xy = sigma_S_0_2_intrinsic.at(1).real();
+  PetscReal sigma_S_0_2_extrinsic_xx = sigma_S_0_2_extrinsic.at(0).real();
+  PetscReal sigma_S_0_2_extrinsic_xy = sigma_S_0_2_extrinsic.at(1).real();
+
+  auto js_n_0_2 = anomtrans::calculate_spin_current_ev(kmb, spin_op, v_op, dm_n_0_2->rho);
+  auto js_S_0_2_intrinsic = anomtrans::calculate_spin_current_ev(kmb, spin_op, v_op,
+      dm_S_0_2_intrinsic->rho);
+  auto js_S_0_2_extrinsic = anomtrans::calculate_spin_current_ev(kmb, spin_op, v_op,
+      dm_S_0_2_extrinsic->rho);
+  PetscReal js_n_0_2_sz_vy = js_n_0_2.at(2).at(1).real();
+  PetscReal js_S_0_2_intrinsic_sz_vy = js_S_0_2_intrinsic.at(2).at(1).real();
+  PetscReal js_S_0_2_extrinsic_sz_vy = js_S_0_2_extrinsic.at(2).at(1).real();
 
   // Done with PETSc data.
   for (std::size_t dc = 0; dc < k_dim; dc++) {
@@ -261,4 +293,23 @@ TEST( Wannier90_WSe2_dynamic, Wannier90_WSe2_dynamic ) {
   ierr = KSPDestroy(&ksp);CHKERRXX(ierr);
   ierr = MatDestroy(&collision);CHKERRXX(ierr);
   ierr = VecDestroy(&Ekm);CHKERRXX(ierr);
+
+  json j_out = {
+    {"sigma_n_0_2_xx", sigma_n_0_2_xx},
+    {"sigma_n_0_2_xy", sigma_n_0_2_xy},
+    {"sigma_S_0_2_intrinsic_xx", sigma_S_0_2_intrinsic_xx},
+    {"sigma_S_0_2_intrinsic_xy", sigma_S_0_2_intrinsic_xy},
+    {"sigma_S_0_2_extrinsic_xx", sigma_S_0_2_extrinsic_xx},
+    {"sigma_S_0_2_extrinsic_xy", sigma_S_0_2_extrinsic_xy},
+    {"js_n_0_2_sz_vy", js_n_0_2_sz_vy},
+    {"js_S_0_2_intrinsic_sz_vy", js_S_0_2_intrinsic_sz_vy},
+    {"js_S_0_2_extrinsic_sz_vy", js_S_0_2_extrinsic_sz_vy}
+  };
+
+  std::stringstream outpath;
+  outpath << "wannier90_Hamiltonian_WSe2_test_out.json";
+
+  std::ofstream fp_out(outpath.str());
+  fp_out << j_out.dump();
+  fp_out.close();
 }

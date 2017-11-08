@@ -158,6 +158,12 @@ class TBHamiltonian {
     return spin_eigenbasis_cache[k];
   }
 
+  /** @todo If the full cache fits in memory, can take a different approach, compatible
+   *        with threading: each process fills its caches (iterate over all k) when the
+   *        TBHamiltonian is created. If a process has multiple threads, the ks are
+   *        distributed over threads. If we fill the cache such that all ks are present, we
+   *        can use a std::vector with ik indices instead of a map.
+   */
   mutable std::map<kComps<k_dim>, Eigen::VectorXd> Ek_cache;
   mutable std::map<kComps<k_dim>, Eigen::MatrixXcd> Uk_cache;
   mutable std::map<kComps<k_dim>, std::array<Eigen::MatrixXcd, k_dim>> grad_Hk_eigenbasis_cache;
