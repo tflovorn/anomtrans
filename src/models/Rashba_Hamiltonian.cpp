@@ -4,7 +4,9 @@ namespace anomtrans {
 
 Rashba_Hamiltonian::Rashba_Hamiltonian(double _t0, double _tr, kmBasis<2> _kmb)
   : t0(_t0), tr(_tr), kmb(_kmb) {
-    assert(kmb.Nbands == 2);
+  if (kmb.Nbands != 2) {
+    throw std::invalid_argument("must supply kmb with 2 bands to Rashba_Hamiltonian");
+  }
 }
 
 double Rashba_Hamiltonian::energy(kmComps<2> ikm_comps) const {
@@ -168,7 +170,9 @@ std::array<std::complex<double>, 3> Rashba_Hamiltonian::spin(PetscInt ikm, unsig
 
 Rashba_magnetic_Hamiltonian::Rashba_magnetic_Hamiltonian(double _t0, double _tr, double _M, kmBasis<2> _kmb)
   : t0(_t0), tr(_tr), M(_M), kmb(_kmb) {
-    assert(kmb.Nbands == 2);
+  if (kmb.Nbands != 2) {
+    throw std::invalid_argument("must supply kmb with 2 bands to Rashba_magnetic_Hamiltonian");
+  }
 }
 
 std::complex<double> Rashba_magnetic_Hamiltonian::Hr(double kx_a, double ky_a) const {
