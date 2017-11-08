@@ -53,6 +53,19 @@ HrHeader extract_hr_header(std::string hr_path) {
   return HrHeader{Nbands, Nrs, degen, start_hr};
 }
 
+std::array<Eigen::MatrixXcd, 3> full_spin_matrices(std::size_t Nbands) {
+	auto pauli = pauli_matrices();
+  std::array<Eigen::MatrixXcd, 3> S;
+	for (std::size_t dc = 0; dc < 3; dc++) {
+		S.at(dc) = Eigen::MatrixXcd(Nbands, Nbands);
+		for (std::size_t i = 0; i < Nbands; i += 2) {
+			S.at(dc).block(i, i, 2, 2) = pauli.at(dc);
+		}
+	}
+
+  return S;
+}
+
 namespace internal {
 
 template <>
@@ -70,6 +83,6 @@ LatVec<3> process_LatVec(int ra, int rb, int rc) {
   return {ra, rb, rc};
 }
 
-}
+} // namespace internal
 
 } // namespace anomtrans

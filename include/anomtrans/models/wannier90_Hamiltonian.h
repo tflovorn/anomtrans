@@ -11,15 +11,159 @@
 #include <vector>
 #include <map>
 #include <Eigen/Core>
+#include <Eigen/Dense>
+#include "util/constants.h"
 #include "util/lattice.h"
 #include "grid_basis.h"
+#include "observables/spin.h"
 
 namespace anomtrans {
 
-/** @brief Tight-binding Hamiltonian.
+/** @brief Returns the full spin matrices (S_x, S_y, S_z) (in units of hbar) for
+ *         a system in which the basis alternates spin:
+ *         ((orbital 0, up), (orbital 0, down), (orbital 1, up), (orbital 1, down), ...)
+ */
+std::array<Eigen::MatrixXcd, 3> full_spin_matrices(std::size_t Nbands);
+
+/** @brief Tight-binding Hamiltonian, represented by a set of hopping matrices
+ *         Hrs[r](ip, i) giving the matrix elements <ip, 0|H|i, r>.
+ *         Assumes the system has both spins present and is given in a basis of
+ *         alternating spin:
+ *         ((orbital 0, up), (orbital 0, down), (orbital 1, up), (orbital 1, down), ...)
+ *  @todo Impose maximum size on caches.
  */
 template <std::size_t k_dim>
 class TBHamiltonian {
+  /** @brief Calculate H(k) by summing the Fourier series.
+   */
+  Eigen::MatrixXcd calc_Hk_at(kComps<k_dim> k) const {
+    kVals<k_dim> kv = km_at(k, kmb.Nk);
+
+    Eigen::MatrixXcd Hk(kmb.Nbands, kmb.Nbands);
+
+    for (auto it = Hrs.begin(); it != Hrs.end(); ++it) {
+      LatVec<k_dim> r = it->first;
+      double k_dot_r = 0.0;
+      for (std::size_t di = 0; di < k_dim; di++) {
+        k_dot_r += 2.0 * pi * kv.at(di) * r.at(di);
+      }
+      std::complex<double> coeff = std::exp(std::complex<double>(0.0, k_dot_r));
+
+      Hk += coeff * it->second;
+    }
+
+    return Hk;
+  }
+
+  /** @brief Calculate grad_k H(k) using the analytic differentiation of the
+   *         Fourier series yielding H(k).
+   */
+  std::array<Eigen::MatrixXcd, k_dim> calc_grad_Hk_at(kComps<k_dim> k) const {
+    kVals<k_dim> kv = km_at(k, kmb.Nk);
+
+    std::array<Eigen::MatrixXcd, k_dim> grad_Hk;
+    for (std::size_t dc = 0; dc < k_dim; dc++) {
+      grad_Hk.at(dc) = Eigen::MatrixXcd(kmb.Nbands, kmb.Nbands);
+    }
+
+    for (auto it = Hrs.begin(); it != Hrs.end(); ++it) {
+      LatVec<k_dim> r = it->first;
+      CartVec<k_dim> r_Cart = lat_vec_to_Cart(D, r);
+
+      double k_dot_r = 0.0;
+      for (std::size_t di = 0; di < k_dim; di++) {
+        k_dot_r += 2.0 * pi * kv.at(di) * r.at(di);
+      }
+      std::complex<double> exp_coeff = std::exp(std::complex<double>(0.0, k_dot_r));
+
+			for (std::size_t dc = 0; dc < k_dim; dc++) {
+				std::complex<double> coeff = std::complex<double>(0.0, r_Cart.at(dc)) * exp_coeff;
+
+				grad_Hk.at(dc) += coeff * it->second;
+			}
+    }
+
+    return grad_Hk;
+  }
+
+  const std::vector<double>& Ek_at(kComps<k_dim> k) const {
+    auto Ek_prev = Ek_cache.find(k);
+    if (Ek_prev != Ek_cache.end()) {
+      return Ek_prev->second;
+    }
+
+    auto Hk = calc_Hk_at(k);
+    Eigen::SelfAdjointEigenSolver<Eigen::MatrixXcd> eigensolver(Hk);
+    if (eigensolver.info() != Eigen::Success) {
+      throw std::runtime_error("eigensolver failed");
+    }
+
+    Ek_cache[k] = eigensolver.eigenvalues();
+    Uk_cache[k] = eigensolver.eigenvectors();
+
+    return Ek_cache[k];
+  }
+
+  const Eigen::MatrixXcd& Uk_at(kComps<k_dim> k) const {
+    auto Uk_prev = Uk_cache.find(k);
+    if (Uk_prev != Uk_cache.end()) {
+      return Uk_prev->second;
+    }
+
+    // TODO same logic as Ek_at; consolidate.
+    auto Hk = calc_Hk_at(k);
+    Eigen::SelfAdjointEigenSolver<Eigen::MatrixXcd> eigensolver(Hk);
+    if (eigensolver.info() != Eigen::Success) {
+      throw std::runtime_error("eigensolver failed");
+    }
+
+    Ek_cache[k] = eigensolver.eigenvalues();
+    Uk_cache[k] = eigensolver.eigenvectors();
+
+    return Uk_cache[k];
+  }
+
+  const std::array<Eigen::MatrixXcd, k_dim>& grad_at(kComps<k_dim> k) const {
+    auto grad_prev = grad_Hk_eigenbasis_cache.find(k);
+    if (grad_prev != grad_Hk_eigenbasis_cache.end()) {
+      return grad_prev->second;
+    }
+
+    const auto& Uk = Uk_at(k);
+    std::array<Eigen::MatrixXcd, k_dim> grad_Hk = calc_grad_Hk_at(k);
+
+    std::array<Eigen::MatrixXcd, k_dim> grad_Hk_eigenbasis;
+    for (std::size_t dc = 0; dc < k_dim; dc++) {
+      grad_Hk_eigenbasis.at(dc) = Uk.adjoint() * grad_Hk.at(dc) * Uk;
+    }
+
+    grad_Hk_eigenbasis_cache[k] = grad_Hk_eigenbasis;
+    return grad_Hk_eigenbasis_cache[k];
+  }
+
+  const std::array<Eigen::MatrixXcd, 3>& spin_at(kComps<k_dim> k) const {
+    auto spin_prev = spin_eigenbasis_cache.find(k);
+    if (spin_prev != spin_eigenbasis_cache.end()) {
+      return spin_prev->second;
+    }
+
+    const auto& Uk = Uk_at(k);
+    std::array<Eigen::MatrixXcd, 3> spin_eigenbasis;
+    for (std::size_t dc = 0; dc < 3; dc++) {
+      spin_eigenbasis.at(dc) = Uk.adjoint() * spin.at(dc) * Uk;
+    }
+
+    spin_eigenbasis_cache[k] = spin_eigenbasis;
+    return spin_eigenbasis_cache[k];
+  }
+
+  mutable std::map<kComps<k_dim>, std::vector<double>> Ek_cache;
+  mutable std::map<kComps<k_dim>, Eigen::MatrixXcd> Uk_cache;
+  mutable std::map<kComps<k_dim>, std::array<Eigen::MatrixXcd, k_dim>> grad_Hk_eigenbasis_cache;
+  mutable std::map<kComps<k_dim>, std::array<Eigen::MatrixXcd, 3>> spin_eigenbasis_cache;
+
+  const std::array<Eigen::MatrixXcd, 3> spin_operator;
+
 public:
   /** @brief Tight-binding Hamiltonian matrix. 
    */
@@ -29,8 +173,69 @@ public:
    */
   const kmBasis<k_dim> kmb;
 
+  /** @brief A matrix giving the lattice vectors: D[c][i] is the c'th Cartesian
+   *         component of the i'th lattice vector.
+	 */
+	const DimMatrix<k_dim> D;
+
   TBHamiltonian(std::map<LatVec<k_dim>, Eigen::MatrixXcd> _Hrs, kComps<k_dim> _Nk,
-      std::size_t _Nbands) : Hrs(_Hrs), kmb(kmBasis<k_dim>(_Nk, _Nbands)) {}
+      std::size_t _Nbands, DimMatrix<k_dim> _D) : spin_operator(full_spin_matrices(_Nbands)), Hrs(_Hrs),
+      kmb(kmBasis<k_dim>(_Nk, _Nbands)), D(_D) {}
+
+  /** @brief Energy at (k,m): E_{km}.
+   */
+  double energy(kmComps<k_dim> ikm_comps) const {
+    kComps<k_dim> k;
+    unsigned int m;
+    std::tie(k, m) = ikm_comps;
+
+    return Ek_at(k).at(m);
+  }
+
+  /** @brief Value of U_{im}(k), where U is the unitary matrix which diagonalizes
+   *         H(k), m is the eigenvalue index, and i is the component of the
+   *         initial basis (pseudo-atomic orbital or otherwise).
+   */
+  std::complex<double> basis_component(PetscInt ikm, unsigned int i) const {
+    kComps<k_dim> k;
+    unsigned int m;
+    std::tie(k, m) = kmb.decompose(ikm);
+
+    return Uk_at(k)(m, i);
+  }
+
+  /** @brief Gradient of the Hamiltonian, evaluated in the eigenbasis;
+   *         equal to the covariant derivative of the Hamiltonain.
+   *         gradient(ikm, mp) = <k, m|grad_k H|k, mp>.
+   */
+  std::array<std::complex<double>, k_dim> gradient(kmComps<k_dim> ikm_comps, unsigned int mp) const {
+    kComps<k_dim> k;
+    unsigned int m;
+    std::tie(k, m) = ikm_comps;
+
+    const auto& grad = grad_at(k);
+    std::array<std::complex<double>, k_dim> grad_val;
+    for (std::size_t dc = 0; dc < k_dim; dc++) {
+      grad_val.at(dc) = grad.at(dc)(m, mp);
+    }
+    return grad_val;
+  }
+
+  /** @brief Spin, evaluated in the eigenbasis (units of hbar):
+   *         spin(ikm, mp)[a] = <km|S_a|km'>
+   */
+  std::array<std::complex<double>, 3> spin(PetscInt ikm, unsigned int mp) const {
+    kComps<k_dim> k;
+    unsigned int m;
+    std::tie(k, m) = kmb.decompose(ikm);
+
+    const auto& spin = spin_at(k);
+    std::array<std::complex<double>, 3> spin_val;
+    for (std::size_t dc = 0; dc < 3; dc++) {
+      spin_val.at(dc) = spin.at(dc)(m, mp);
+    }
+    return spin_val;
+  }
 };
 
 struct HrHeader {
@@ -148,11 +353,12 @@ std::map<LatVec<k_dim>, Eigen::MatrixXcd> extract_hr_model(std::string hr_path,
 }
 
 template <std::size_t k_dim>
-TBHamiltonian<k_dim> extract_Wannier90_Hamiltonian(std::string hr_path, kComps<k_dim> Nk) {
+TBHamiltonian<k_dim> extract_Wannier90_Hamiltonian(std::string hr_path, kComps<k_dim> Nk,
+    DimMatrix<k_dim> D) {
   auto header = extract_hr_header(hr_path);
   auto H_tb = extract_hr_model<k_dim>(hr_path, header);
 
-  return TBHamiltonian<k_dim>(H_tb, Nk, header.Nbands);
+  return TBHamiltonian<k_dim>(H_tb, Nk, header.Nbands, D);
 }
 
 } // namespace anomtrans

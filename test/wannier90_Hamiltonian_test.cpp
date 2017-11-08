@@ -48,8 +48,10 @@ TEST( Wannier90_hr, Wannier90_hr ) {
 
   const std::size_t k_dim = 2;
   anomtrans::kComps<k_dim> Nk = {8, 8};
+  anomtrans::DimMatrix<k_dim> D = {{{1.659521, 1.659521},
+                                   {-2.874374, 2.874374}}};
 
-  auto tb = anomtrans::extract_Wannier90_Hamiltonian(hr_path.str(), Nk);
+  auto tb = anomtrans::extract_Wannier90_Hamiltonian(hr_path.str(), Nk, D);
 
   std::size_t Nbands_expected = 22;
   std::size_t Nr_expected = 91;
