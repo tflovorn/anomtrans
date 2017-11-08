@@ -245,7 +245,7 @@ kmVals<dim> km_at(kComps<dim> Nk, kmComps<dim> ikm_comps) {
  *        This could also help to support caching strategies for eigenvectors etc.
  */
 template <std::size_t out_dim, std::size_t k_dim, typename ElemFunc>
-std::array<Mat, out_dim> construct_k_diagonal_Mat_array(kmBasis<k_dim> kmb, ElemFunc f) {
+std::array<Mat, out_dim> construct_k_diagonal_Mat_array(const kmBasis<k_dim> &kmb, ElemFunc f) {
   static_assert(out_dim > 0, "must have at least one output element");
 
   std::array<Mat, out_dim> As;
@@ -306,7 +306,7 @@ std::array<Mat, out_dim> construct_k_diagonal_Mat_array(kmBasis<k_dim> kmb, Elem
  *        This could also help to support caching strategies for eigenvectors etc.
  */
 template <std::size_t k_dim, typename ElemFunc>
-Mat construct_k_diagonal_Mat(kmBasis<k_dim> kmb, ElemFunc f) {
+Mat construct_k_diagonal_Mat(const kmBasis<k_dim> &kmb, ElemFunc f) {
   auto f_array = [&f](PetscInt ikm, unsigned int mp)->std::array<PetscScalar, 1> {
     return {f(ikm, mp)};
   };
@@ -320,7 +320,7 @@ Mat construct_k_diagonal_Mat(kmBasis<k_dim> kmb, ElemFunc f) {
  *  @note Placed here to avoid mat.h dependency on grid_basis.h. Prefer to place in mat instead?
  */
 template <std::size_t k_dim>
-std::vector<PetscScalar> collect_band_elem(kmBasis<k_dim> kmb, Mat S,
+std::vector<PetscScalar> collect_band_elem(const kmBasis<k_dim> &kmb, Mat S,
     unsigned int m, unsigned int mp) {
   // Check that kmb has expected properties:
   // number of total points is divisible by number of bands;

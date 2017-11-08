@@ -95,7 +95,7 @@ class SpatialDisorderCorrelation {
   // This class doesn't make sense for k_dim = 0.
   static_assert(k_dim > 0, "k must have at least one component");
 
-  static kmBasis<k_dim> make_kb_diff(kmBasis<k_dim> kmb) {
+  static kmBasis<k_dim> make_kb_diff(const kmBasis<k_dim> &kmb) {
     kComps<k_dim> Nk_diff;
     for (std::size_t d = 0; d < k_dim; d++) {
       Nk_diff.at(d) = 2*kmb.Nk.at(d) - 1;
@@ -105,7 +105,7 @@ class SpatialDisorderCorrelation {
     return kb_diff;
   }
 
-  static std::vector<double> get_ULambda_vals(kmBasis<k_dim> kmb,
+  static std::vector<double> get_ULambda_vals(const kmBasis<k_dim> &kmb,
       DimMatrix<k_dim> D, double Lambda) {
     kmBasis<k_dim> kb_diff = make_kb_diff(kmb);
 
@@ -140,7 +140,7 @@ class SpatialDisorderCorrelation {
    *        (Would permuting the order of iteration through d's be enough to
    *        include all possible L's?).
    */
-  static std::pair<std::vector<LatVec<k_dim>>, std::vector<double>> get_L_values(kmBasis<k_dim> kmb,
+  static std::pair<std::vector<LatVec<k_dim>>, std::vector<double>> get_L_values(const kmBasis<k_dim> &kmb,
       DimMatrix<k_dim> D, double Lambda) {
     // TODO: can we estimate how many L_lats we will collect and preallocate?
     std::vector<LatVec<k_dim>> L_lats;
@@ -207,7 +207,7 @@ class SpatialDisorderCorrelation {
   }
 
   static std::vector<dkComps<k_dim>> get_dks(const kmBasis<k_dim> &kmb,
-      const kmBasis<k_dim> kb_diff) {
+      const kmBasis<k_dim> &kb_diff) {
     std::vector<dkComps<k_dim>> dks;
     dks.reserve(kb_diff.end_ikm);
 

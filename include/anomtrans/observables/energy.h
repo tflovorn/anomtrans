@@ -25,7 +25,7 @@ namespace anomtrans {
  *  @todo Make kmb a constant ref - avoid copy.
  */
 template <std::size_t k_dim, typename Hamiltonian>
-Vec get_energies(kmBasis<k_dim> kmb, Hamiltonian H) {
+Vec get_energies(const kmBasis<k_dim> &kmb, const Hamiltonian &H) {
   // TODO may want to just pass ikm to H: look up precomputed v without
   // conversion to ikm_comps and back.
   auto E_elem = [kmb, H](PetscInt ikm)->PetscScalar {
@@ -115,7 +115,8 @@ std::pair<SortResult, std::vector<PetscInt>> sort_energies(const kmBasis<k_dim> 
  *  @todo Prefer to act on rho in-place?
  */
 template <std::size_t k_dim, typename Hamiltonian>
-Mat apply_precession_term(const kmBasis<k_dim> &kmb, Hamiltonian H, Mat rho, double broadening) {
+Mat apply_precession_term(const kmBasis<k_dim> &kmb, const Hamiltonian &H, Mat rho,
+    double broadening) {
   return apply_precession_term_dynamic(kmb, H, rho, broadening, 0, 0.0);
 }
 
@@ -134,7 +135,7 @@ Mat apply_precession_term(const kmBasis<k_dim> &kmb, Hamiltonian H, Mat rho, dou
  *  @todo Prefer to act on rho in-place?
  */
 template <std::size_t k_dim, typename Hamiltonian>
-Mat apply_precession_term_dynamic(const kmBasis<k_dim> &kmb, Hamiltonian H, Mat rho,
+Mat apply_precession_term_dynamic(const kmBasis<k_dim> &kmb, const Hamiltonian &H, Mat rho,
     double broadening, int n, double omega) {
   Mat result;
   PetscErrorCode ierr = MatDuplicate(rho, MAT_SHARE_NONZERO_PATTERN, &result);CHKERRXX(ierr);

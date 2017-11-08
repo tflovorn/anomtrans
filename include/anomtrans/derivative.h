@@ -136,7 +136,7 @@ IndexValPairs finite_difference(const kmBasis<k_dim> &kmb,
  *  @todo Generalize to derivatives beyond order 1?
  */
 template <std::size_t k_dim>
-std::array<Mat, k_dim> make_d_dk_recip(kmBasis<k_dim> kmb,
+std::array<Mat, k_dim> make_d_dk_recip(const kmBasis<k_dim> &kmb,
     const DerivStencil<1> &stencil) {
   PetscInt expected_elems_per_row = stencil.approx_order*k_dim;
 
@@ -179,7 +179,7 @@ std::array<Mat, k_dim> make_d_dk_recip(kmBasis<k_dim> kmb,
  *  @todo Generalize to derivatives beyond order 1?
  */
 template <std::size_t k_dim>
-std::array<Mat, k_dim> make_d_dk_Cartesian(DimMatrix<k_dim> D, kmBasis<k_dim> kmb,
+std::array<Mat, k_dim> make_d_dk_Cartesian(DimMatrix<k_dim> D, const kmBasis<k_dim> &kmb,
     const DerivStencil<1> &stencil) {
   auto d_dk_recip = make_d_dk_recip(kmb, stencil);
 
@@ -209,7 +209,7 @@ std::array<Mat, k_dim> make_d_dk_Cartesian(DimMatrix<k_dim> D, kmBasis<k_dim> km
  *           = \sum_{k'} [d x]_{km, k'm'}.
  */
 template <std::size_t k_dim>
-Mat apply_deriv(kmBasis<k_dim> kmb, Mat deriv, Mat rho) {
+Mat apply_deriv(const kmBasis<k_dim> &kmb, Mat deriv, Mat rho) {
   PetscInt size_m, size_n;
   PetscErrorCode ierr = MatGetSize(deriv, &size_m, &size_n);CHKERRXX(ierr);
   assert(size_m == size_n);
