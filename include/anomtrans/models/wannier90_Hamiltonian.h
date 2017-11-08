@@ -12,6 +12,7 @@
 #include <map>
 #include <Eigen/Core>
 #include <Eigen/Dense>
+#include <petscksp.h>
 #include "util/constants.h"
 #include "util/lattice.h"
 #include "grid_basis.h"
@@ -37,9 +38,9 @@ class TBHamiltonian {
   /** @brief Calculate H(k) by summing the Fourier series.
    */
   Eigen::MatrixXcd calc_Hk_at(kComps<k_dim> k) const {
-    kVals<k_dim> kv = km_at(k, kmb.Nk);
+    kVals<k_dim> kv = std::get<0>(km_at(kmb.Nk, std::make_tuple(k, 0u)));
 
-    Eigen::MatrixXcd Hk(kmb.Nbands, kmb.Nbands);
+    Eigen::MatrixXcd Hk = Eigen::MatrixXcd::Zero(kmb.Nbands, kmb.Nbands);
 
     for (auto it = Hrs.begin(); it != Hrs.end(); ++it) {
       LatVec<k_dim> r = it->first;
@@ -63,7 +64,7 @@ class TBHamiltonian {
 
     std::array<Eigen::MatrixXcd, k_dim> grad_Hk;
     for (std::size_t dc = 0; dc < k_dim; dc++) {
-      grad_Hk.at(dc) = Eigen::MatrixXcd(kmb.Nbands, kmb.Nbands);
+      grad_Hk.at(dc) = Eigen::MatrixXcd::Zero(kmb.Nbands, kmb.Nbands);
     }
 
     for (auto it = Hrs.begin(); it != Hrs.end(); ++it) {
@@ -86,7 +87,7 @@ class TBHamiltonian {
     return grad_Hk;
   }
 
-  const std::vector<double>& Ek_at(kComps<k_dim> k) const {
+  const Eigen::VectorXd& Ek_at(kComps<k_dim> k) const {
     auto Ek_prev = Ek_cache.find(k);
     if (Ek_prev != Ek_cache.end()) {
       return Ek_prev->second;
@@ -157,7 +158,7 @@ class TBHamiltonian {
     return spin_eigenbasis_cache[k];
   }
 
-  mutable std::map<kComps<k_dim>, std::vector<double>> Ek_cache;
+  mutable std::map<kComps<k_dim>, Eigen::VectorXd> Ek_cache;
   mutable std::map<kComps<k_dim>, Eigen::MatrixXcd> Uk_cache;
   mutable std::map<kComps<k_dim>, std::array<Eigen::MatrixXcd, k_dim>> grad_Hk_eigenbasis_cache;
   mutable std::map<kComps<k_dim>, std::array<Eigen::MatrixXcd, 3>> spin_eigenbasis_cache;
@@ -189,7 +190,7 @@ public:
     unsigned int m;
     std::tie(k, m) = ikm_comps;
 
-    return Ek_at(k).at(m);
+    return Ek_at(k)(m);
   }
 
   /** @brief Value of U_{im}(k), where U is the unitary matrix which diagonalizes
