@@ -60,7 +60,7 @@ class TBHamiltonian {
    *         Fourier series yielding H(k).
    */
   std::array<Eigen::MatrixXcd, k_dim> calc_grad_Hk_at(kComps<k_dim> k) const {
-    kVals<k_dim> kv = km_at(k, kmb.Nk);
+    kVals<k_dim> kv = std::get<0>(km_at(kmb.Nk, std::make_tuple(k, 0u)));
 
     std::array<Eigen::MatrixXcd, k_dim> grad_Hk;
     for (std::size_t dc = 0; dc < k_dim; dc++) {
@@ -151,7 +151,7 @@ class TBHamiltonian {
     const auto& Uk = Uk_at(k);
     std::array<Eigen::MatrixXcd, 3> spin_eigenbasis;
     for (std::size_t dc = 0; dc < 3; dc++) {
-      spin_eigenbasis.at(dc) = Uk.adjoint() * spin.at(dc) * Uk;
+      spin_eigenbasis.at(dc) = Uk.adjoint() * spin_operator.at(dc) * Uk;
     }
 
     spin_eigenbasis_cache[k] = spin_eigenbasis;

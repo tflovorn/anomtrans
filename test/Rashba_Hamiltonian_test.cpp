@@ -385,6 +385,7 @@ TEST( Rashba_electric, Rashba_electric ) {
     ierr = MatDestroy(&(d_dk_Cart.at(dc)));CHKERRXX(ierr);
     ierr = MatDestroy(&(R.at(dc)));CHKERRXX(ierr);
     ierr = MatDestroy(&(v_op.at(dc)));CHKERRXX(ierr);
+    ierr = MatDestroy(&(spin_op.at(dc)));CHKERRXX(ierr);
     ierr = VecDestroy(&(Omega.at(dc)));CHKERRXX(ierr);
   }
 

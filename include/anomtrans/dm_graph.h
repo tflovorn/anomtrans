@@ -118,8 +118,8 @@ std::shared_ptr<DMNodeType> make_eq_node(Vec Ekm, double beta, double mu) {
 
 namespace internal {
 
-template <typename DMNodeType, std::size_t k_dim, typename Hamiltonian, typename UU_OD>
-std::map<typename DMNodeType::DerivedByType, Mat> get_response_electric(Mat D_E_rho,
+template <std::size_t k_dim, typename Hamiltonian, typename UU_OD>
+std::map<StaticDMDerivedBy, Mat> get_response_electric(Mat D_E_rho,
     const kmBasis<k_dim> &kmb, KSP Kdd_ksp,
     const Hamiltonian &H, const double sigma, const UU_OD &disorder_term_od,
     double berry_broadening) {
@@ -160,10 +160,10 @@ std::map<typename DMNodeType::DerivedByType, Mat> get_response_electric(Mat D_E_
   ierr = VecDestroy(&D_E_rho_diag);CHKERRXX(ierr);
   ierr = MatDestroy(&K_od_n_E);CHKERRXX(ierr);
 
-  return std::map<typename DMNodeType::DerivedByType, Mat> {
-      {DMNodeType::DerivedByType::Kdd_inv_DE, n_E_Mat},
-      {DMNodeType::DerivedByType::P_inv_DE, S_E_intrinsic},
-      {DMNodeType::DerivedByType::P_inv_Kod, S_E_extrinsic}
+  return std::map<StaticDMDerivedBy, Mat> {
+      {StaticDMDerivedBy::Kdd_inv_DE, n_E_Mat},
+      {StaticDMDerivedBy::P_inv_DE, S_E_intrinsic},
+      {StaticDMDerivedBy::P_inv_Kod, S_E_extrinsic}
   };
 }
 
@@ -188,7 +188,7 @@ void add_linear_response_electric(std::shared_ptr<StaticDMGraphNode> eq_node,
 
   Mat D_E_rho0 = apply_driving_electric(kmb, Ehat_dot_grad_k, Ehat_dot_R, eq_node->rho);
 
-  auto child_Mats = internal::get_response_electric<StaticDMGraphNode>(D_E_rho0, kmb, Kdd_ksp,
+  auto child_Mats = internal::get_response_electric(D_E_rho0, kmb, Kdd_ksp,
       H, sigma, disorder_term_od, berry_broadening);
 
   Mat n_E_Mat = child_Mats[StaticDMDerivedBy::Kdd_inv_DE];
