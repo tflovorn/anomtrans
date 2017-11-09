@@ -149,9 +149,6 @@ TEST( Wannier90_WSe2_dynamic, Wannier90_WSe2_dynamic ) {
   // U0 = how far can bands be driven from their average energy?
   double U0 = 1e-3; // eV
 
-  // E in x direction.
-  std::array<double, k_dim> Ehat = {1.0, 0.0};
-
   Vec Ekm = anomtrans::get_energies(kmb, H);
 
   std::array<Mat, k_dim> v_op = anomtrans::calculate_velocity(kmb, H);
@@ -188,29 +185,41 @@ TEST( Wannier90_WSe2_dynamic, Wannier90_WSe2_dynamic ) {
   anomtrans::DerivStencil<1> stencil(anomtrans::DerivApproxType::central, deriv_approx_order);
   auto d_dk_Cart = anomtrans::make_d_dk_Cartesian(D, kmb, stencil);
 
+  // E in x and y directions
+  std::array<double, k_dim> Ex = {1.0, 0.0};
+  std::array<double, k_dim> Ey = {0.0, 1.0};
+
   // Maximum number of elements expected for sum of Cartesian derivatives.
   PetscInt Ehat_grad_expected_elems_per_row = stencil.approx_order*k_dim*k_dim*k_dim;
 
-  Mat Ehat_dot_grad_k = anomtrans::Mat_from_sum_const(anomtrans::make_complex_array(Ehat),
+  Mat Ex_dot_grad_k = anomtrans::Mat_from_sum_const(anomtrans::make_complex_array(Ex),
+      d_dk_Cart, Ehat_grad_expected_elems_per_row);
+  Mat Ey_dot_grad_k = anomtrans::Mat_from_sum_const(anomtrans::make_complex_array(Ey),
       d_dk_Cart, Ehat_grad_expected_elems_per_row);
 
   auto R = anomtrans::make_berry_connection(kmb, H, berry_broadening);
-  auto Ehat_dot_R = anomtrans::Mat_from_sum_const(anomtrans::make_complex_array(Ehat), R, kmb.Nbands);
+  auto Ex_dot_R = anomtrans::Mat_from_sum_const(anomtrans::make_complex_array(Ex), R, kmb.Nbands);
+  auto Ey_dot_R = anomtrans::Mat_from_sum_const(anomtrans::make_complex_array(Ey), R, kmb.Nbands);
 
   // Chemical potential in the gap.
   // Valence band maximum at K: -0.504 eV, Gamma: -1.005 eV.
+  // VBM S-O splitting at K: -0.807 eV - (-1.276 eV) = 0.469 eV.
   // Conduction band minimum at K: 0.762 eV, Q: 0.798 eV.
+  // CBM S-O splitting at K: 0.484 eV - 0.444 eV = 0.04 eV.
   double mu = 0.0;
 
   // Gap = 1.266 eV.
-  // Choose omega < gap.
-  double omega = 1.0;
+  // Choose omega \approx gap so that we produce resonant excitations from VBM to CBM.
+  // TODO - interested in what happens when omega is below the gap.
+  double omega = 1.266 + 0.004;
 
-  // Equilibrium density matrix <rho_{0,0}>.
-  auto dm_rho0 = anomtrans::make_eq_node<anomtrans::DynDMGraphNode>(Ekm, beta, mu);
+  // Equilibrium density matrix <rho_{0,0}>. Make two since we will have two DM graphs,
+  // one for E ~ \hat{x} cos(\omega t) and one for E ~ \hat{y} sin(\omega t).
+  auto dm_rho0_Ex_cos = anomtrans::make_eq_node<anomtrans::DynDMGraphNode>(Ekm, beta, mu);
+  auto dm_rho0_Ey_sin = anomtrans::make_eq_node<anomtrans::DynDMGraphNode>(Ekm, beta, mu);
   Vec rho0_km;
   ierr = VecDuplicate(Ekm, &rho0_km);CHKERRXX(ierr);
-  ierr = MatGetDiagonal(dm_rho0->rho, rho0_km);CHKERRXX(ierr);
+  ierr = MatGetDiagonal(dm_rho0_Ex_cos->rho, rho0_km);CHKERRXX(ierr);
 
   // Get normalized version of rho0 to use for nullspace.
   // TODO can we safely pass a nullptr instead of rho0_orig_norm?
@@ -231,53 +240,86 @@ TEST( Wannier90_WSe2_dynamic, Wannier90_WSe2_dynamic ) {
   ierr = MatSetNullSpace(collision, nullspace);CHKERRXX(ierr);
   // NOTE rho0_normalized must not be modified after this call until we are done with nullspace.
 
-  // Add <rho_{1,1}> and <rho_{-1,1}>.
-  anomtrans::add_dynamic_electric_n_nonzero(dm_rho0, boost::none, 1, omega, kmb, Ehat_dot_grad_k,
-      Ehat_dot_R, H, berry_broadening);
-  anomtrans::add_dynamic_electric_n_nonzero(boost::none, dm_rho0, -1, omega, kmb, Ehat_dot_grad_k,
-      Ehat_dot_R, H, berry_broadening);
-  auto dm_rho_1_1 = dm_rho0->children[anomtrans::DynDMDerivedBy::omega_inv_DE_up];
-  auto dm_rho_m1_1 = dm_rho0->children[anomtrans::DynDMDerivedBy::omega_inv_DE_down];
+  // Add <rho_{1,1}> and <rho_{-1,1}> for (Ex, cos) and (Ey, sin) cases.
+  anomtrans::add_dynamic_electric_n_nonzero(dm_rho0_Ex_cos, boost::none, 1, omega, kmb, Ex_dot_grad_k,
+      Ex_dot_R, H, berry_broadening, anomtrans::DynVariation::cos);
+  anomtrans::add_dynamic_electric_n_nonzero(boost::none, dm_rho0_Ex_cos, -1, omega, kmb, Ex_dot_grad_k,
+      Ex_dot_R, H, berry_broadening, anomtrans::DynVariation::cos);
+  auto dm_rho_1_1_Ex_cos = dm_rho0_Ex_cos->children[anomtrans::DynDMDerivedBy::omega_inv_DE_up];
+  auto dm_rho_m1_1_Ex_cos = dm_rho0_Ex_cos->children[anomtrans::DynDMDerivedBy::omega_inv_DE_down];
 
-  // Add <rho_{2, 2}> and <rho_{-2, 2}>.
-  // Disabled: won't use these.
-  //anomtrans::add_dynamic_electric_n_nonzero(dm_rho_1_1, boost::none, 2, omega, kmb, Ehat_dot_grad_k,
-  //    Ehat_dot_R, H, berry_broadening);
-  //anomtrans::add_dynamic_electric_n_nonzero(boost::none, dm_rho_m1_1, -2, omega, kmb, Ehat_dot_grad_k,
-  //    Ehat_dot_R, H, berry_broadening);
+  anomtrans::add_dynamic_electric_n_nonzero(dm_rho0_Ey_sin, boost::none, 1, omega, kmb, Ey_dot_grad_k,
+      Ey_dot_R, H, berry_broadening, anomtrans::DynVariation::sin);
+  anomtrans::add_dynamic_electric_n_nonzero(boost::none, dm_rho0_Ey_sin, -1, omega, kmb, Ey_dot_grad_k,
+      Ey_dot_R, H, berry_broadening, anomtrans::DynVariation::sin);
+  auto dm_rho_1_1_Ey_sin = dm_rho0_Ey_sin->children[anomtrans::DynDMDerivedBy::omega_inv_DE_up];
+  auto dm_rho_m1_1_Ey_sin = dm_rho0_Ey_sin->children[anomtrans::DynDMDerivedBy::omega_inv_DE_down];
 
-  // Add <rho_{0, 2}>.
-  anomtrans::add_dynamic_electric_n_zero(dm_rho_m1_1, dm_rho_1_1, omega, kmb, Ehat_dot_grad_k,
-      Ehat_dot_R, ksp, H, sigma, disorder_term_od, berry_broadening);
+  // Add <rho_{0, 2}> for (Ex, cos) and (Ey, sin) cases.
+  anomtrans::add_dynamic_electric_n_zero(dm_rho_m1_1_Ex_cos, dm_rho_1_1_Ex_cos, omega, kmb, Ex_dot_grad_k,
+      Ex_dot_R, ksp, H, sigma, disorder_term_od, berry_broadening, anomtrans::DynVariation::cos);
+  anomtrans::add_dynamic_electric_n_zero(dm_rho_m1_1_Ey_sin, dm_rho_1_1_Ey_sin, omega, kmb, Ey_dot_grad_k,
+      Ey_dot_R, ksp, H, sigma, disorder_term_od, berry_broadening, anomtrans::DynVariation::sin);
 
   // Valley (anomalous) hall effect at second order in electric field
   // from <rho_{0, 2}>. Intrinsic contribution. Current in y, electric field in x.
-  auto dm_n_0_2 = dm_rho_m1_1->children[anomtrans::DynDMDerivedBy::Kdd_inv_DE_up];
-  auto dm_S_0_2_intrinsic = dm_rho_m1_1->children[anomtrans::DynDMDerivedBy::P_inv_DE_up];
-  auto dm_S_0_2_extrinsic = dm_rho_m1_1->children[anomtrans::DynDMDerivedBy::P_inv_Kod_up];
+  auto dm_n_0_2_Ex_cos = dm_rho_m1_1_Ex_cos->children[anomtrans::DynDMDerivedBy::Kdd_inv_DE_up];
+  auto dm_S_0_2_intrinsic_Ex_cos = dm_rho_m1_1_Ex_cos->children[anomtrans::DynDMDerivedBy::P_inv_DE_up];
+  auto dm_S_0_2_extrinsic_Ex_cos = dm_rho_m1_1_Ex_cos->children[anomtrans::DynDMDerivedBy::P_inv_Kod_up];
 
-  auto sigma_n_0_2 = anomtrans::calculate_current_ev(kmb, v_op, dm_n_0_2->rho);
-  auto sigma_S_0_2_intrinsic = anomtrans::calculate_current_ev(kmb, v_op,
-      dm_S_0_2_intrinsic->rho);
-  auto sigma_S_0_2_extrinsic = anomtrans::calculate_current_ev(kmb, v_op,
-      dm_S_0_2_extrinsic->rho);
-  PetscReal sigma_n_0_2_xx = sigma_n_0_2.at(0).real();
-  PetscReal sigma_n_0_2_xy = sigma_n_0_2.at(1).real();
-  PetscReal sigma_S_0_2_intrinsic_xx = sigma_S_0_2_intrinsic.at(0).real();
-  PetscReal sigma_S_0_2_intrinsic_xy = sigma_S_0_2_intrinsic.at(1).real();
-  PetscReal sigma_S_0_2_extrinsic_xx = sigma_S_0_2_extrinsic.at(0).real();
-  PetscReal sigma_S_0_2_extrinsic_xy = sigma_S_0_2_extrinsic.at(1).real();
+  auto dm_n_0_2_Ey_sin = dm_rho_m1_1_Ey_sin->children[anomtrans::DynDMDerivedBy::Kdd_inv_DE_up];
+  auto dm_S_0_2_intrinsic_Ey_sin = dm_rho_m1_1_Ey_sin->children[anomtrans::DynDMDerivedBy::P_inv_DE_up];
+  auto dm_S_0_2_extrinsic_Ey_sin = dm_rho_m1_1_Ey_sin->children[anomtrans::DynDMDerivedBy::P_inv_Kod_up];
 
-  auto js_n_0_2 = anomtrans::calculate_spin_current_ev(kmb, spin_op, v_op, dm_n_0_2->rho);
-  auto js_S_0_2_intrinsic = anomtrans::calculate_spin_current_ev(kmb, spin_op, v_op,
-      dm_S_0_2_intrinsic->rho);
-  auto js_S_0_2_extrinsic = anomtrans::calculate_spin_current_ev(kmb, spin_op, v_op,
-      dm_S_0_2_extrinsic->rho);
-  PetscReal js_n_0_2_sz_vy = js_n_0_2.at(2).at(1).real();
-  PetscReal js_S_0_2_intrinsic_sz_vy = js_S_0_2_intrinsic.at(2).at(1).real();
-  PetscReal js_S_0_2_extrinsic_sz_vy = js_S_0_2_extrinsic.at(2).at(1).real();
+  Mat n_0_2_plus, S_0_2_intrinsic_plus, S_0_2_extrinsic_plus;
+  ierr = MatDuplicate(dm_n_0_2_Ex_cos->rho, MAT_COPY_VALUES,
+      &n_0_2_plus);CHKERRXX(ierr);
+  ierr = MatAXPY(n_0_2_plus, 1.0, dm_n_0_2_Ey_sin->rho,
+      DIFFERENT_NONZERO_PATTERN);CHKERRXX(ierr);
+  ierr = MatDuplicate(dm_S_0_2_intrinsic_Ex_cos->rho, MAT_COPY_VALUES,
+      &S_0_2_intrinsic_plus);CHKERRXX(ierr);
+  ierr = MatAXPY(S_0_2_intrinsic_plus, 1.0, dm_S_0_2_intrinsic_Ey_sin->rho,
+      DIFFERENT_NONZERO_PATTERN);CHKERRXX(ierr);
+  ierr = MatDuplicate(dm_S_0_2_extrinsic_Ex_cos->rho, MAT_COPY_VALUES,
+      &S_0_2_extrinsic_plus);CHKERRXX(ierr);
+  ierr = MatAXPY(S_0_2_extrinsic_plus, 1.0, dm_S_0_2_extrinsic_Ey_sin->rho,
+      DIFFERENT_NONZERO_PATTERN);CHKERRXX(ierr);
+
+  auto sigma_n_0_2_plus = anomtrans::calculate_current_ev(kmb, v_op, n_0_2_plus);
+  auto sigma_S_0_2_intrinsic_plus = anomtrans::calculate_current_ev(kmb, v_op,
+      S_0_2_intrinsic_plus);
+  auto sigma_S_0_2_extrinsic_plus = anomtrans::calculate_current_ev(kmb, v_op,
+      S_0_2_extrinsic_plus);
+  PetscReal sigma_n_0_2_xx_plus = sigma_n_0_2_plus.at(0).real();
+  PetscReal sigma_n_0_2_xy_plus = sigma_n_0_2_plus.at(1).real();
+  PetscReal sigma_S_0_2_intrinsic_xx_plus = sigma_S_0_2_intrinsic_plus.at(0).real();
+  PetscReal sigma_S_0_2_intrinsic_xy_plus = sigma_S_0_2_intrinsic_plus.at(1).real();
+  PetscReal sigma_S_0_2_extrinsic_xx_plus = sigma_S_0_2_extrinsic_plus.at(0).real();
+  PetscReal sigma_S_0_2_extrinsic_xy_plus = sigma_S_0_2_extrinsic_plus.at(1).real();
+
+  auto spin_n_0_2_plus = anomtrans::calculate_spin_ev(kmb, spin_op, n_0_2_plus);
+  auto spin_S_0_2_intrinsic_plus = anomtrans::calculate_spin_ev(kmb, spin_op,
+      S_0_2_intrinsic_plus);
+  auto spin_S_0_2_extrinsic_plus = anomtrans::calculate_spin_ev(kmb, spin_op,
+      S_0_2_extrinsic_plus);
+  PetscReal spin_n_0_2_z_plus = spin_n_0_2_plus.at(2).real();
+  PetscReal spin_S_0_2_intrinsic_z_plus = spin_S_0_2_intrinsic_plus.at(2).real();
+  PetscReal spin_S_0_2_extrinsic_z_plus = spin_S_0_2_extrinsic_plus.at(2).real();
+
+  auto js_n_0_2_plus = anomtrans::calculate_spin_current_ev(kmb, spin_op, v_op, n_0_2_plus);
+  auto js_S_0_2_intrinsic_plus = anomtrans::calculate_spin_current_ev(kmb, spin_op, v_op,
+      S_0_2_intrinsic_plus);
+  auto js_S_0_2_extrinsic_plus = anomtrans::calculate_spin_current_ev(kmb, spin_op, v_op,
+      S_0_2_extrinsic_plus);
+  PetscReal js_n_0_2_sz_vy_plus = js_n_0_2_plus.at(2).at(1).real();
+  PetscReal js_S_0_2_intrinsic_sz_vy_plus = js_S_0_2_intrinsic_plus.at(2).at(1).real();
+  PetscReal js_S_0_2_extrinsic_sz_vy_plus = js_S_0_2_extrinsic_plus.at(2).at(1).real();
 
   // Done with PETSc data.
+  ierr = MatDestroy(&n_0_2_plus);CHKERRXX(ierr);
+  ierr = MatDestroy(&S_0_2_intrinsic_plus);CHKERRXX(ierr);
+  ierr = MatDestroy(&S_0_2_extrinsic_plus);CHKERRXX(ierr);
+
   for (std::size_t dc = 0; dc < k_dim; dc++) {
     ierr = MatDestroy(&(d_dk_Cart.at(dc)));CHKERRXX(ierr);
     ierr = MatDestroy(&(R.at(dc)));CHKERRXX(ierr);
@@ -289,21 +331,27 @@ TEST( Wannier90_WSe2_dynamic, Wannier90_WSe2_dynamic ) {
   ierr = VecDestroy(&rho0_normalized);CHKERRXX(ierr);
   ierr = VecDestroy(&rho0_km);CHKERRXX(ierr);
 
-  ierr = MatDestroy(&Ehat_dot_R);CHKERRXX(ierr);
+  ierr = MatDestroy(&Ex_dot_grad_k);CHKERRXX(ierr);
+  ierr = MatDestroy(&Ey_dot_grad_k);CHKERRXX(ierr);
+  ierr = MatDestroy(&Ex_dot_R);CHKERRXX(ierr);
+  ierr = MatDestroy(&Ey_dot_R);CHKERRXX(ierr);
   ierr = KSPDestroy(&ksp);CHKERRXX(ierr);
   ierr = MatDestroy(&collision);CHKERRXX(ierr);
   ierr = VecDestroy(&Ekm);CHKERRXX(ierr);
 
   json j_out = {
-    {"sigma_n_0_2_xx", sigma_n_0_2_xx},
-    {"sigma_n_0_2_xy", sigma_n_0_2_xy},
-    {"sigma_S_0_2_intrinsic_xx", sigma_S_0_2_intrinsic_xx},
-    {"sigma_S_0_2_intrinsic_xy", sigma_S_0_2_intrinsic_xy},
-    {"sigma_S_0_2_extrinsic_xx", sigma_S_0_2_extrinsic_xx},
-    {"sigma_S_0_2_extrinsic_xy", sigma_S_0_2_extrinsic_xy},
-    {"js_n_0_2_sz_vy", js_n_0_2_sz_vy},
-    {"js_S_0_2_intrinsic_sz_vy", js_S_0_2_intrinsic_sz_vy},
-    {"js_S_0_2_extrinsic_sz_vy", js_S_0_2_extrinsic_sz_vy}
+    {"sigma_n_0_2_xx_plus", sigma_n_0_2_xx_plus},
+    {"sigma_n_0_2_xy_plus", sigma_n_0_2_xy_plus},
+    {"sigma_S_0_2_intrinsic_xx_plus", sigma_S_0_2_intrinsic_xx_plus},
+    {"sigma_S_0_2_intrinsic_xy_plus", sigma_S_0_2_intrinsic_xy_plus},
+    {"sigma_S_0_2_extrinsic_xx_plus", sigma_S_0_2_extrinsic_xx_plus},
+    {"sigma_S_0_2_extrinsic_xy_plus", sigma_S_0_2_extrinsic_xy_plus},
+    {"spin_n_0_2_z_plus", spin_n_0_2_z_plus},
+    {"spin_S_0_2_intrinsic_z_plus", spin_S_0_2_intrinsic_z_plus},
+    {"spin_S_0_2_extrinsic_z_plus", spin_S_0_2_extrinsic_z_plus},
+    {"js_n_0_2_sz_vy_plus", js_n_0_2_sz_vy_plus},
+    {"js_S_0_2_intrinsic_sz_vy_plus", js_S_0_2_intrinsic_sz_vy_plus},
+    {"js_S_0_2_extrinsic_sz_vy_plus", js_S_0_2_extrinsic_sz_vy_plus}
   };
 
   std::stringstream outpath;

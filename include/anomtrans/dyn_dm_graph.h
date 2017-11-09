@@ -38,6 +38,10 @@ using DynDMGraphNode = DMGraphNode<DynDMKind, DynDMDerivedBy>;
 boost::optional<int> get_impurity_order(boost::optional<std::shared_ptr<DynDMGraphNode>> A,
     boost::optional<std::shared_ptr<DynDMGraphNode>> B);
 
+/** @brief Does the electric field vary as cos(\omega t), or sin(\omega t)?
+ */
+enum struct DynVariation { cos, sin };
+
 /** @brief Construct the child node <rho_{n, s+1}> from the parents
  *         `lower_parent` = <rho^{(i)}_{n - 1, s}> and
  *         `upper_parent` = <rho^{(i)}_{n + 1, s}>, for n != 0.
@@ -48,7 +52,7 @@ template <std::size_t k_dim, typename Hamiltonian>
 void add_dynamic_electric_n_nonzero(boost::optional<std::shared_ptr<DynDMGraphNode>> lower_parent,
     boost::optional<std::shared_ptr<DynDMGraphNode>> upper_parent, int n, double omega,
     const kmBasis<k_dim> &kmb, Mat Ehat_dot_grad_k, Mat Ehat_dot_R,
-    const Hamiltonian &H, double berry_broadening) {
+    const Hamiltonian &H, double berry_broadening, DynVariation Evar) {
   if (n == 0) {
     throw std::invalid_argument("n must be nonzero");
   }
@@ -57,7 +61,7 @@ void add_dynamic_electric_n_nonzero(boost::optional<std::shared_ptr<DynDMGraphNo
     throw std::invalid_argument("lower_parent and upper_parent must have equal impurity order");
   }
 
-  Mat Dtilde = construct_driving_sum(lower_parent, upper_parent, kmb, Ehat_dot_grad_k, Ehat_dot_R);
+  Mat Dtilde = construct_driving_sum(lower_parent, upper_parent, kmb, Ehat_dot_grad_k, Ehat_dot_R, Evar);
 
   // Construct diagonal part of result.
   // TODO - construct n_Mat directly from Dtilde. Don't need intermediate vector Dtilde_diag.
@@ -131,13 +135,13 @@ void add_dynamic_electric_n_zero(boost::optional<std::shared_ptr<DynDMGraphNode>
     boost::optional<std::shared_ptr<DynDMGraphNode>> upper_parent, double omega,
     const kmBasis<k_dim> &kmb, Mat Ehat_dot_grad_k, Mat Ehat_dot_R, KSP Kdd_ksp,
     const Hamiltonian &H, const double sigma, const UU_OD &disorder_term_od,
-    double berry_broadening) {
+    double berry_broadening, DynVariation Evar) {
   auto impurity_order = get_impurity_order(lower_parent, upper_parent);
   if (not impurity_order) {
     throw std::invalid_argument("lower_parent and upper_parent must have equal impurity order");
   }
 
-  Mat Dtilde = construct_driving_sum(lower_parent, upper_parent, kmb, Ehat_dot_grad_k, Ehat_dot_R);
+  Mat Dtilde = construct_driving_sum(lower_parent, upper_parent, kmb, Ehat_dot_grad_k, Ehat_dot_R, Evar);
 
   auto child_Mats = internal::get_response_electric(Dtilde, kmb, Kdd_ksp,
       H, sigma, disorder_term_od, berry_broadening);
@@ -208,8 +212,18 @@ void add_dynamic_electric_n_zero(boost::optional<std::shared_ptr<DynDMGraphNode>
   PetscErrorCode ierr = MatDestroy(&Dtilde);CHKERRXX(ierr);
 }
 
+namespace internal {
+
+std::complex<double> get_driving_sum_scale(DynVariation Evar);
+
+std::complex<double> get_driving_sum_upper_factor(DynVariation Evar);
+
+} // namespace internal
+
 /** @brief Construct the driving term
- *         \tilde{D}_{n,s} = (1/2) [D_{E_0}(<rho_{n-1, s}>) + D_{E_0}(<rho_{n+1, s}>)]
+ *         \tilde{D}^{(cos)}_{n,s} = (1/2) [D_{E_0}(<rho_{n-1, s}>) + D_{E_0}(<rho_{n+1, s}>)]
+ *         or
+ *         \tilde{D}^{(sin)}_{n,s} = (1/2i) [D_{E_0}(<rho_{n-1, s}>) - D_{E_0}(<rho_{n+1, s}>)]
  *         from the given parent nodes
  *         `lower_parent` = <rho^{(i)}_{n - 1, s}> and
  *         `upper_parent` = <rho^{(i)}_{n + 1, s}>.
@@ -219,23 +233,26 @@ void add_dynamic_electric_n_zero(boost::optional<std::shared_ptr<DynDMGraphNode>
 template <std::size_t k_dim>
 Mat construct_driving_sum(boost::optional<std::shared_ptr<DynDMGraphNode>> lower_parent,
     boost::optional<std::shared_ptr<DynDMGraphNode>> upper_parent, const kmBasis<k_dim> &kmb,
-    Mat Ehat_dot_grad_k, Mat Ehat_dot_R) {
+    Mat Ehat_dot_grad_k, Mat Ehat_dot_R, DynVariation Evar) {
+  auto driving_sum_scale = internal::get_driving_sum_scale(Evar);
+  auto driving_sum_upper_factor = internal::get_driving_sum_upper_factor(Evar);
+
   if (lower_parent and upper_parent) {
     Mat D_E_lower = apply_driving_electric(kmb, Ehat_dot_grad_k, Ehat_dot_R, (*lower_parent)->rho);
     Mat D_E_upper = apply_driving_electric(kmb, Ehat_dot_grad_k, Ehat_dot_R, (*upper_parent)->rho);
 
-    PetscErrorCode ierr = MatAXPY(D_E_lower, 1.0, D_E_upper, DIFFERENT_NONZERO_PATTERN);CHKERRXX(ierr);
-    ierr = MatScale(D_E_lower, 0.5);CHKERRXX(ierr);
+    PetscErrorCode ierr = MatAXPY(D_E_lower, driving_sum_upper_factor, D_E_upper, DIFFERENT_NONZERO_PATTERN);CHKERRXX(ierr);
+    ierr = MatScale(D_E_lower, driving_sum_scale);CHKERRXX(ierr);
 
     ierr = MatDestroy(&D_E_upper);CHKERRXX(ierr);
     return D_E_lower;
   } else if (lower_parent) {
     Mat D_E_val = apply_driving_electric(kmb, Ehat_dot_grad_k, Ehat_dot_R, (*lower_parent)->rho);
-    PetscErrorCode ierr = MatScale(D_E_val, 0.5);CHKERRXX(ierr);
+    PetscErrorCode ierr = MatScale(D_E_val, driving_sum_scale);CHKERRXX(ierr);
     return D_E_val;
   } else if (upper_parent) {
     Mat D_E_val = apply_driving_electric(kmb, Ehat_dot_grad_k, Ehat_dot_R, (*upper_parent)->rho);
-    PetscErrorCode ierr = MatScale(D_E_val, 0.5);CHKERRXX(ierr);
+    PetscErrorCode ierr = MatScale(D_E_val, driving_sum_scale * driving_sum_upper_factor);CHKERRXX(ierr);
     return D_E_val;
   } else {
     throw std::invalid_argument("at least one of lower_parent and upper_parent must be specified");

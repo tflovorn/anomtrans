@@ -19,4 +19,24 @@ boost::optional<int> get_impurity_order(boost::optional<std::shared_ptr<DynDMGra
   }
 }
 
+namespace internal {
+
+std::complex<double> get_driving_sum_scale(DynVariation Evar) {
+  if (Evar == DynVariation::cos) {
+    return std::complex<double>(1.0/2.0, 0.0);
+  } else {
+    return std::complex<double>(0.0, 1.0/2.0);
+  }
+}
+
+std::complex<double> get_driving_sum_upper_factor(DynVariation Evar) {
+  if (Evar == DynVariation::cos) {
+    return 1.0;
+  } else {
+    return -1.0;
+  }
+}
+
+} // namespace internal
+
 } // namespace anomtrans
