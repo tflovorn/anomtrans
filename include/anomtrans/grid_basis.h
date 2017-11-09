@@ -220,6 +220,18 @@ public:
   }
 };
 
+/** @brief Return the total number of k-points in the grid with Nk points in
+ *         each dimension.
+ */
+template <std::size_t k_dim>
+std::size_t get_Nk_total(const kComps<k_dim> Nk) {
+  std::size_t tot = 1;
+  for (std::size_t di = 0; di < k_dim; di++) {
+    tot *= Nk.at(di);
+  }
+  return tot;
+}
+
 /** @brief Given a composite (ik, m) index `ikm_comps` and the number of k-points
  *         in each direction `Nk`, return the corresponding (k, m) value (where
  *         k is a point in reciprocal lattice coordinates).

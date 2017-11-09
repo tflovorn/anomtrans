@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <complex>
 #include <exception>
+#include <utility>
 #include <array>
 #include <string>
 #include <sstream>
@@ -24,7 +25,167 @@ namespace anomtrans {
  *         a system in which the basis alternates spin:
  *         ((orbital 0, up), (orbital 0, down), (orbital 1, up), (orbital 1, down), ...)
  */
-std::array<Eigen::MatrixXcd, 3> full_spin_matrices(std::size_t Nbands);
+std::array<Eigen::MatrixXcd, 3> full_spin_matrices(const std::size_t Nbands);
+
+template <std::size_t k_dim>
+using TBElems = std::map<LatVec<k_dim>, Eigen::MatrixXcd>;
+
+/** @brief Calculate H(k) by summing the Fourier series.
+ */
+template <std::size_t k_dim>
+Eigen::MatrixXcd fourier_Hk_at(const TBElems<k_dim> &Hrs, const std::size_t Nbands,
+    const kVals<k_dim> k) {
+  Eigen::MatrixXcd Hk = Eigen::MatrixXcd::Zero(Nbands, Nbands);
+
+  // H_k = \sum_R e^{i k \cdot R} H_R
+  for (auto it = Hrs.begin(); it != Hrs.end(); ++it) {
+    LatVec<k_dim> r = it->first;
+    double k_dot_r = 0.0;
+    for (std::size_t di = 0; di < k_dim; di++) {
+      k_dot_r += 2.0 * pi * k.at(di) * r.at(di);
+    }
+    std::complex<double> coeff = std::exp(std::complex<double>(0.0, k_dot_r));
+
+    Hk += coeff * it->second;
+  }
+
+  return Hk;
+}
+
+/** @brief Calculate grad_k H(k) using the analytic differentiation of the
+ *         Fourier series yielding H(k).
+ */
+template <std::size_t k_dim>
+std::array<Eigen::MatrixXcd, k_dim> fourier_grad_Hk_at(const TBElems<k_dim> &Hrs,
+    const std::size_t Nbands, const DimMatrix<k_dim> &D, const kVals<k_dim> k) {
+  std::array<Eigen::MatrixXcd, k_dim> grad_Hk;
+  for (std::size_t dc = 0; dc < k_dim; dc++) {
+    grad_Hk.at(dc) = Eigen::MatrixXcd::Zero(Nbands, Nbands);
+  }
+
+  // \nabla_k H_k = \sum_c [\sum_R i R_c e^{i k \cdot R} H_R] \hat{e}_c
+  for (auto it = Hrs.begin(); it != Hrs.end(); ++it) {
+    LatVec<k_dim> r = it->first;
+    CartVec<k_dim> r_Cart = lat_vec_to_Cart(D, r);
+
+    double k_dot_r = 0.0;
+    for (std::size_t di = 0; di < k_dim; di++) {
+      k_dot_r += 2.0 * pi * k.at(di) * r.at(di);
+    }
+    std::complex<double> exp_coeff = std::exp(std::complex<double>(0.0, k_dot_r));
+
+    for (std::size_t dc = 0; dc < k_dim; dc++) {
+      std::complex<double> coeff = std::complex<double>(0.0, r_Cart.at(dc)) * exp_coeff;
+
+      grad_Hk.at(dc) += coeff * it->second;
+    }
+  }
+
+  return grad_Hk;
+}
+
+namespace internal {
+
+using EigenDecompCache = std::pair<std::vector<Eigen::VectorXd>, std::vector<Eigen::MatrixXcd>>;
+
+/** @brief Construct a pair of (eigenvalues, eigenvectors) lists giving these at each k.
+ *  @param kb A kmBasis with Nbands = 1, i.e. a basis in k-space only.
+ */
+template <std::size_t k_dim>
+EigenDecompCache make_eigendecomp_cache(const kmBasis<k_dim> &kb, const std::size_t Nbands,
+    const TBElems<k_dim> &Hrs) {
+  if (kb.Nbands != 1) {
+    throw std::invalid_argument("kb.Nbands = 1 expected");
+  }
+  std::size_t Nk_tot = static_cast<std::size_t>(kb.end_ikm);
+  std::vector<Eigen::VectorXd> Eks;
+  Eks.reserve(Nk_tot);
+  std::vector<Eigen::MatrixXcd> Uks;
+  Uks.reserve(Nk_tot);
+
+  for (std::size_t ik = 0; ik < Nk_tot; ik++) {
+    kmComps<k_dim> kc = kb.decompose(ik);
+    kVals<k_dim> k = std::get<0>(km_at(kb.Nk, kc));
+
+    auto Hk = fourier_Hk_at(Hrs, Nbands, k);
+    Eigen::SelfAdjointEigenSolver<Eigen::MatrixXcd> eigensolver(Hk);
+    if (eigensolver.info() != Eigen::Success) {
+      throw std::runtime_error("eigensolver failed");
+    }
+
+    Eks.push_back(eigensolver.eigenvalues());
+    Uks.push_back(eigensolver.eigenvectors());
+  }
+
+  return std::make_pair(Eks, Uks);
+}
+
+template <std::size_t k_dim>
+using GradHkCache = std::vector<std::array<Eigen::MatrixXcd, k_dim>>;
+
+/** @brief Construct a list of grad_k H_k (evaluated in eigenbasis) at each k.
+ *  @param kb A kmBasis with Nbands = 1, i.e. a basis in k-space only.
+ */
+template <std::size_t k_dim>
+GradHkCache<k_dim> make_grad_Hk_cache(const kmBasis<k_dim> &kb, const std::size_t Nbands,
+    const DimMatrix<k_dim> &D, const EigenDecompCache &EUk_cache, const TBElems<k_dim> &Hrs) {
+  if (kb.Nbands != 1) {
+    throw std::invalid_argument("kb.Nbands = 1 expected");
+  }
+  std::size_t Nk_tot = static_cast<std::size_t>(kb.end_ikm);
+  std::vector<std::array<Eigen::MatrixXcd, k_dim>> grads;
+  grads.reserve(Nk_tot);
+
+  for (std::size_t ik = 0; ik < Nk_tot; ik++) {
+    kmComps<k_dim> kc = kb.decompose(ik);
+    kVals<k_dim> k = std::get<0>(km_at(kb.Nk, kc));
+
+    const auto& Uk = EUk_cache.second.at(ik);
+    std::array<Eigen::MatrixXcd, k_dim> grad_Hk = fourier_grad_Hk_at(Hrs, Nbands, D, k);
+
+    std::array<Eigen::MatrixXcd, k_dim> grad_Hk_eigenbasis;
+    for (std::size_t dc = 0; dc < k_dim; dc++) {
+      grad_Hk_eigenbasis.at(dc) = Uk.adjoint() * grad_Hk.at(dc) * Uk;
+    }
+
+    grads.push_back(grad_Hk_eigenbasis);
+  }
+
+  return grads;
+}
+
+using SpinCache = std::vector<std::array<Eigen::MatrixXcd, 3>>;
+
+/** @brief Construct a list of spin matrices in eigenbasis at each k.
+ *  @param kb A kmBasis with Nbands = 1, i.e. a basis in k-space only.
+ */
+template <std::size_t k_dim>
+SpinCache make_spin_cache(const kmBasis<k_dim> &kb, const std::size_t Nbands,
+    const EigenDecompCache &EUk_cache, const TBElems<k_dim> &Hrs) {
+  if (kb.Nbands != 1) {
+    throw std::invalid_argument("kb.Nbands = 1 expected");
+  }
+  auto spin_operator = full_spin_matrices(Nbands);
+
+  std::size_t Nk_tot = static_cast<std::size_t>(kb.end_ikm);
+  std::vector<std::array<Eigen::MatrixXcd, 3>> spins;
+  spins.reserve(Nk_tot);
+
+  for (std::size_t ik = 0; ik < Nk_tot; ik++) {
+    const auto& Uk = EUk_cache.second.at(ik);
+
+    std::array<Eigen::MatrixXcd, 3> spin_eigenbasis;
+    for (std::size_t dc = 0; dc < 3; dc++) {
+      spin_eigenbasis.at(dc) = Uk.adjoint() * spin_operator.at(dc) * Uk;
+    }
+
+    spins.push_back(spin_eigenbasis);
+  }
+
+  return spins;
+}
+
+} // namespace internal
 
 /** @brief Tight-binding Hamiltonian, represented by a set of hopping matrices
  *         Hrs[r](ip, i) giving the matrix elements <ip, 0|H|i, r>.
@@ -35,150 +196,18 @@ std::array<Eigen::MatrixXcd, 3> full_spin_matrices(std::size_t Nbands);
  */
 template <std::size_t k_dim>
 class TBHamiltonian {
-  /** @brief Calculate H(k) by summing the Fourier series.
-   */
-  Eigen::MatrixXcd calc_Hk_at(kComps<k_dim> k) const {
-    kVals<k_dim> kv = std::get<0>(km_at(kmb.Nk, std::make_tuple(k, 0u)));
-
-    Eigen::MatrixXcd Hk = Eigen::MatrixXcd::Zero(kmb.Nbands, kmb.Nbands);
-
-    for (auto it = Hrs.begin(); it != Hrs.end(); ++it) {
-      LatVec<k_dim> r = it->first;
-      double k_dot_r = 0.0;
-      for (std::size_t di = 0; di < k_dim; di++) {
-        k_dot_r += 2.0 * pi * kv.at(di) * r.at(di);
-      }
-      std::complex<double> coeff = std::exp(std::complex<double>(0.0, k_dot_r));
-
-      Hk += coeff * it->second;
-    }
-
-    return Hk;
-  }
-
-  /** @brief Calculate grad_k H(k) using the analytic differentiation of the
-   *         Fourier series yielding H(k).
-   */
-  std::array<Eigen::MatrixXcd, k_dim> calc_grad_Hk_at(kComps<k_dim> k) const {
-    kVals<k_dim> kv = std::get<0>(km_at(kmb.Nk, std::make_tuple(k, 0u)));
-
-    std::array<Eigen::MatrixXcd, k_dim> grad_Hk;
-    for (std::size_t dc = 0; dc < k_dim; dc++) {
-      grad_Hk.at(dc) = Eigen::MatrixXcd::Zero(kmb.Nbands, kmb.Nbands);
-    }
-
-    for (auto it = Hrs.begin(); it != Hrs.end(); ++it) {
-      LatVec<k_dim> r = it->first;
-      CartVec<k_dim> r_Cart = lat_vec_to_Cart(D, r);
-
-      double k_dot_r = 0.0;
-      for (std::size_t di = 0; di < k_dim; di++) {
-        k_dot_r += 2.0 * pi * kv.at(di) * r.at(di);
-      }
-      std::complex<double> exp_coeff = std::exp(std::complex<double>(0.0, k_dot_r));
-
-			for (std::size_t dc = 0; dc < k_dim; dc++) {
-				std::complex<double> coeff = std::complex<double>(0.0, r_Cart.at(dc)) * exp_coeff;
-
-				grad_Hk.at(dc) += coeff * it->second;
-			}
-    }
-
-    return grad_Hk;
-  }
-
-  const Eigen::VectorXd& Ek_at(kComps<k_dim> k) const {
-    auto Ek_prev = Ek_cache.find(k);
-    if (Ek_prev != Ek_cache.end()) {
-      return Ek_prev->second;
-    }
-
-    auto Hk = calc_Hk_at(k);
-    Eigen::SelfAdjointEigenSolver<Eigen::MatrixXcd> eigensolver(Hk);
-    if (eigensolver.info() != Eigen::Success) {
-      throw std::runtime_error("eigensolver failed");
-    }
-
-    Ek_cache[k] = eigensolver.eigenvalues();
-    Uk_cache[k] = eigensolver.eigenvectors();
-
-    return Ek_cache[k];
-  }
-
-  const Eigen::MatrixXcd& Uk_at(kComps<k_dim> k) const {
-    auto Uk_prev = Uk_cache.find(k);
-    if (Uk_prev != Uk_cache.end()) {
-      return Uk_prev->second;
-    }
-
-    // TODO same logic as Ek_at; consolidate.
-    auto Hk = calc_Hk_at(k);
-    Eigen::SelfAdjointEigenSolver<Eigen::MatrixXcd> eigensolver(Hk);
-    if (eigensolver.info() != Eigen::Success) {
-      throw std::runtime_error("eigensolver failed");
-    }
-
-    Ek_cache[k] = eigensolver.eigenvalues();
-    Uk_cache[k] = eigensolver.eigenvectors();
-
-    return Uk_cache[k];
-  }
-
-  const std::array<Eigen::MatrixXcd, k_dim>& grad_at(kComps<k_dim> k) const {
-    auto grad_prev = grad_Hk_eigenbasis_cache.find(k);
-    if (grad_prev != grad_Hk_eigenbasis_cache.end()) {
-      return grad_prev->second;
-    }
-
-    const auto& Uk = Uk_at(k);
-    std::array<Eigen::MatrixXcd, k_dim> grad_Hk = calc_grad_Hk_at(k);
-
-    std::array<Eigen::MatrixXcd, k_dim> grad_Hk_eigenbasis;
-    for (std::size_t dc = 0; dc < k_dim; dc++) {
-      grad_Hk_eigenbasis.at(dc) = Uk.adjoint() * grad_Hk.at(dc) * Uk;
-    }
-
-    grad_Hk_eigenbasis_cache[k] = grad_Hk_eigenbasis;
-    return grad_Hk_eigenbasis_cache[k];
-  }
-
-  const std::array<Eigen::MatrixXcd, 3>& spin_at(kComps<k_dim> k) const {
-    auto spin_prev = spin_eigenbasis_cache.find(k);
-    if (spin_prev != spin_eigenbasis_cache.end()) {
-      return spin_prev->second;
-    }
-
-    const auto& Uk = Uk_at(k);
-    std::array<Eigen::MatrixXcd, 3> spin_eigenbasis;
-    for (std::size_t dc = 0; dc < 3; dc++) {
-      spin_eigenbasis.at(dc) = Uk.adjoint() * spin_operator.at(dc) * Uk;
-    }
-
-    spin_eigenbasis_cache[k] = spin_eigenbasis;
-    return spin_eigenbasis_cache[k];
-  }
-
-  /** @todo If the full cache fits in memory, can take a different approach, compatible
-   *        with threading: each process fills its caches (iterate over all k) when the
-   *        TBHamiltonian is created. If a process has multiple threads, the ks are
-   *        distributed over threads. If we fill the cache such that all ks are present, we
-   *        can use a std::vector with ik indices instead of a map.
-   */
-  mutable std::map<kComps<k_dim>, Eigen::VectorXd> Ek_cache;
-  mutable std::map<kComps<k_dim>, Eigen::MatrixXcd> Uk_cache;
-  mutable std::map<kComps<k_dim>, std::array<Eigen::MatrixXcd, k_dim>> grad_Hk_eigenbasis_cache;
-  mutable std::map<kComps<k_dim>, std::array<Eigen::MatrixXcd, 3>> spin_eigenbasis_cache;
-
-  const std::array<Eigen::MatrixXcd, 3> spin_operator;
-
 public:
   /** @brief Tight-binding Hamiltonian matrix. 
    */
-  const std::map<LatVec<k_dim>, Eigen::MatrixXcd> Hrs;
+  const TBElems<k_dim> Hrs;
 
-  /** @brief Discretization of (k, m) basis to use for Fourier transform.
+  /** @brief Discretization of (k, m) basis.
    */
   const kmBasis<k_dim> kmb;
+
+  /** @brief Discretization of k basis. kb.Nbands = 1.
+   */
+  const kmBasis<k_dim> kb;
 
   /** @brief A matrix giving the lattice vectors: D[c][i] is the c'th Cartesian
    *         component of the i'th lattice vector.
@@ -186,8 +215,12 @@ public:
 	const DimMatrix<k_dim> D;
 
   TBHamiltonian(std::map<LatVec<k_dim>, Eigen::MatrixXcd> _Hrs, kComps<k_dim> _Nk,
-      std::size_t _Nbands, DimMatrix<k_dim> _D) : spin_operator(full_spin_matrices(_Nbands)), Hrs(_Hrs),
-      kmb(kmBasis<k_dim>(_Nk, _Nbands)), D(_D) {}
+      std::size_t _Nbands, DimMatrix<k_dim> _D) :
+      Hrs(_Hrs), kmb(kmBasis<k_dim>(_Nk, _Nbands)),
+      kb(kmBasis<k_dim>(_Nk, 1)), D(_D),
+      EUk_cache(internal::make_eigendecomp_cache(kb, _Nbands, _Hrs)),
+      grad_Hk_eigenbasis_cache(internal::make_grad_Hk_cache(kb, _Nbands, _D, EUk_cache, _Hrs)),
+      spin_eigenbasis_cache(internal::make_spin_cache(kb, _Nbands, EUk_cache, _Hrs)) {}
 
   /** @brief Energy at (k,m): E_{km}.
    */
@@ -195,8 +228,9 @@ public:
     kComps<k_dim> k;
     unsigned int m;
     std::tie(k, m) = ikm_comps;
+    kmComps<k_dim> k0 = std::make_tuple(k, 0);
 
-    return Ek_at(k)(m);
+    return EUk_cache.first.at(kb.compose(k0))(m);
   }
 
   /** @brief Value of U_{im}(k), where U is the unitary matrix which diagonalizes
@@ -207,8 +241,9 @@ public:
     kComps<k_dim> k;
     unsigned int m;
     std::tie(k, m) = kmb.decompose(ikm);
+    kmComps<k_dim> k0 = std::make_tuple(k, 0);
 
-    return Uk_at(k)(m, i);
+    return EUk_cache.second.at(kb.compose(k0))(i, m);
   }
 
   /** @brief Gradient of the Hamiltonian, evaluated in the eigenbasis;
@@ -219,8 +254,9 @@ public:
     kComps<k_dim> k;
     unsigned int m;
     std::tie(k, m) = ikm_comps;
+    kmComps<k_dim> k0 = std::make_tuple(k, 0);
 
-    const auto& grad = grad_at(k);
+    const auto& grad = grad_Hk_eigenbasis_cache.at(kb.compose(k0));
     std::array<std::complex<double>, k_dim> grad_val;
     for (std::size_t dc = 0; dc < k_dim; dc++) {
       grad_val.at(dc) = grad.at(dc)(m, mp);
@@ -235,14 +271,20 @@ public:
     kComps<k_dim> k;
     unsigned int m;
     std::tie(k, m) = kmb.decompose(ikm);
+    kmComps<k_dim> k0 = std::make_tuple(k, 0);
 
-    const auto& spin = spin_at(k);
+    const auto& spin = spin_eigenbasis_cache.at(kb.compose(k0));
     std::array<std::complex<double>, 3> spin_val;
     for (std::size_t dc = 0; dc < 3; dc++) {
       spin_val.at(dc) = spin.at(dc)(m, mp);
     }
     return spin_val;
   }
+
+private:
+  const internal::EigenDecompCache EUk_cache;
+  const internal::GradHkCache<k_dim> grad_Hk_eigenbasis_cache;
+  const internal::SpinCache spin_eigenbasis_cache;
 };
 
 struct HrHeader {
@@ -260,7 +302,7 @@ struct HrHeader {
  *        number of displacement vectors (rs)
  *        list of degen values, 15 per line, total number equal to rs
  */
-HrHeader extract_hr_header(std::string hr_path);
+HrHeader extract_hr_header(const std::string hr_path);
 
 namespace internal {
 
@@ -296,7 +338,7 @@ LatVec<3> process_LatVec(int ra, int rb, int rc);
  *        starting at 0.
  */
 template <std::size_t k_dim>
-std::map<LatVec<k_dim>, Eigen::MatrixXcd> extract_hr_model(std::string hr_path,
+std::map<LatVec<k_dim>, Eigen::MatrixXcd> extract_hr_model(const std::string hr_path,
     const HrHeader &header) {
   std::ifstream fp(hr_path);
   std::string line;
@@ -360,8 +402,8 @@ std::map<LatVec<k_dim>, Eigen::MatrixXcd> extract_hr_model(std::string hr_path,
 }
 
 template <std::size_t k_dim>
-TBHamiltonian<k_dim> extract_Wannier90_Hamiltonian(std::string hr_path, kComps<k_dim> Nk,
-    DimMatrix<k_dim> D) {
+TBHamiltonian<k_dim> extract_Wannier90_Hamiltonian(const std::string hr_path, const kComps<k_dim> Nk,
+    const DimMatrix<k_dim> D) {
   auto header = extract_hr_header(hr_path);
   auto H_tb = extract_hr_model<k_dim>(hr_path, header);
 

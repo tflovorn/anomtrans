@@ -231,10 +231,7 @@ TEST( Rashba_electric, Rashba_electric ) {
   PetscErrorCode ierr = VecMin(Ekm, &Ekm_min_index, &Ekm_min);CHKERRXX(ierr);
   ierr = VecMax(Ekm, &Ekm_max_index, &Ekm_max);CHKERRXX(ierr);
 
-  PetscInt Nk_tot = 1;
-  for (std::size_t d = 0; d < k_dim; d++) {
-    Nk_tot *= kmb.Nk.at(d);
-  }
+  std::size_t Nk_tot = anomtrans::get_Nk_total(Nk);
   double U0_sq = U0*U0;
   double disorder_coeff = U0_sq / Nk_tot;
   /*

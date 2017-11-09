@@ -2,7 +2,7 @@
 
 namespace anomtrans {
 
-HrHeader extract_hr_header(std::string hr_path) {
+HrHeader extract_hr_header(const std::string hr_path) {
   std::ifstream fp(hr_path);
 
   std::string line;
@@ -53,7 +53,11 @@ HrHeader extract_hr_header(std::string hr_path) {
   return HrHeader{Nbands, Nrs, degen, start_hr};
 }
 
-std::array<Eigen::MatrixXcd, 3> full_spin_matrices(std::size_t Nbands) {
+std::array<Eigen::MatrixXcd, 3> full_spin_matrices(const std::size_t Nbands) {
+  if (Nbands % 2 != 0) {
+    throw std::invalid_argument("expected Nbands divisible by 2 (both spins present)");
+  }
+
 	auto pauli = pauli_matrices();
   std::array<Eigen::MatrixXcd, 3> S;
 	for (std::size_t dc = 0; dc < 3; dc++) {

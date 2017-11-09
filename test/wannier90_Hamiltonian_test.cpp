@@ -157,7 +157,7 @@ TEST( Wannier90_WSe2_dynamic, Wannier90_WSe2_dynamic ) {
   std::array<Mat, k_dim> v_op = anomtrans::calculate_velocity(kmb, H);
   std::array<Mat, 3> spin_op = anomtrans::calculate_spin_operator(kmb, H);
 
-  PetscInt Nk_tot = 1;
+  std::size_t Nk_tot = anomtrans::get_Nk_total(Nk);
   for (std::size_t d = 0; d < k_dim; d++) {
     Nk_tot *= kmb.Nk.at(d);
   }
