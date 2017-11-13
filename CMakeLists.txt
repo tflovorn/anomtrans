@@ -27,7 +27,7 @@ include_directories(${BOOST_INCLUDE_DIR})
 include_directories(${PETSC_INCLUDE_DIR})
 include_directories(${PETSC_ARCH_INCLUDE_DIR})
 include_directories(SYSTEM ${JSON_INCLUDE_DIR})
-include_directories(${EIGEN_INCLUDE_DIR})
+include_directories(SYSTEM ${EIGEN_INCLUDE_DIR})
 
 # anomtrans include directory.
 include_directories("include/anomtrans")
