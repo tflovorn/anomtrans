@@ -38,9 +38,9 @@ The correct `LD_LIBRARY_PATH` is set by module load.
 anomtrans regression test data is stored in [Git LFS](https://github.com/git-lfs/git-lfs/releases). Install this:
 
     cd ~
-    curl -L -o git-lfs-linux-amd64-1.5.6.tar.gz https://github.com/git-lfs/git-lfs/releases/download/v1.5.6/git-lfs-linux-amd64-1.5.6.tar.gz
-    tar -xvzf git-lfs-linux-amd64-1.5.6.tar.gz
-    cd git-lfs-1.5.6
+    curl -L -o git-lfs-linux-amd64-2.3.4.tar.gz https://github.com/git-lfs/git-lfs/releases/download/v2.3.4/git-lfs-linux-amd64-2.3.4.tar.gz
+    tar -xvzf git-lfs-linux-amd64-2.3.4.tar.gz
+    cd git-lfs-2.3.4
     PREFIX=$HOME ./install.sh
 
 ## Usage
@@ -76,11 +76,11 @@ To build and test in release mode:
 
 Get g++, gfortran, CMake, OpenMPI, valgrind, boost, doxygen, matplotlib, scipy:
 
-    sudo apt-get install g++ gfortran cmake libopenmpi-dev openmpi-bin valgrind libboost-all-dev doxygen graphviz python-matplotlib python-tk python3-matplotlib python3-tk python3-setuptools python3-scipy libubsan0 lib64ubsan0
+    sudo apt-get install g++ gfortran cmake libopenmpi-dev openmpi-bin valgrind libboost-all-dev doxygen graphviz python-matplotlib python-tk python3-matplotlib python3-tk python3-setuptools python3-scipy libubsan0 lib64ubsan0 curl
 
 Note that the Boost package is Boost 1.58.
 
-PETSc 3.7 is not available from the package manager. We'll need to build it. [(download page)](https://www.mcs.anl.gov/petsc/download/index.html) [(install instructions)](https://www.mcs.anl.gov/petsc/documentation/installation.html)
+PETSc 3.8 is not available from the package manager. We'll need to build it. [(download page)](https://www.mcs.anl.gov/petsc/download/index.html) [(install instructions)](https://www.mcs.anl.gov/petsc/documentation/installation.html)
 
     cd ~
     git clone -b maint https://bitbucket.org/petsc/petsc petsc
@@ -95,10 +95,14 @@ Test PETSc:
 anomtrans regression test data is stored in [Git LFS](https://github.com/git-lfs/git-lfs/releases). Install this:
 
     cd ~
-    curl -L -o git-lfs-linux-amd64-1.5.6.tar.gz https://github.com/git-lfs/git-lfs/releases/download/v1.5.6/git-lfs-linux-amd64-1.5.6.tar.gz
-    tar -xvzf git-lfs-linux-amd64-1.5.6.tar.gz
-    cd git-lfs-1.5.6
+    curl -L -o git-lfs-linux-amd64-2.3.4.tar.gz https://github.com/git-lfs/git-lfs/releases/download/v2.3.4/git-lfs-linux-amd64-2.3.4.tar.gz
+    tar -xvzf git-lfs-linux-amd64-2.3.4.tar.gz
+    cd git-lfs-2.3.4
     PREFIX=$HOME ./install.sh
+
+Add git lfs location to the PATH. In `~/.bashrc`:
+
+    export PATH=$HOME/bin:$PATH
 
 ## Setup
 
