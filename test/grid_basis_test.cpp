@@ -29,9 +29,9 @@ int main(int argc, char* argv[]) {
 
 TEST( GridBasis, GridBasis ) {
   const std::size_t ncomp = 3;
-  std::array<unsigned int, ncomp> sizes = {4, 4, 4};
+  std::array<unsigned int, ncomp> sizes = {8, 6, 4};
   anomtrans::GridBasis<ncomp> gb(sizes);
-  ASSERT_EQ( gb.end_iall, 4*4*4 );
+  ASSERT_EQ( gb.end_iall, static_cast<PetscInt>(sizes.at(0)*sizes.at(1)*sizes.at(2)) );
 
   PetscInt iall = 0;
   for (unsigned int i2 = 0; i2 < sizes.at(2); i2++) {
@@ -66,10 +66,10 @@ TEST( GridBasis, kmBasis ) {
   using kVals = anomtrans::kVals<dim>;
   using kmVals = anomtrans::kmVals<dim>;
 
-  std::array<unsigned int, dim> Nk = {2, 2};
+  std::array<unsigned int, dim> Nk = {8, 6};
   unsigned int Nbands = 2;
   anomtrans::kmBasis<dim> kmb(Nk, Nbands);
-  ASSERT_EQ( kmb.end_ikm, 2*2*2 );
+  ASSERT_EQ( kmb.end_ikm, static_cast<PetscInt>(Nk.at(0)*Nk.at(1)*Nbands) );
 
   PetscInt iall = 0;
   for (unsigned int m = 0; m < Nbands; m++) {
