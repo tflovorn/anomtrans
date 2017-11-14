@@ -13,6 +13,9 @@
 
 namespace anomtrans {
 
+template <std::size_t ncomp>
+using GridElem = std::array<unsigned int, ncomp>;
+
 /** @brief Provides translation of a composite index (represented as an array)
  *         into an element of a linear sequence, as well as the reverse process.
  *  @todo Could use constexpr if to implement member functions.
@@ -25,7 +28,7 @@ class GridBasis {
   /** @brief Get coefficients to use in GridBasis::compose() for moving from a
    *         composite grid coordinate to an integer grid index.
    */
-  static std::array<PetscInt, ncomp> get_coeffs(std::array<unsigned int, ncomp> sizes) {
+  static std::array<PetscInt, ncomp> get_coeffs(GridElem<ncomp> sizes) {
     std::array<PetscInt, ncomp> coeffs;
     for (std::size_t d = 0; d < ncomp; d++) {
       PetscInt coeff = 1;
@@ -41,7 +44,7 @@ class GridBasis {
    *         suitable for use in:
    *         for (PetscInt i = 0; i < end_iall; i++).
    */
-  static PetscInt get_end_iall(std::array<unsigned int, ncomp> sizes) {
+  static PetscInt get_end_iall(GridElem<ncomp> sizes) {
     PetscInt end_iall = 1;
     for (std::size_t d = 0; d < ncomp; d++) {
       end_iall *= sizes.at(d);
@@ -49,34 +52,11 @@ class GridBasis {
     return end_iall;
   }
 
-  /** @brief Size of the basis in each dimension.
-   */
-  std::array<unsigned int, ncomp> sizes;
-  /** @note Precompute compose() coefficients so we don't have to compute on
-   *        every call. Coefficients are always the same for given sizes.
-   */ 
-  std::array<PetscInt, ncomp> coeffs;
-
-public:
-  const PetscInt end_iall;
-
-  /** @pre Each dimension of the GridBasis must have at least one element,
-   *       i.e. all elements of `sizes` must be > 0.
-   */
-  GridBasis(std::array<unsigned int, ncomp> _sizes)
-      : sizes(_sizes), coeffs(get_coeffs(_sizes)), end_iall(get_end_iall(_sizes)) {
-    for (auto dim_elems : sizes) {
-      if (dim_elems < 1) {
-        throw std::invalid_argument("each dimension of a GridBasis must have at least one element");
-      }
-    }
-  }
-
   /** @brief Convert a linear sequence index `iall` into the corresponding
-   *         composite index.
+   *         composite index. Calculates composite index by repeated division.
    */
-  std::array<unsigned int, ncomp> decompose(PetscInt iall) const {
-    std::array<unsigned int, ncomp> comps;
+  static GridElem<ncomp> calc_decompose(GridElem<ncomp> sizes, PetscInt iall) {
+    GridElem<ncomp> comps;
     // Safe to access elem 0 here due to static_assert.
     comps.at(0) = iall % sizes.at(0);
 
@@ -90,10 +70,53 @@ public:
     return comps;
   }
 
+  static std::vector<GridElem<ncomp>> make_components_cache(GridElem<ncomp> sizes) {
+    const PetscInt end_iall = get_end_iall(sizes);
+    std::vector<GridElem<ncomp>> components_cache;
+    components_cache.reserve(end_iall);
+
+    for (PetscInt iall = 0; iall < end_iall; iall++) {
+      components_cache.push_back(calc_decompose(sizes, iall));
+    }
+
+    return components_cache;
+  }
+
+  /** @brief Size of the basis in each dimension.
+   */
+  GridElem<ncomp> sizes;
+  /** @note Precompute compose() coefficients so we don't have to compute on
+   *        every call. Coefficients are always the same for given sizes.
+   */ 
+  std::array<PetscInt, ncomp> coeffs;
+
+public:
+  const PetscInt end_iall;
+
+  /** @pre Each dimension of the GridBasis must have at least one element,
+   *       i.e. all elements of `sizes` must be > 0.
+   */
+  GridBasis(GridElem<ncomp> _sizes)
+      : sizes(_sizes), coeffs(get_coeffs(_sizes)), end_iall(get_end_iall(_sizes)),
+        components_cache(make_components_cache(_sizes)) {
+    for (auto dim_elems : sizes) {
+      if (dim_elems < 1) {
+        throw std::invalid_argument("each dimension of a GridBasis must have at least one element");
+      }
+    }      
+  }
+
+  /** @brief Convert a linear sequence index `iall` into the corresponding
+   *         composite index.
+   */
+  GridElem<ncomp> decompose(PetscInt iall) const {
+    return components_cache.at(iall);
+  }
+
   /** @brief Convert a composite index `components` into the corresponding
    *         linear sequence index.
    */
-  PetscInt compose(std::array<unsigned int, ncomp> components) const {
+  PetscInt compose(GridElem<ncomp> components) const {
     PetscInt total = 0;
     for (std::size_t d = 0; d < ncomp; d++) {
       total += coeffs.at(d) * components.at(d);
@@ -114,6 +137,9 @@ public:
     }
     return compose(new_comps);
   }
+
+private:
+  std::vector<GridElem<ncomp>> components_cache;
 };
 
 /** @brief Components of a k-point, specified by integer indices between
