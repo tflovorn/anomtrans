@@ -7,6 +7,7 @@ list(APPEND SOURCES
   models/square_tb_spectrum.cpp
   models/Rashba_Hamiltonian.cpp
   models/wannier90_Hamiltonian.cpp
+  models/tmd_nn_Hamiltonian.cpp
   observables/spin.cpp
   observables/rho0.cpp
   disorder/collision.cpp
