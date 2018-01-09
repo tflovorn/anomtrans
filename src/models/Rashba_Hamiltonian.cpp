@@ -10,7 +10,7 @@ Rashba_Hamiltonian::Rashba_Hamiltonian(double _t0, double _tr, kmBasis<2> _kmb)
 }
 
 double Rashba_Hamiltonian::energy(kmComps<2> ikm_comps) const {
-  kmVals<2> km = km_at(kmb.Nk, ikm_comps);
+  kmVals<2> km = kmb.km_at(ikm_comps);
   kVals<2> k = std::get<0>(km);
   unsigned int m = std::get<1>(km);
 
@@ -104,7 +104,7 @@ std::array<Eigen::Matrix2cd, 2> Rashba_Hamiltonian::grad_H(kVals<2> k) const {
 std::complex<double> Rashba_Hamiltonian::basis_component(const PetscInt ikm, const unsigned int i) const {
   auto ikm_comps = kmb.decompose(ikm);
 
-  kmVals<2> km = km_at(kmb.Nk, ikm_comps);
+  kmVals<2> km = kmb.km_at(ikm_comps);
   kVals<2> k = std::get<0>(km);
   unsigned int m = std::get<1>(km);
 
@@ -117,7 +117,7 @@ std::complex<double> Rashba_Hamiltonian::basis_component(const PetscInt ikm, con
 }
 
 std::array<std::complex<double>, 2> Rashba_Hamiltonian::gradient(kmComps<2> ikm_comps, unsigned int mp) const {
-  kmVals<2> km = km_at(kmb.Nk, ikm_comps);
+  kmVals<2> km = kmb.km_at(ikm_comps);
   kVals<2> k = std::get<0>(km);
   unsigned int m = std::get<1>(km);
 
@@ -156,7 +156,7 @@ std::array<Eigen::Matrix2cd, 3> spin_impl(Eigen::Matrix2cd U) {
 std::array<std::complex<double>, 3> Rashba_Hamiltonian::spin(PetscInt ikm, unsigned int mp) const {
   auto km = kmb.decompose(ikm);
   unsigned int m = std::get<1>(km);
-  auto k_vals = std::get<0>(km_at(kmb.Nk, km));
+  auto k_vals = std::get<0>(kmb.km_at(km));
 
   if (m > 1 or mp > 1) {
     throw std::invalid_argument("Rashba_magnetic_Hamiltonian is not defined for Nbands > 2");
@@ -185,7 +185,7 @@ double Rashba_magnetic_Hamiltonian::lambda(double kx_a, double ky_a) const {
 }
 
 double Rashba_magnetic_Hamiltonian::energy(kmComps<2> ikm_comps) const {
-  kmVals<2> km = km_at(kmb.Nk, ikm_comps);
+  kmVals<2> km = kmb.km_at(ikm_comps);
   kVals<2> k = std::get<0>(km);
   unsigned int m = std::get<1>(km);
 
@@ -262,7 +262,7 @@ Eigen::Matrix2cd Rashba_magnetic_Hamiltonian::evecs(kVals<2> k) const {
 std::complex<double> Rashba_magnetic_Hamiltonian::basis_component(const PetscInt ikm, const unsigned int i) const {
   auto ikm_comps = kmb.decompose(ikm);
 
-  kmVals<2> km = km_at(kmb.Nk, ikm_comps);
+  kmVals<2> km = kmb.km_at(ikm_comps);
   kVals<2> k = std::get<0>(km);
   unsigned int m = std::get<1>(km);
 
@@ -280,7 +280,7 @@ std::array<Eigen::Matrix2cd, 2> Rashba_magnetic_Hamiltonian::grad_H(kVals<2> k) 
 
 std::array<std::complex<double>, 2> Rashba_magnetic_Hamiltonian::gradient(kmComps<2> ikm_comps,
     unsigned int mp) const {
-  kmVals<2> km = km_at(kmb.Nk, ikm_comps);
+  kmVals<2> km = kmb.km_at(ikm_comps);
   kVals<2> k = std::get<0>(km);
   unsigned int m = std::get<1>(km);
 
@@ -298,7 +298,7 @@ std::array<std::complex<double>, 2> Rashba_magnetic_Hamiltonian::gradient(kmComp
 std::array<std::complex<double>, 3> Rashba_magnetic_Hamiltonian::spin(PetscInt ikm, unsigned int mp) const {
   auto km = kmb.decompose(ikm);
   unsigned int m = std::get<1>(km);
-  auto k_vals = std::get<0>(km_at(kmb.Nk, km));
+  auto k_vals = std::get<0>(kmb.km_at(km));
 
   if (m > 1 or mp > 1) {
     throw std::invalid_argument("Rashba_magnetic_Hamiltonian is not defined for Nbands > 2");

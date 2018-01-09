@@ -121,7 +121,7 @@ TEST( Rashba_electric, berry_connection ) {
       continue;
     }
 
-    auto k_val = std::get<0>(anomtrans::km_at(kmb.Nk, km));
+    auto k_val = std::get<0>(kmb.km_at(km));
     if ((k_val.at(0) == 0.0 or k_val.at(0) == 0.5)
         and (k_val.at(1) == 0.0 or k_val.at(1) == 0.5)) {
       // Avoid points where the chosen eigenbasis becomes singular.

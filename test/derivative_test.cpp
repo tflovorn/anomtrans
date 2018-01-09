@@ -56,7 +56,7 @@ TEST( derivative, linear ) {
   // The derivative df/dk_d = c_d is given exactly by the first-order
   // forward finite difference and second-order central difference.
   auto f_linear = [&kmb, &coeffs](PetscInt ikm)->PetscScalar {
-    auto k = std::get<0>(anomtrans::km_at(kmb.Nk, kmb.decompose(ikm)));
+    auto k = std::get<0>(kmb.km_at(kmb.decompose(ikm)));
 
     PetscScalar result = 0.0;
     for (std::size_t d = 0; d < k_dim; d++) {
@@ -125,7 +125,7 @@ TEST( derivative, quadratic ) {
   // The derivative df/dk_d = 2 * c_d * k_d is given exactly by
   // the second-order central difference.
   auto f_quad = [&kmb, &coeffs](PetscInt ikm)->PetscScalar {
-    auto k = std::get<0>(anomtrans::km_at(kmb.Nk, kmb.decompose(ikm)));
+    auto k = std::get<0>(kmb.km_at(kmb.decompose(ikm)));
 
     PetscScalar result = 0.0;
     for (std::size_t d = 0; d < k_dim; d++) {
@@ -164,7 +164,7 @@ TEST( derivative, quadratic ) {
           continue;
         }
 
-        auto k = std::get<0>(anomtrans::km_at(kmb.Nk, kmb.decompose(ikm)));
+        auto k = std::get<0>(kmb.km_at(kmb.decompose(ikm)));
         auto expected = 2.0 * coeffs.at(d) * k.at(d);
 
         ASSERT_TRUE(anomtrans::scalars_approx_equal(v, expected, eps_abs, eps_rel));
@@ -195,7 +195,7 @@ TEST( derivative, square_TB_fermi_surface ) {
 
   double t = 1.0;
   double tp = -0.3;
-  anomtrans::square_tb_Hamiltonian H(t, tp, Nk);
+  anomtrans::square_tb_Hamiltonian H(t, tp, kmb);
 
   std::array<double, k_dim> a1 = {1.0, 0.0};
   std::array<double, k_dim> a2 = {0.0, 1.0};

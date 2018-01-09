@@ -47,7 +47,7 @@ TEST( GridBasis, GridBasis ) {
               std::array<int, ncomp> p = {p0, p1, p2};
               std::array<unsigned int, ncomp> expect = {(i0 + p0) % sizes.at(0),
                   (i1 + p1) % sizes.at(1), (i2 + p2) % sizes.at(2)};
-              ASSERT_EQ( gb.decompose(gb.add(gb.compose(comps), p)), expect );
+              ASSERT_EQ( gb.decompose(*(gb.add(gb.compose(comps), p, true))), expect );
             }
           }
         }
@@ -77,19 +77,19 @@ TEST( GridBasis, kmBasis ) {
       for (unsigned int ik0 = 0; ik0 < Nk.at(0); ik0++) {
         kComps ik_comps = {ik0, ik1};
         kmComps ikm_comps(ik_comps, m);
-        kVals k_at_comps = {ik0/static_cast<double>(Nk.at(0)), ik1/static_cast<double>(Nk.at(1))};
+        kVals k_at_comps = {ik0 * (1.0/Nk.at(0)), ik1 * (1.0/Nk.at(1))};
         kmVals km_at_comps(k_at_comps, m);
 
         ASSERT_EQ( kmb.decompose(iall), ikm_comps );
         ASSERT_EQ( kmb.compose(ikm_comps), iall );
-        ASSERT_EQ( anomtrans::km_at(Nk, ikm_comps), km_at_comps );
+        ASSERT_EQ( kmb.km_at(ikm_comps), km_at_comps );
 
         for (int p1 = -Nk.at(1); p1 <= static_cast<int>(Nk.at(1)); p1++) {
           for (int p0 = -Nk.at(0); p0 <= static_cast<int>(Nk.at(0)); p0++) {
             dkComps Delta_k = {p0, p1};
             kComps k_expect = {(ik0 + p0) % Nk.at(0), (ik1 + p1) % Nk.at(1)};
             kmComps kmp_expect(k_expect, m);
-            ASSERT_EQ( kmb.decompose(kmb.add(kmb.compose(ikm_comps), Delta_k)), kmp_expect );
+            ASSERT_EQ( kmb.decompose(*(kmb.add(kmb.compose(ikm_comps), Delta_k))), kmp_expect );
           }
         }
 

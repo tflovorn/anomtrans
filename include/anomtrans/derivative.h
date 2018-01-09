@@ -2,6 +2,7 @@
 #define ANOMTRANS_DERIVATIVE_H
 
 #include <cstddef>
+#include <cmath>
 #include <array>
 #include <vector>
 #include <tuple>
@@ -48,6 +49,8 @@ class DerivStencil {
     const std::map<DerivSpecifier, std::vector<PetscInt>> all_Deltas_1d {
       // {1, 0} --> uses f(x + h) and f(x)
       {DerivSpecifier(1, DerivApproxType::forward, 1), {1, 0}},
+      // {0, -1} --> uses f(x) and f(x - h)
+      {DerivSpecifier(1, DerivApproxType::backward, 1), {0, -1}},
       // {1, -1} --> uses f(x + h) and f(x - h)
       {DerivSpecifier(1, DerivApproxType::central, 2), {1, -1}}
     };
@@ -55,6 +58,8 @@ class DerivStencil {
     const std::map<DerivSpecifier, std::vector<PetscScalar>> all_vals_1d {
       // {1, -1} --> f(x + h) - f(x)
       {DerivSpecifier(1, DerivApproxType::forward, 1), {1.0, -1.0}},
+      // {1, -1} --> f(x) - f(x - h)
+      {DerivSpecifier(1, DerivApproxType::backward, 1), {1.0, -1.0}},
       // {1/2, -1/2} --> (1/2) f(x + h) - (1/2) f(x - h)
       {DerivSpecifier(1, DerivApproxType::central, 2), {0.5, -0.5}}
     };
@@ -81,25 +86,24 @@ public:
         Delta_vals(get_Delta_vals(_approx_type, _approx_order)) {}
 };
 
-/** @brief Construct a row of the finite difference derivative operator with
- *         the given stencil along the given direction in reciprocal lattice
- *         coordinates.
- *  @note Assumes total distance along the BZ in any direction in reciprocal
- *        lattice coordinates is 1. Will need to generalize this to allow
- *        representation of continuum models.
+/** @brief If kmb is not periodic, need to use an appropriate stencil at the boundary
+ *         (to avoid going outside the range of kmb). Detect this and choose an alternate
+ *         stencil if necessary. Return a copy of the original stencil if no change
+ *         is necessary.
+ *  @todo Should be able to generalize beyond `deriv_order == 1` just by adding `deriv_order`
+ *        template parameter (for `stencil` and return value).
  */
 template <std::size_t k_dim>
-IndexValPairs finite_difference(const kmBasis<k_dim> &kmb,
+DerivStencil<1> boundary_replacement_stencil(const kmBasis<k_dim> &kmb,
     const DerivStencil<1> &stencil, PetscInt row_ikm, std::size_t deriv_dir) {
+  // Logically 'uninitialized' values for these: when set, min_bad_Delta_abs will be > 0
+  // and bad_Delta_sign will be +/- 1.
+  PetscInt min_bad_Delta_abs = -1;
+  PetscInt bad_Delta_sign = 0;
+
   std::vector<PetscInt> Deltas_1d = stencil.Delta_vals.first;
-  std::vector<PetscScalar> vals_1d = stencil.Delta_vals.second;
 
-  std::vector<PetscInt> column_ikms;
-  std::vector<PetscScalar> column_vals;
-
-  double k_d_spacing = 1.0/kmb.Nk.at(deriv_dir);
-
-  // better to use vector::size_type here?
+  // Check each Delta in the stencil to see if it is OK.
   for (std::size_t Delta_index = 0; Delta_index < Deltas_1d.size(); Delta_index++) {
     dkComps<k_dim> Delta;
     for (std::size_t d_Delta = 0; d_Delta < k_dim; d_Delta++) {
@@ -110,8 +114,76 @@ IndexValPairs finite_difference(const kmBasis<k_dim> &kmb,
       }
     }
 
-    column_ikms.push_back(kmb.add(row_ikm, Delta));
-    column_vals.push_back(vals_1d.at(Delta_index) / k_d_spacing);
+    auto result = kmb.add(row_ikm, Delta);
+
+    if (not result) {
+      PetscInt bad_Delta = Delta.at(deriv_dir);
+      PetscInt bad_Delta_abs = std::abs(bad_Delta);
+
+      if (min_bad_Delta_abs < 0 or bad_Delta_abs < min_bad_Delta_abs) {
+        min_bad_Delta_abs = bad_Delta_abs;
+        if (bad_Delta > 0) {
+          bad_Delta_sign = 1;
+        } else {
+          bad_Delta_sign = -1;
+        }
+      }
+    }
+  }
+
+  // If min_bad_Delta_abs is still negative, we did not encounter any
+  // points where `stencil` is inappropriate.
+  if (min_bad_Delta_abs < 0) {
+    return stencil;
+  }
+  // If we get here, there are some points where `stencil` is inappropriate.
+  // Choose a stencil that will work.
+  // For forward, replace with backward, and vice versa.
+  // For central, choose forward or backward as appropriate based on `bad_Delta_sign`.
+  // TODO - could also choose a smaller central based on `min_bad_Delta_abs`.
+  if (stencil.approx_type == DerivApproxType::forward) {
+    return DerivStencil<1>(DerivApproxType::backward, stencil.approx_order);
+  } else if (stencil.approx_type == DerivApproxType::backward) {
+    return DerivStencil<1>(DerivApproxType::forward, stencil.approx_order);
+  } else {
+    if (bad_Delta_sign > 0) {
+      return DerivStencil<1>(DerivApproxType::backward, stencil.approx_order / 2);
+    } else {
+      return DerivStencil<1>(DerivApproxType::forward, stencil.approx_order / 2);
+    }
+  }
+}
+
+/** @brief Construct a row of the finite difference derivative operator with
+ *         the given stencil along the given direction in reciprocal lattice
+ *         coordinates.
+ *  @note At k-space boundaries, if `kmb` is not periodic, a different stencil is chosen
+ *        to avoid sampling points outside the boundary of `kmb`.
+ */
+template <std::size_t k_dim>
+IndexValPairs finite_difference(const kmBasis<k_dim> &kmb,
+    const DerivStencil<1> &stencil, PetscInt row_ikm, std::size_t deriv_dir) {
+  std::vector<PetscInt> column_ikms;
+  std::vector<PetscScalar> column_vals;
+
+  // Use an alternate stencil at the k-space boundary, if necessary.
+  auto alt_stencil = boundary_replacement_stencil(kmb, stencil, row_ikm, deriv_dir);
+
+  std::vector<PetscInt> Deltas_1d = alt_stencil.Delta_vals.first;
+  std::vector<PetscScalar> vals_1d = alt_stencil.Delta_vals.second;
+
+  for (std::size_t Delta_index = 0; Delta_index < Deltas_1d.size(); Delta_index++) {
+    dkComps<k_dim> Delta;
+    for (std::size_t d_Delta = 0; d_Delta < k_dim; d_Delta++) {
+      if (d_Delta == deriv_dir) {
+        Delta.at(d_Delta) = Deltas_1d.at(Delta_index);
+      } else {
+        Delta.at(d_Delta) = 0;
+      }
+    }
+
+    column_ikms.push_back(*(kmb.add(row_ikm, Delta)));
+    column_vals.push_back(vals_1d.at(Delta_index) / kmb.k_step(deriv_dir));
   }
 
   return IndexValPairs(column_ikms, column_vals);

@@ -40,7 +40,7 @@ TEST( Energy, Square_TB_Energy ) {
 
   double t = 1.0;
   double tp = -0.3;
-  anomtrans::square_tb_Hamiltonian H(t, tp, Nk);
+  anomtrans::square_tb_Hamiltonian H(t, tp, kmb);
 
   Vec Ekm = anomtrans::get_energies(kmb, H);
 

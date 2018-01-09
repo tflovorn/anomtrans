@@ -105,7 +105,7 @@ EigenDecompCache make_eigendecomp_cache(const kmBasis<k_dim> &kb, const std::siz
 
   for (std::size_t ik = 0; ik < Nk_tot; ik++) {
     kmComps<k_dim> kc = kb.decompose(ik);
-    kVals<k_dim> k = std::get<0>(km_at(kb.Nk, kc));
+    kVals<k_dim> k = std::get<0>(kb.km_at(kc));
 
     auto Hk = fourier_Hk_at(Hrs, Nbands, k);
     Eigen::SelfAdjointEigenSolver<Eigen::MatrixXcd> eigensolver(Hk);
@@ -138,7 +138,7 @@ GradHkCache<k_dim> make_grad_Hk_cache(const kmBasis<k_dim> &kb, const std::size_
 
   for (std::size_t ik = 0; ik < Nk_tot; ik++) {
     kmComps<k_dim> kc = kb.decompose(ik);
-    kVals<k_dim> k = std::get<0>(km_at(kb.Nk, kc));
+    kVals<k_dim> k = std::get<0>(kb.km_at(kc));
 
     const auto& Uk = EUk_cache.second.at(ik);
     std::array<Eigen::MatrixXcd, k_dim> grad_Hk = fourier_grad_Hk_at(Hrs, Nbands, D, k);

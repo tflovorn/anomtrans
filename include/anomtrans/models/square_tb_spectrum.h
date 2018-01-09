@@ -26,14 +26,14 @@ public:
   /** @brief Next-nearest-neighbor hopping amplitude.
    */
   const double tp;
-  /** @brief Number of k-points in each direction to sample.
-   */
-  const kComps<2> Nk;
-  /** @brief Number of bands.
-   */
-  const unsigned int Nbands;
 
-  square_tb_Hamiltonian(double _t, double _tp, kComps<2> _Nk);
+  /** @brief Discretization of (k, m) basis on which this Hamiltonian is defined.
+   *  @todo Would prefer to avoid copying kmb: it may be large.
+   *        Replace kmb copy with a shared pointer?
+   */
+  const kmBasis<2> kmb;
+
+  square_tb_Hamiltonian(double _t, double _tp, kmBasis<2> _kmb);
 
   /** @brief Energy at (k,m): E_{km}.
    */

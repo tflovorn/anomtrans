@@ -7,6 +7,7 @@
 #include <complex>
 #include <array>
 #include <tuple>
+#include <boost/optional.hpp>
 #include <petscksp.h>
 #include "util/vec.h"
 #include "util/mat.h"
@@ -127,13 +128,26 @@ public:
   /** @brief Given a linear sequence index `iall` and a composite sequence index
    *         difference `Delta`, return the linear sequence index corresponding to
    *           decompose(iall) + Delta
-   *         where components are allowed to wrap around their boundaries.
+   *  @param periodic If true, components are allowed to wrap around their boundaries, and
+   *                  the returned `optional<PetscInt>` will always contain the result index.
+   *                  If false, if the result would wrap around a boundary, an empty `optional`
+   *                  is returned instead.
    */
-  PetscInt add(PetscInt iall, std::array<int, ncomp> Delta) const {
+  boost::optional<PetscInt> add(PetscInt iall, std::array<int, ncomp> Delta, bool periodic) const {
     auto comps = decompose(iall);
     std::array<unsigned int, ncomp> new_comps;
     for (std::size_t d = 0; d < ncomp; d++) {
-      new_comps.at(d) = (comps.at(d) + Delta.at(d)) % sizes.at(d);
+      unsigned int result_comp = comps.at(d) + Delta.at(d);
+
+      if (periodic) {
+        new_comps.at(d) = result_comp % sizes.at(d);
+      } else {
+        if (result_comp < 0 or result_comp > sizes.at(d)) {
+          return boost::none;
+        } else {
+          new_comps.at(d) = result_comp;
+        }
+      }
     }
     return compose(new_comps);
   }
@@ -172,7 +186,10 @@ using kmVals = std::tuple<kVals<dim>, unsigned int>;
 
 /** @brief Provides translation of the composite (ik, m) index into an element
  *         of a linear sequence, as well as the reverse process.
- *  @todo Could use constexpr if to implement member functions.
+ *  @todo Could use `constexpr if` to implement member functions.
+ *  @todo Could make `Nk`, `Nbands`, and `periodic` template parameters instead
+ *        of member variables. But consider the implication: all places where a kmBasis
+ *        appears must now also be parameterized on these values.
  */
 template <std::size_t dim>
 class kmBasis {
@@ -191,6 +208,26 @@ class kmBasis {
     return GridBasis<dim+1>(sizes);
   }
 
+  /** @brief The k_min value appropriate for a periodic k-space sampling.
+   */
+  static kVals<dim> periodic_k_min() {
+    kVals<dim> k_min;
+    for (std::size_t d = 0; d < dim; d++) {
+      k_min.at(d) = 0.0;
+    }
+    return k_min;
+  }
+
+  /** @brief The k_max value appropriate for a periodic k-space sampling.
+   */
+  static kVals<dim> periodic_k_max() {
+    kVals<dim> k_max;
+    for (std::size_t d = 0; d < dim; d++) {
+      k_max.at(d) = 1.0;
+    }
+    return k_max;
+  }
+
   // Note that since members are initialized in declaration order, this
   // declaration must come before the declaration of end_ikm.
   GridBasis<dim+1> gb;
@@ -199,10 +236,26 @@ public:
   const kComps<dim> Nk;
   const unsigned int Nbands;
   const PetscInt end_ikm;
+  const bool periodic;
+  const kVals<dim> k_min;
+  const kVals<dim> k_max;
 
+  /** @brief Construct a `kmBasis` which spans the full Brillouin zone, in which k-points
+   *         are allowed to wrap periodically around the Brillouin zone boundaries.
+   *  @note This type of `kmBasis` is appropriate for a tight-binding model.
+   */
   kmBasis(kComps<dim> _Nk, unsigned int _Nbands)
       : gb(corresponding_GridBasis(_Nk, _Nbands)), Nk(_Nk), Nbands(_Nbands),
-        end_ikm(gb.end_iall) {}
+        end_ikm(gb.end_iall), periodic(true),
+        k_min(periodic_k_min()), k_max(periodic_k_max()) {}
+
+  /** @brief Construct a `kmBasis` which spans a defined range of k values, which do not
+   *         wrap periodically around the Brillouin zone boundaries.
+   *  @note This type of `kmBasis` is appropriate for a continuum model.
+   */
+  kmBasis(kComps<dim> _Nk, unsigned int _Nbands, kVals<dim> _k_min, kVals<dim> _k_max)
+      : gb(corresponding_GridBasis(_Nk, _Nbands)), Nk(_Nk), Nbands(_Nbands),
+        end_ikm(gb.end_iall), periodic(false), k_min(_k_min), k_max(_k_max) {}
 
   /** @brief Convert a linear sequence index `ikm` into the corresponding
    *         composite index (ik, m).
@@ -229,20 +282,42 @@ public:
     return gb.compose(all_comps);
   }
 
+  /** @brief Spacing between adjacent k-points along the reciprocal lattice
+   *         coordinate direction `i`, in reciprocal lattice coordinate units.
+   */
+  double k_step(std::size_t i) const {
+    return (k_max.at(i) - k_min.at(i)) / Nk.at(i);
+  }
+
+  /** @brief Given a composite (ik, m) index `ikm_comps` and the number of k-points
+   *         in each direction `Nk`, return the corresponding (k, m) value (where
+   *         k is a point in reciprocal lattice coordinates).
+   */
+  kmVals<dim> km_at(kmComps<dim> ikm_comps) const {
+    kVals<dim> ks;
+    for (std::size_t d = 0; d < dim; d++) {
+      double k_d_index = std::get<0>(ikm_comps).at(d);
+      ks.at(d) = k_min.at(d) + k_d_index * k_step(d);
+    }
+    kmVals<dim> km(ks, std::get<1>(ikm_comps));
+    return km;
+  }
+
   /** @brief Given a linear sequence index (`ikm`) and the k part of a composite
    *         sequence index difference (`Delta_k`), return the linear sequence
    *         index corresponding to
    *           decompose(ikm) + Delta_k
-   *         where k components are allowed to wrap around their boundaries
-   *         (i.e. k-space periodicity is respected).
+   *         If `periodic` is true, k components are allowed to wrap around their boundaries
+   *         (i.e. k-space periodicity is respected). Otherwise, `boost::none` is returned
+   *         when wrapping would occur.
    */
-  PetscInt add(PetscInt ikm, dkComps<dim> Delta_k) const {
+  boost::optional<PetscInt> add(PetscInt ikm, dkComps<dim> Delta_k) const {
     std::array<int, dim+1> Delta_km;
     for (std::size_t d = 0; d < dim; d++) {
       Delta_km.at(d) = Delta_k.at(d);
     }
     Delta_km.at(dim) = 0;
-    return gb.add(ikm, Delta_km);
+    return gb.add(ikm, Delta_km, periodic);
   }
 };
 
@@ -256,20 +331,6 @@ std::size_t get_Nk_total(const kComps<k_dim> Nk) {
     tot *= Nk.at(di);
   }
   return tot;
-}
-
-/** @brief Given a composite (ik, m) index `ikm_comps` and the number of k-points
- *         in each direction `Nk`, return the corresponding (k, m) value (where
- *         k is a point in reciprocal lattice coordinates).
- */
-template <std::size_t dim>
-kmVals<dim> km_at(kComps<dim> Nk, kmComps<dim> ikm_comps) {
-  kVals<dim> ks;
-  for (std::size_t d = 0; d < dim; d++) {
-    ks.at(d) = std::get<0>(ikm_comps).at(d) / static_cast<double>(Nk.at(d));
-  }
-  kmVals<dim> km(ks, std::get<1>(ikm_comps));
-  return km;
 }
 
 /** @brief Construct an array of k-diagonal matrices <km|A_i|km'>, where the elements are given

@@ -2,11 +2,11 @@
 
 namespace anomtrans {
 
-square_tb_Hamiltonian::square_tb_Hamiltonian(double _t, double _tp, kComps<2> _Nk)
-      : t(_t), tp(_tp), Nk(_Nk), Nbands(1) {}
+square_tb_Hamiltonian::square_tb_Hamiltonian(double _t, double _tp, kmBasis<2> _kmb)
+      : t(_t), tp(_tp), kmb(_kmb) {}
 
 double square_tb_Hamiltonian::energy(kmComps<2> ikm_comps) const {
-  kmVals<2> km = km_at(Nk, ikm_comps);
+  kmVals<2> km = kmb.km_at(ikm_comps);
   kVals<2> k = std::get<0>(km);
   unsigned int m = std::get<1>(km);
 
@@ -21,7 +21,7 @@ double square_tb_Hamiltonian::energy(kmComps<2> ikm_comps) const {
 }
 
 std::array<std::complex<double>, 2> square_tb_Hamiltonian::gradient(kmComps<2> ikm_comps, unsigned int mp) const {
-  kmVals<2> km = km_at(Nk, ikm_comps);
+  kmVals<2> km = kmb.km_at(ikm_comps);
   kVals<2> k = std::get<0>(km);
   unsigned int m = std::get<1>(km);
 

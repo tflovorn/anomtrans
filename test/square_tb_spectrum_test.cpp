@@ -66,7 +66,7 @@ TEST( square_TB_Hall, square_TB_Hall ) {
   unsigned int Nbands = 1;
   anomtrans::kmBasis<k_dim> kmb(Nk, Nbands);
 
-  anomtrans::square_tb_Hamiltonian H(t, tp, Nk);
+  anomtrans::square_tb_Hamiltonian H(t, tp, kmb);
 
   std::array<double, k_dim> a1 = {1.0, 0.0};
   std::array<double, k_dim> a2 = {0.0, 1.0};
