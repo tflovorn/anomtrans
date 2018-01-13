@@ -1,6 +1,7 @@
 #ifndef ANOMTRANS_RASHBA_HAMILTONIAN_H
 #define ANOMTRANS_RASHBA_HAMILTONIAN_H
 
+#include <stdexcept>
 #include <cassert>
 #include <cstddef>
 #include <cmath>
