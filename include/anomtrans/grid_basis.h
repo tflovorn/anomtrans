@@ -142,7 +142,7 @@ public:
       if (periodic) {
         new_comps.at(d) = result_comp % sizes.at(d);
       } else {
-        if (result_comp < 0 or result_comp > sizes.at(d)) {
+        if (result_comp < 0 or result_comp >= sizes.at(d)) {
           return boost::none;
         } else {
           new_comps.at(d) = result_comp;
