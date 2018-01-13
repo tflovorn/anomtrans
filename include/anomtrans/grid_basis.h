@@ -286,7 +286,16 @@ public:
    *         coordinate direction `i`, in reciprocal lattice coordinate units.
    */
   double k_step(std::size_t i) const {
-    return (k_max.at(i) - k_min.at(i)) / Nk.at(i);
+    if (periodic) {
+      // For periodic functions of k, don't want to sample full [0, 1] range:
+      // values on one end are the same as values on the other, and are overcounted
+      // if we include both ends. Use only range [0, 1).
+      return (k_max.at(i) - k_min.at(i)) / Nk.at(i);
+    } else {
+      // For non-periodic functions of k, want to sample both ends to avoid
+      // biasing the sample - take full [k_min, k_max] range.
+      return (k_max.at(i) - k_min.at(i)) / (Nk.at(i) - 1);
+    }
   }
 
   /** @brief Given a composite (ik, m) index `ikm_comps` and the number of k-points
