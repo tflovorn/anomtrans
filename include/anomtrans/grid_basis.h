@@ -282,6 +282,17 @@ public:
     return gb.compose(all_comps);
   }
 
+  /** @brief Volume of the k-space represented by this `kmBasis`.
+   *         In the periodic case, this value is 1.
+   */
+  double k_volume() const {
+    double v = 1.0;
+    for (std::size_t d = 0; d < dim; d++) {
+      v *= k_max.at(d) - k_min.at(d);
+    }
+    return v;
+  }
+
   /** @brief Spacing between adjacent k-points along the reciprocal lattice
    *         coordinate direction `i`, in reciprocal lattice coordinate units.
    */

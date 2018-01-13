@@ -8,6 +8,7 @@ list(APPEND SOURCES
   models/Rashba_Hamiltonian.cpp
   models/wannier90_Hamiltonian.cpp
   models/tmd_nn_Hamiltonian.cpp
+  models/wsm_continuum_Hamiltonian.cpp
   observables/spin.cpp
   observables/rho0.cpp
   disorder/collision.cpp
