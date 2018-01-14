@@ -6,6 +6,8 @@ import matplotlib.cm as cm
 import matplotlib.pyplot as plt
 from pyanomtrans.grid_basis import kmBasis, km_at
 
+VERBOSE = False
+
 def plot_2d_bz_slice(plot_path, title, all_k0s, all_k1s, all_vals):
     xs_set, ys_set = set(), set()
     for x, y in zip(all_k0s, all_k1s):
@@ -14,7 +16,12 @@ def plot_2d_bz_slice(plot_path, title, all_k0s, all_k1s, all_vals):
 
     num_xs, num_ys = len(xs_set), len(ys_set)
 
-    C_E = np.array(all_vals).reshape((num_xs, num_ys))
+    try:
+        C_E = np.array(all_vals).reshape((num_xs, num_ys))
+    except ValueError as err:
+        if VERBOSE:
+            print(err)
+        return
 
     plt.imshow(C_E, origin='lower', interpolation='none', cmap=cm.viridis)
     plt.axes().set_aspect('auto', 'box')
@@ -97,6 +104,83 @@ def split_bands(val, Nbands):
 
     return split_val
 
+def process_data(prefix, only, kmb, sorted_data):
+    all_k0s, all_k1s = [], []
+    for iks in split_bands(sorted_data['k_comps'], kmb.Nbands)[0]:
+        k, _ = km_at(kmb.Nk, (iks, 0))
+        all_k0s.append(k[0])
+        all_k1s.append(k[1])
+
+    for key, val in sorted_data.items():
+        # Don't plot the keys containing indices (these aren't values to plot)
+        if key in ('k_comps', 'ms'):
+            continue
+
+        if only is not None and key != only:
+            continue
+
+        if is_list(val[0]):
+            # val is a list of lists
+            for subval_index, subval_all_bands in enumerate(val):
+                if _one_band_list(key):
+                    # TODO incorporate plot titles
+                    title = None
+                    plot_2d_bz_slice("{}_{}_{}".format(prefix, key, subval_index), title, all_k0s, all_k1s, subval_all_bands)
+                else:
+                    subval_split = split_bands(subval_all_bands, kmb.Nbands)
+                    for band_index, subval_band in enumerate(subval_split):
+                        # TODO incorporate plot titles
+                        title = None
+                        plot_2d_bz_slice("{}_{}_m{}_{}".format(prefix, key, band_index, subval_index), title, all_k0s, all_k1s, subval_band)
+        else:
+            # val is a single list
+            val_split = split_bands(val, kmb.Nbands)
+            for band_index, val_band in enumerate(val_split):
+                # TODO incorporate plot titles
+                title = None
+                plot_2d_bz_slice("{}_{}_m{}".format(prefix, key, band_index), title, all_k0s, all_k1s, val_band)
+
+def extract_at_k2(kmb, sorted_data, target_k2):
+    sorted_data_k2 = {}
+    for key, val in sorted_data.items():
+        if key == 'k_comps':
+            continue
+
+        if _one_band_list(key):
+            this_k_comps = split_bands(sorted_data['k_comps'], kmb.Nbands)
+        else:
+            this_k_comps = sorted_data['k_comps']
+
+        sorted_data_k2[key] = []
+        if is_list(val[0]):
+            for val_sublist in val:
+                sorted_data_k2[key].append([])
+                for i, k in enumerate(this_k_comps):
+                    if k[2] == target_k2:
+                        sorted_data_k2[key][-1].append(val_sublist[i])
+        else:
+            for i, k in enumerate(this_k_comps):
+                if k[2] == target_k2:
+                    sorted_data_k2[key].append(val[i])
+
+    sorted_data_k2['k_comps'] = []
+    for k in sorted_data['k_comps']:
+        sorted_data_k2['k_comps'].append([k[0], k[1]])
+
+    for key, val in sorted_data_k2.items():
+        if key == 'k_comps':
+            continue
+
+        if is_list(val[0]):
+            for i, val_sublist in enumerate(val):
+                print(val_sublist)
+                print(sorted_data[key][i])
+                assert(len(val_sublist) == len(sorted_data[key][i]) / kmb.Nk[2])
+        else:
+            assert(len(val) == len(sorted_data[key]) / kmb.Nk[2])
+
+    return sorted_data_k2
+
 def _main():
     parser = argparse.ArgumentParser("Plot Fermi surface as shown by |df(Emk)/dk|",
             formatter_class=argparse.ArgumentDefaultsHelpFormatter)
@@ -153,44 +237,18 @@ def _main():
         else:
             sorted_data[key] = sorted_by_km(kmb, all_data['k_comps'], all_data['ms'], val)
 
-    # TODO handle d != 2
-    if len(Nk) != 2:
-        raise ValueError("d != 2 unsupported")
-
-    all_k0s, all_k1s = [], []
-    for iks in split_bands(sorted_data['k_comps'], Nbands)[0]:
-        k, _ = km_at(kmb.Nk, (iks, 0))
-        all_k0s.append(k[0])
-        all_k1s.append(k[1])
-
-    for key, val in sorted_data.items():
-        # Don't plot the keys containing indices (these aren't values to plot)
-        if key in ('k_comps', 'ms'):
-            continue
-
-        if args.only is not None and key != args.only:
-            continue
-
-        if is_list(val[0]):
-            # val is a list of lists
-            for subval_index, subval_all_bands in enumerate(val):
-                if _one_band_list(key):
-                    # TODO incorporate plot titles
-                    title = None
-                    plot_2d_bz_slice("{}_{}_{}".format(args.prefix, key, subval_index), title, all_k0s, all_k1s, subval_all_bands)
-                else:
-                    subval_split = split_bands(subval_all_bands, Nbands)
-                    for band_index, subval_band in enumerate(subval_split):
-                        # TODO incorporate plot titles
-                        title = None
-                        plot_2d_bz_slice("{}_{}_m{}_{}".format(args.prefix, key, band_index, subval_index), title, all_k0s, all_k1s, subval_band)
-        else:
-            # val is a single list
-            val_split = split_bands(val, Nbands)
-            for band_index, val_band in enumerate(val_split):
-                # TODO incorporate plot titles
-                title = None
-                plot_2d_bz_slice("{}_{}_m{}".format(args.prefix, key, band_index), title, all_k0s, all_k1s, val_band)
+    if len(Nk) == 1:
+        raise ValueError("d == 1 unsupported")
+    elif len(Nk) == 2:
+        process_data(args.prefix, args.only, kmb, sorted_data)
+    elif len(Nk) == 3:
+        for k2 in range(Nk[2]):
+            sorted_data_k2 = extract_at_k2(kmb, sorted_data, k2)
+            kmb_k2 = kmBasis([Nk[0], Nk[1]], Nbands)
+            prefix = "{}_k2_{}".format(args.prefix, k2)
+            process_data(prefix, args.only, kmb_k2, sorted_data_k2)
+    elif len(Nk) > 3:
+        raise ValueError("d > 3 unsupported")
 
 if __name__ == '__main__':
     _main()
