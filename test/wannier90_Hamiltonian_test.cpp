@@ -109,7 +109,7 @@ TEST( Wannier90_hr_load, Wannier90_hr_load ) {
 
 /** @brief Dynamic electric response to second order with WSe2 model from Wannier90 hr.dat.
  */
-TEST( Wannier90_WSe2_dynamic, Wannier90_WSe2_dynamic ) {
+TEST( Wannier90_WSe2_dynamic, DISABLED_Wannier90_WSe2_dynamic ) {
   boost::optional<std::string> test_data_dir = anomtrans::getenv_optional("ANOMTRANS_TEST_DATA_DIR");
   if (not test_data_dir) {
     throw std::runtime_error("Could not get ANOMTRANS_TEST_DATA_DIR environment variable for regression test data");
