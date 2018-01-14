@@ -171,7 +171,8 @@ std::array<std::complex<double>, 3> WsmContinuumHamiltonian::gradient(kmComps<3>
   auto grad = grad_H(k);
 
   return {(U.adjoint() * grad.at(0) * U)(m, mp),
-      (U.adjoint() * grad.at(1) * U)(m, mp)};
+      (U.adjoint() * grad.at(1) * U)(m, mp),
+      (U.adjoint() * grad.at(2) * U)(m, mp)};
 }
 
 /** @brief Spin matrices for S = 1/2 in basis {(t+, s+), (t+, s-), (t-, s+), (t-, s-)},
