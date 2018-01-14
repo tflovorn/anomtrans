@@ -230,6 +230,63 @@ void add_linear_response_electric(std::shared_ptr<StaticDMGraphNode> eq_node,
   PetscErrorCode ierr = MatDestroy(&D_E_rho0);CHKERRXX(ierr);
 }
 
+/** @brief Given a node containing the equilibrium density matrix,
+ *         add children to it corresponding to linear response to an applied magnetic
+ *         field and return a list of those children.
+ */
+template <std::size_t k_dim, typename Hamiltonian>
+void add_linear_response_magnetic(std::shared_ptr<StaticDMGraphNode> eq_node,
+    const kmBasis<k_dim> &kmb, std::array<Mat, k_dim> DH0_cross_Bhat,
+    std::array<Mat, k_dim> d_dk_Cart, std::array<Mat, k_dim> R,
+    Vec Bhat_dot_Omega, const Hamiltonian &H, double berry_broadening) {
+  // eq_node must be the equilibrium density matrix, which has no parents.
+  assert(eq_node->parents.size() == 0);
+
+  // Construct off-diagonal response, <S_B^{(0)}> = [P^{-1} D_B(<rho_0>)]_{m, m' \neq m}.
+  Mat D_B_rho = apply_driving_magnetic(kmb, DH0_cross_Bhat, d_dk_Cart, R, eq_node->rho);
+
+  set_Mat_diagonal(D_B_rho, 0.0);
+  Mat child_S_B_intrinsic = apply_precession_term(kmb, H, D_B_rho, berry_broadening);
+
+  auto child_S_B_intrinsic_node_kind = StaticDMKind::S;
+  int child_S_B_intrinsic_impurity_order = 0;
+  std::string child_S_B_intrinsic_name = "S_B^{(0)}";
+  StaticDMGraphNode::ParentsMap child_S_B_intrinsic_parents {
+    {StaticDMDerivedBy::P_inv_DB, std::weak_ptr<StaticDMGraphNode>(eq_node)},
+  };
+  auto child_S_B_intrinsic_node = std::make_shared<StaticDMGraphNode>(child_S_B_intrinsic,
+      child_S_B_intrinsic_node_kind, child_S_B_intrinsic_impurity_order,
+      child_S_B_intrinsic_name, child_S_B_intrinsic_parents);
+
+  eq_node->children[StaticDMDerivedBy::P_inv_DB] = child_S_B_intrinsic_node;
+
+  // Construct diagonal response, <\xi_B^{(0)}> = [P^{-1} D_B(<rho_0>)]_{mm}
+  //  = (e / \hbar) n_{km} * (B dot Omega_{km}).
+  Vec eq_diag;
+  PetscErrorCode ierr = VecCreateMPI(PETSC_COMM_WORLD, PETSC_DECIDE, kmb.end_ikm,
+      &eq_diag);CHKERRXX(ierr);
+  ierr = MatGetDiagonal(eq_node->rho, eq_diag);CHKERRXX(ierr);
+
+  Vec xi;
+  ierr = VecDuplicate(eq_diag, &xi);CHKERRXX(ierr);
+  ierr = VecPointwiseMult(xi, eq_diag, Bhat_dot_Omega);CHKERRXX(ierr);
+
+  Mat child_xi_Mat = make_diag_Mat(xi);
+  auto child_xi_node_kind = StaticDMKind::xi;
+  int child_xi_impurity_order = 0;
+  std::string child_xi_name = "\\xi_B^{(0)}";
+  StaticDMGraphNode::ParentsMap child_xi_parents {
+    {StaticDMDerivedBy::B_dot_Omega, std::weak_ptr<StaticDMGraphNode>(eq_node)}
+  };
+  auto child_xi_node = std::make_shared<StaticDMGraphNode>(child_xi_Mat, child_xi_node_kind,
+      child_xi_impurity_order, child_xi_name, child_xi_parents);
+
+  eq_node->children[StaticDMDerivedBy::B_dot_Omega] = child_xi_node;
+
+  ierr = VecDestroy(&xi);CHKERRXX(ierr);
+  ierr = MatDestroy(&D_B_rho);CHKERRXX(ierr);
+}
+
 /** @brief Add children to `node` corresponding to the next order of the expansion in powers
  *         of magnetic field and return a list of those children.
  *  @precondition `node` should already include the electric field linear response,
