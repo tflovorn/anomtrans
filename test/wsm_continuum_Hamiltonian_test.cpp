@@ -72,7 +72,7 @@ TEST( WsmContinuumHamiltonian, wsm_continuum_ahe ) {
   anomtrans::kVals<k_dim> k_max = {2.0 * k0, 2.0 * k0, 2.0 * k0};
   unsigned int num_mus = 1;
   double beta = 4.0;
-  double sigma = 0.06;
+  double sigma = 0.2;
 
   unsigned int Nbands = 4;
   anomtrans::kmBasis<k_dim> kmb(Nk, Nbands, k_min, k_max);
@@ -302,7 +302,6 @@ TEST( WsmContinuumHamiltonian, wsm_continuum_ahe ) {
     ASSERT_TRUE( anomtrans::check_equal_within(j_out["ms"].get<std::vector<unsigned int>>(),
         j_known["ms"].get<std::vector<unsigned int>>(), -1.0, -1.0) );
 
-    // t is an appropriate scale for E.
     auto macheps = std::numeric_limits<PetscReal>::epsilon();
     ASSERT_TRUE( anomtrans::check_equal_within(j_out["Ekm"].get<std::vector<PetscReal>>(),
         j_known["Ekm"].get<std::vector<PetscReal>>(),
