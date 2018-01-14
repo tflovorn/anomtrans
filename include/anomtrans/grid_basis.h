@@ -255,7 +255,11 @@ public:
    */
   kmBasis(kComps<dim> _Nk, unsigned int _Nbands, kVals<dim> _k_min, kVals<dim> _k_max)
       : gb(corresponding_GridBasis(_Nk, _Nbands)), Nk(_Nk), Nbands(_Nbands),
-        end_ikm(gb.end_iall), periodic(false), k_min(_k_min), k_max(_k_max) {}
+        end_ikm(gb.end_iall), periodic(false), k_min(_k_min), k_max(_k_max) {
+    if (k_volume() == 0.0) {
+      throw std::invalid_argument("must have k_min != k_max in all directions");
+    }
+  }
 
   /** @brief Convert a linear sequence index `ikm` into the corresponding
    *         composite index (ik, m).
