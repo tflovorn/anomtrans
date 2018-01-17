@@ -204,7 +204,7 @@ TEST( WsmContinuumHamiltonian, wsm_continuum_ahe ) {
     // Have obtained linear response to electric field. Can calculate this
     // part of the longitudinal conductivity.
     // sigma_yy = -e Tr[v_y <rho_{E_y}>] / E_y
-    PetscScalar sigma_yy = kmb.k_volume() * anomtrans::calculate_current_ev(kmb, v_op, dm_n_E->rho).at(0);
+    PetscScalar sigma_yy = anomtrans::calculate_current_ev(kmb, v_op, dm_n_E->rho).at(0);
     all_sigma_yys.push_back(sigma_yy.real());
 
     auto collected_rho0 = anomtrans::split_scalars(anomtrans::collect_contents(rho0_km)).first;
@@ -215,11 +215,11 @@ TEST( WsmContinuumHamiltonian, wsm_continuum_ahe ) {
     auto dm_S_E_intrinsic = dm_rho0->children[anomtrans::StaticDMDerivedBy::P_inv_DE];
     auto dm_S_E_extrinsic = dm_n_E->children[anomtrans::StaticDMDerivedBy::P_inv_Kod];
 
-    PetscScalar sigma_xy_S_E_intrinsic = kmb.k_volume() * anomtrans::calculate_current_ev(kmb, v_op,
+    PetscScalar sigma_xy_S_E_intrinsic = anomtrans::calculate_current_ev(kmb, v_op,
         dm_S_E_intrinsic->rho).at(0);
     all_sigma_xy_S_E_intrinsic.push_back(sigma_xy_S_E_intrinsic.real());
 
-    PetscScalar sigma_xy_S_E_extrinsic = kmb.k_volume() * anomtrans::calculate_current_ev(kmb, v_op,
+    PetscScalar sigma_xy_S_E_extrinsic = anomtrans::calculate_current_ev(kmb, v_op,
         dm_S_E_extrinsic->rho).at(0);
     all_sigma_xy_S_E_extrinsic.push_back(sigma_xy_S_E_extrinsic.real());
 
@@ -311,6 +311,12 @@ TEST( WsmContinuumHamiltonian, wsm_continuum_ahe ) {
     // TODO - what are appropriate scales for conductivities? Absolute error depends on disorder scale.
     ASSERT_TRUE( anomtrans::check_equal_within(j_out["_series_sigma_yy"].get<std::vector<PetscReal>>(),
         j_known["_series_sigma_yy"].get<std::vector<PetscReal>>(),
+        100.0*macheps, 100.0*macheps) );
+    ASSERT_TRUE( anomtrans::check_equal_within(j_out["_series_sigma_xy_S_E_intrinsic"].get<std::vector<PetscReal>>(),
+        j_known["_series_sigma_xy_S_E_intrinsic"].get<std::vector<PetscReal>>(),
+        100.0*macheps, 100.0*macheps) );
+    ASSERT_TRUE( anomtrans::check_equal_within(j_out["_series_sigma_xy_S_E_extrinsic"].get<std::vector<PetscReal>>(),
+        j_known["_series_sigma_xy_S_E_extrinsic"].get<std::vector<PetscReal>>(),
         100.0*macheps, 100.0*macheps) );
 
     // 1 is an appropriate scale for rho: elements range from 0 to 1.
@@ -428,10 +434,10 @@ TEST( WsmContinuumHamiltonian, wsm_continuum_cme ) {
 
     // Have obtained linear response to magnetic field. Can calculate this
     // part of the longitudinal conductivity.
-    PetscScalar current_S_B = kmb.k_volume() * anomtrans::calculate_current_ev(kmb, v_op, dm_S_B->rho).at(2);
+    PetscScalar current_S_B = anomtrans::calculate_current_ev(kmb, v_op, dm_S_B->rho).at(2);
     all_current_S_B.push_back(current_S_B.real());
 
-    PetscScalar current_xi_B = kmb.k_volume() * anomtrans::calculate_current_ev(kmb, v_op, dm_xi_B->rho).at(2);
+    PetscScalar current_xi_B = anomtrans::calculate_current_ev(kmb, v_op, dm_xi_B->rho).at(2);
     all_current_xi_B.push_back(current_xi_B.real());
 
     ierr = VecDestroy(&xi_B);CHKERRXX(ierr);
@@ -703,9 +709,9 @@ TEST( WsmContinuumHamiltonian, wsm_continuum_quadratic_magnetoconductivity ) {
     auto dm_xi_to_S_ext = dm_xi_B_n_EB->children[anomtrans::StaticDMDerivedBy::Kdd_inv_DB]
         ->children[anomtrans::StaticDMDerivedBy::P_inv_Kod];
 
-    PetscScalar sigma_xi_to_xi = kmb.k_volume() * anomtrans::calculate_current_ev(kmb, v_op, dm_xi_to_xi->rho).at(2);
-    PetscScalar sigma_xi_to_S_int = kmb.k_volume() * anomtrans::calculate_current_ev(kmb, v_op, dm_xi_to_S_int->rho).at(2);
-    PetscScalar sigma_xi_to_S_ext = kmb.k_volume() * anomtrans::calculate_current_ev(kmb, v_op, dm_xi_to_S_ext->rho).at(2);
+    PetscScalar sigma_xi_to_xi = anomtrans::calculate_current_ev(kmb, v_op, dm_xi_to_xi->rho).at(2);
+    PetscScalar sigma_xi_to_S_int = anomtrans::calculate_current_ev(kmb, v_op, dm_xi_to_S_int->rho).at(2);
+    PetscScalar sigma_xi_to_S_ext = anomtrans::calculate_current_ev(kmb, v_op, dm_xi_to_S_ext->rho).at(2);
 
     all_sigma_xi_to_xi.push_back(sigma_xi_to_xi.real());
     all_sigma_xi_to_S_int.push_back(sigma_xi_to_S_int.real());
@@ -730,9 +736,9 @@ TEST( WsmContinuumHamiltonian, wsm_continuum_quadratic_magnetoconductivity ) {
     auto dm_S_int_to_S_ext = dm_S_E_int_n_EB->children[anomtrans::StaticDMDerivedBy::Kdd_inv_DB]
         ->children[anomtrans::StaticDMDerivedBy::P_inv_Kod];
 
-    PetscScalar sigma_S_int_to_xi = kmb.k_volume() * anomtrans::calculate_current_ev(kmb, v_op, dm_S_int_to_xi->rho).at(2);
-    PetscScalar sigma_S_int_to_S_int = kmb.k_volume() * anomtrans::calculate_current_ev(kmb, v_op, dm_S_int_to_S_int->rho).at(2);
-    PetscScalar sigma_S_int_to_S_ext = kmb.k_volume() * anomtrans::calculate_current_ev(kmb, v_op, dm_S_int_to_S_ext->rho).at(2);
+    PetscScalar sigma_S_int_to_xi = anomtrans::calculate_current_ev(kmb, v_op, dm_S_int_to_xi->rho).at(2);
+    PetscScalar sigma_S_int_to_S_int = anomtrans::calculate_current_ev(kmb, v_op, dm_S_int_to_S_int->rho).at(2);
+    PetscScalar sigma_S_int_to_S_ext = anomtrans::calculate_current_ev(kmb, v_op, dm_S_int_to_S_ext->rho).at(2);
 
     all_sigma_S_int_to_xi.push_back(sigma_S_int_to_xi.real());
     all_sigma_S_int_to_S_int.push_back(sigma_S_int_to_S_int.real());
@@ -752,9 +758,9 @@ TEST( WsmContinuumHamiltonian, wsm_continuum_quadratic_magnetoconductivity ) {
     auto dm_S_ext_to_S_ext = dm_S_E_ext_n_EB->children[anomtrans::StaticDMDerivedBy::Kdd_inv_DB]
         ->children[anomtrans::StaticDMDerivedBy::P_inv_Kod];
 
-    PetscScalar sigma_S_ext_to_xi = kmb.k_volume() * anomtrans::calculate_current_ev(kmb, v_op, dm_S_ext_to_xi->rho).at(2);
-    PetscScalar sigma_S_ext_to_S_int = kmb.k_volume() * anomtrans::calculate_current_ev(kmb, v_op, dm_S_ext_to_S_int->rho).at(2);
-    PetscScalar sigma_S_ext_to_S_ext = kmb.k_volume() * anomtrans::calculate_current_ev(kmb, v_op, dm_S_ext_to_S_ext->rho).at(2);
+    PetscScalar sigma_S_ext_to_xi = anomtrans::calculate_current_ev(kmb, v_op, dm_S_ext_to_xi->rho).at(2);
+    PetscScalar sigma_S_ext_to_S_int = anomtrans::calculate_current_ev(kmb, v_op, dm_S_ext_to_S_int->rho).at(2);
+    PetscScalar sigma_S_ext_to_S_ext = anomtrans::calculate_current_ev(kmb, v_op, dm_S_ext_to_S_ext->rho).at(2);
 
     all_sigma_S_ext_to_xi.push_back(sigma_S_ext_to_xi.real());
     all_sigma_S_ext_to_S_int.push_back(sigma_S_ext_to_S_int.real());

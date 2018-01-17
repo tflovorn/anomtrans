@@ -256,7 +256,7 @@ public:
   kmBasis(kComps<dim> _Nk, unsigned int _Nbands, kVals<dim> _k_min, kVals<dim> _k_max)
       : gb(corresponding_GridBasis(_Nk, _Nbands)), Nk(_Nk), Nbands(_Nbands),
         end_ikm(gb.end_iall), periodic(false), k_min(_k_min), k_max(_k_max) {
-    if (k_volume() == 0.0) {
+    if (k_sample_point_volume() == 0.0) {
       throw std::invalid_argument("must have k_min != k_max in all directions");
     }
   }
@@ -286,17 +286,6 @@ public:
     return gb.compose(all_comps);
   }
 
-  /** @brief Volume of the k-space represented by this `kmBasis`.
-   *         In the periodic case, this value is 1.
-   */
-  double k_volume() const {
-    double v = 1.0;
-    for (std::size_t d = 0; d < dim; d++) {
-      v *= k_max.at(d) - k_min.at(d);
-    }
-    return v;
-  }
-
   /** @brief Spacing between adjacent k-points along the reciprocal lattice
    *         coordinate direction `d`, in reciprocal lattice coordinate units.
    */
@@ -311,6 +300,17 @@ public:
       // biasing the sample - take full [k_min, k_max] range.
       return (k_max.at(d) - k_min.at(d)) / (Nk.at(d) - 1);
     }
+  }
+
+  /** @brief Volume of the k-space associated with a single k-point with the
+   *         sampling determined by this `kmBasis`.
+   */
+  double k_sample_point_volume() const {
+    double fac = 1.0;
+    for (std::size_t d = 0; d < dim; d++) {
+      fac *= k_step(d);
+    }
+    return fac;
   }
 
   /** @brief Given a composite (ik, m) index `ikm_comps` and the number of k-points
@@ -514,7 +514,7 @@ PetscScalar Mat_product_trace_normalized(const kmBasis<k_dim> &kmb, std::array<M
     Nk_tot *= kmb.Nk.at(d);
   }
 
-  return Mat_product_trace(xs) / std::complex<double>(Nk_tot, 0.0);
+  return kmb.k_sample_point_volume() * Mat_product_trace(xs);
 }
 
 } // namespace anomtrans
