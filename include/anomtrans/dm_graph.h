@@ -1,7 +1,7 @@
 #ifndef ANOMTRANS_DM_GRAPH_H
 #define ANOMTRANS_DM_GRAPH_H
 
-#include <cassert>
+#include <stdexcept>
 #include <string>
 #include <array>
 #include <map>
@@ -111,8 +111,6 @@ std::shared_ptr<DMNodeType> make_eq_node(Vec Ekm, double beta, double mu) {
  *         add children to it corresponding to linear response to an applied magnetic
  *         field and return a list of those children.
  *  @todo Add parameters necessary to implement this.
- *  @todo Implementation can check that rho0 is really the equilibrium density matrix
- *        by verifying that its list of parents is empty.
  */
 //DMGraphNode::ChildrenMap add_linear_response_magnetic(DMGraphNode &eq_node);
 
@@ -169,7 +167,8 @@ std::map<StaticDMDerivedBy, Mat> get_response_electric(Mat D_E_rho,
 
 } // namespace internal
 
-/** @brief Given a node containing the equilibrium density matrix,
+/** @brief Given a node containing the equilibrium density matrix <rho_0> or the diagonal
+ *         part of the magnetic field linear response <xi_B>,
  *         add children to it corresponding to linear response to an applied electric
  *         field and return a list of those children.
  *  @param disorder_term_od A function with signature `complex<double> f(ikm1, ikm2, ikm3)`
@@ -177,48 +176,47 @@ std::map<StaticDMDerivedBy, Mat> get_response_electric(Mat D_E_rho,
  *                          Must have k1 = k3 for valid result.
  *  @precondition Kdd_ksp should have its nullspace set appropriately before this function is
  *                called (the nullspace of Kdd is the <rho_0> vector).
+ *  @todo Verify that parent_node is appropriate. <rho_0> or <xi_B> are allowed.
+ *        Should <S_B> be allowed?
  */
 template <std::size_t k_dim, typename Hamiltonian, typename UU_OD>
-void add_linear_response_electric(std::shared_ptr<StaticDMGraphNode> eq_node,
+void add_linear_response_electric(std::shared_ptr<StaticDMGraphNode> parent_node,
     const kmBasis<k_dim> &kmb, Mat Ehat_dot_grad_k, Mat Ehat_dot_R, KSP Kdd_ksp,
     const Hamiltonian &H, const double sigma, const UU_OD &disorder_term_od,
     double berry_broadening) {
-  // eq_node must be the equilibrium density matrix, which has no parents.
-  assert(eq_node->parents.size() == 0);
+  Mat D_E_rho = apply_driving_electric(kmb, Ehat_dot_grad_k, Ehat_dot_R, parent_node->rho);
 
-  Mat D_E_rho0 = apply_driving_electric(kmb, Ehat_dot_grad_k, Ehat_dot_R, eq_node->rho);
-
-  auto child_Mats = internal::get_response_electric(D_E_rho0, kmb, Kdd_ksp,
+  auto child_Mats = internal::get_response_electric(D_E_rho, kmb, Kdd_ksp,
       H, sigma, disorder_term_od, berry_broadening);
 
   Mat n_E_Mat = child_Mats[StaticDMDerivedBy::Kdd_inv_DE];
   auto n_E_node_kind = StaticDMKind::n;
-  int n_E_impurity_order = -1;
-  std::string n_E_name = "n_E^{(-1)}";
+  int n_E_impurity_order = parent_node->impurity_order - 1;
+  std::string n_E_name = ""; // TODO
   StaticDMGraphNode::ParentsMap n_E_parents {
-    {StaticDMDerivedBy::Kdd_inv_DE, std::weak_ptr<StaticDMGraphNode>(eq_node)}
+    {StaticDMDerivedBy::Kdd_inv_DE, std::weak_ptr<StaticDMGraphNode>(parent_node)}
   };
   auto n_E_node = std::make_shared<StaticDMGraphNode>(n_E_Mat, n_E_node_kind, n_E_impurity_order,
       n_E_name, n_E_parents);
 
-  eq_node->children[StaticDMDerivedBy::Kdd_inv_DE] = n_E_node;
+  parent_node->children[StaticDMDerivedBy::Kdd_inv_DE] = n_E_node;
 
   Mat S_E_intrinsic = child_Mats[StaticDMDerivedBy::P_inv_DE];
   auto S_E_intrinsic_node_kind = StaticDMKind::S;
-  int S_E_intrinsic_impurity_order = 0;
-  std::string S_E_intrinsic_name = "S_E^{(0)}"; // TODO intrinsic vs extrinsic in name
+  int S_E_intrinsic_impurity_order = parent_node->impurity_order;
+  std::string S_E_intrinsic_name = ""; // TODO
   StaticDMGraphNode::ParentsMap S_E_intrinsic_parents {
-    {StaticDMDerivedBy::P_inv_DE, std::weak_ptr<StaticDMGraphNode>(eq_node)},
+    {StaticDMDerivedBy::P_inv_DE, std::weak_ptr<StaticDMGraphNode>(parent_node)},
   };
   auto S_E_intrinsic_node = std::make_shared<StaticDMGraphNode>(S_E_intrinsic, S_E_intrinsic_node_kind,
       S_E_intrinsic_impurity_order, S_E_intrinsic_name, S_E_intrinsic_parents);
 
-  eq_node->children[StaticDMDerivedBy::P_inv_DE] = S_E_intrinsic_node;
+  parent_node->children[StaticDMDerivedBy::P_inv_DE] = S_E_intrinsic_node;
 
   Mat S_E_extrinsic = child_Mats[StaticDMDerivedBy::P_inv_Kod];
   auto S_E_extrinsic_node_kind = StaticDMKind::S;
-  int S_E_extrinsic_impurity_order = 0;
-  std::string S_E_extrinsic_name = "S_E^{(0)}";
+  int S_E_extrinsic_impurity_order = parent_node->impurity_order;
+  std::string S_E_extrinsic_name = ""; // TODO
   StaticDMGraphNode::ParentsMap S_E_extrinsic_parents {
     {StaticDMDerivedBy::P_inv_Kod, std::weak_ptr<StaticDMGraphNode>(n_E_node)}
   };
@@ -227,7 +225,7 @@ void add_linear_response_electric(std::shared_ptr<StaticDMGraphNode> eq_node,
 
   n_E_node->children[StaticDMDerivedBy::P_inv_Kod] = S_E_extrinsic_node;
 
-  PetscErrorCode ierr = MatDestroy(&D_E_rho0);CHKERRXX(ierr);
+  PetscErrorCode ierr = MatDestroy(&D_E_rho);CHKERRXX(ierr);
 }
 
 /** @brief Given a node containing the equilibrium density matrix,
@@ -240,7 +238,9 @@ void add_linear_response_magnetic(std::shared_ptr<StaticDMGraphNode> eq_node,
     std::array<Mat, k_dim> d_dk_Cart, std::array<Mat, k_dim> R,
     Vec Bhat_dot_Omega, const Hamiltonian &H, double berry_broadening) {
   // eq_node must be the equilibrium density matrix, which has no parents.
-  assert(eq_node->parents.size() == 0);
+  if (eq_node->parents.size() != 0) {
+    throw std::invalid_argument("must apply add_linear_response_magnetic to equilibrium node");
+  }
 
   // Construct off-diagonal response, <S_B^{(0)}> = [P^{-1} D_B(<rho_0>)]_{m, m' \neq m}.
   Mat D_B_rho = apply_driving_magnetic(kmb, DH0_cross_Bhat, d_dk_Cart, R, eq_node->rho);
