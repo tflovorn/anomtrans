@@ -298,18 +298,18 @@ public:
   }
 
   /** @brief Spacing between adjacent k-points along the reciprocal lattice
-   *         coordinate direction `i`, in reciprocal lattice coordinate units.
+   *         coordinate direction `d`, in reciprocal lattice coordinate units.
    */
-  double k_step(std::size_t i) const {
+  double k_step(std::size_t d) const {
     if (periodic) {
       // For periodic functions of k, don't want to sample full [0, 1] range:
       // values on one end are the same as values on the other, and are overcounted
       // if we include both ends. Use only range [0, 1).
-      return (k_max.at(i) - k_min.at(i)) / Nk.at(i);
+      return (k_max.at(d) - k_min.at(d)) / Nk.at(d);
     } else {
       // For non-periodic functions of k, want to sample both ends to avoid
       // biasing the sample - take full [k_min, k_max] range.
-      return (k_max.at(i) - k_min.at(i)) / (Nk.at(i) - 1);
+      return (k_max.at(d) - k_min.at(d)) / (Nk.at(d) - 1);
     }
   }
 
