@@ -10,6 +10,7 @@
 #include "grid_basis.h"
 #include "models/wsm_continuum_Hamiltonian.h"
 #include "models/wsm_continuum_node_Hamiltonian.h"
+#include "models/wsm_continuum_mu5_Hamiltonian.h"
 #include "observables/energy.h"
 #include "util/vec.h"
 #include "util/mat.h"
@@ -63,17 +64,21 @@ TEST( WsmContinuumHamiltonian, wsm_continuum_ahe ) {
   std::array<unsigned int, k_dim> Nk = {16, 16, 16};
   anomtrans::kVals<k_dim> k_min = {-2.0 * k0, -2.0 * k0, -2.0 * k0};
   anomtrans::kVals<k_dim> k_max = {2.0 * k0, 2.0 * k0, 2.0 * k0};
-  unsigned int num_mus = 10;
+  double mu_factor = 0.45;
+  unsigned int num_mus = 1;
   double beta = 16.0;
-  double sigma = 0.0147;
+  double sigma = 0.1;
+  double berry_broadening = 1e-4;
   */
   // Parameters for regression test.
   std::array<unsigned int, k_dim> Nk = {4, 4, 4};
   anomtrans::kVals<k_dim> k_min = {-2.0 * k0, -2.0 * k0, -2.0 * k0};
   anomtrans::kVals<k_dim> k_max = {2.0 * k0, 2.0 * k0, 2.0 * k0};
+  double mu_factor = 0.45;
   unsigned int num_mus = 1;
   double beta = 4.0;
   double sigma = 0.2;
+  double berry_broadening = 1e-4;
 
   unsigned int Nbands = 4;
   anomtrans::kmBasis<k_dim> kmb(Nk, Nbands, k_min, k_max);
@@ -153,12 +158,9 @@ TEST( WsmContinuumHamiltonian, wsm_continuum_ahe ) {
   Mat Ehat_dot_grad_k = anomtrans::Mat_from_sum_const(anomtrans::make_complex_array(Ehat),
       d_dk_Cart, Ehat_grad_expected_elems_per_row);
 
-  // TODO - what is a good way to choose broadening for Berry connection?
-  double berry_broadening = 1e-4;
   auto R = anomtrans::make_berry_connection(kmb, H, berry_broadening);
   auto Ehat_dot_R = anomtrans::Mat_from_sum_const(anomtrans::make_complex_array(Ehat), R, kmb.Nbands);
 
-  double mu_factor = 0.45;
   double mu_min = (1 - mu_factor) * Ekm_min + mu_factor * Ekm_max;
   double mu_max = mu_factor * Ekm_min + (1 - mu_factor) * Ekm_max;
   auto mus = anomtrans::linspace(mu_min, mu_max, num_mus);
@@ -334,7 +336,7 @@ TEST( WsmContinuumHamiltonian, wsm_continuum_ahe ) {
 /** @brief Check that the chiral magnetic effect on a single Weyl node has the
  *         expected form for the Weyl semimetal continuum model.
  */
-TEST( WsmContinuumHamiltonian, wsm_continuum_cme ) {
+TEST( WsmContinuumNodeHamiltonian, wsm_continuum_cme_node ) {
   int rank;
   MPI_Comm_rank(PETSC_COMM_WORLD, &rank);
 
@@ -345,16 +347,18 @@ TEST( WsmContinuumHamiltonian, wsm_continuum_cme ) {
 
   // Parameters for result plots.
   /*
-  std::array<unsigned int, k_dim> Nk = {16, 16, 16};
-  anomtrans::kVals<k_dim> k_min = {-2.0 * k0, -2.0 * k0, -2.0 * k0};
-  anomtrans::kVals<k_dim> k_max = {2.0 * k0, 2.0 * k0, 2.0 * k0};
+  std::array<unsigned int, k_dim> Nk = {64, 64, 64};
+  anomtrans::kVals<k_dim> k_min = {-0.5, -0.5, -0.5};
+  anomtrans::kVals<k_dim> k_max = {0.5, 0.5, 0.5};
+  double mu_factor = 0.45;
   unsigned int num_mus = 2;
-  double beta = 16.0;
+  double beta = 32.0;
   */
   // Parameters for regression test.
   std::array<unsigned int, k_dim> Nk = {4, 4, 4};
   anomtrans::kVals<k_dim> k_min = {-0.5, -0.5, -0.5};
   anomtrans::kVals<k_dim> k_max = {0.5, 0.5, 0.5};
+  double mu_factor = 0.45;
   unsigned int num_mus = 2;
   double beta = 4.0;
 
@@ -403,7 +407,6 @@ TEST( WsmContinuumHamiltonian, wsm_continuum_cme ) {
   auto Omega = anomtrans::make_berry_curvature(kmb, H, berry_broadening);
   auto Bhat_dot_Omega = anomtrans::Vec_from_sum_const(anomtrans::make_complex_array(Bhat), Omega);
 
-  double mu_factor = 0.45;
   double mu_min = (1 - mu_factor) * Ekm_min + mu_factor * Ekm_max;
   double mu_max = mu_factor * Ekm_min + (1 - mu_factor) * Ekm_max;
   auto mus = anomtrans::linspace(mu_min, mu_max, num_mus);
@@ -495,6 +498,220 @@ TEST( WsmContinuumHamiltonian, wsm_continuum_cme ) {
 
     std::stringstream known_path;
     known_path << *test_data_dir << "/wsm_continuum_cme_test_out.json";
+
+    json j_known;
+    std::ifstream fp_k(known_path.str());
+    if (not fp_k.good()) {
+      throw std::runtime_error("could not open file in check_json_equal");
+    }
+    fp_k >> j_known;
+    fp_k.close();
+
+    // TODO clean these checks up: could replace these long calls with calls to
+    // a function template that takes a type, two jsons, a key, and a tol:
+    // ASSERT_TRUE( anomtrans::check_json_elem_equal<T>(j_out, j_known, key, tol) );
+    // This function would call check_equal_within in the same way as below.
+    //
+    // k_comps and ms are integers and should be exactly equal.
+    // NOTE - nlohmann::json doesn't implement std::arrays. Use a std::vector
+    // here: it has the same JSON representation as the array.
+    ASSERT_TRUE( anomtrans::check_equal_within(j_out["k_comps"].get<std::vector<std::vector<unsigned int>>>(),
+          j_known["k_comps"].get<std::vector<std::vector<unsigned int>>>(), -1.0, -1.0) );
+    ASSERT_TRUE( anomtrans::check_equal_within(j_out["ms"].get<std::vector<unsigned int>>(),
+        j_known["ms"].get<std::vector<unsigned int>>(), -1.0, -1.0) );
+
+    auto macheps = std::numeric_limits<PetscReal>::epsilon();
+    ASSERT_TRUE( anomtrans::check_equal_within(j_out["Ekm"].get<std::vector<PetscReal>>(),
+        j_known["Ekm"].get<std::vector<PetscReal>>(),
+        100.0*macheps, 10.0*macheps) );
+
+    ASSERT_TRUE( anomtrans::check_equal_within(j_out["_series_current_S_B"].get<std::vector<PetscReal>>(),
+        j_known["_series_current_S_B"].get<std::vector<PetscReal>>(),
+        100.0*macheps, 100.0*macheps) );
+    ASSERT_TRUE( anomtrans::check_equal_within(j_out["_series_current_xi_B"].get<std::vector<PetscReal>>(),
+        j_known["_series_current_xi_B"].get<std::vector<PetscReal>>(),
+        100.0*macheps, 100.0*macheps) );
+
+    // 1 is an appropriate scale for rho: elements range from 0 to 1.
+    // TODO using 1 as scale for norm_d_rho0_dk also. Is this appropriate?
+    // The k here is has scale 1 (k_recip values from 0 to 1).
+    ASSERT_TRUE( anomtrans::check_equal_within(j_out["rho0"].get<std::vector<std::vector<PetscReal>>>(),
+        j_known["rho0"].get<std::vector<std::vector<PetscReal>>>(),
+        100.0*macheps, 10.0*macheps) );
+    ASSERT_TRUE( anomtrans::check_equal_within(j_out["xi_B"].get<std::vector<std::vector<PetscReal>>>(),
+        j_known["xi_B"].get<std::vector<std::vector<PetscReal>>>(),
+        100.0*macheps, 10.0*macheps) );
+  }
+}
+
+/** @brief Check that the chiral magnetic effect on a pair of Weyl nodes has the
+ *         expected form (magnitude proportional to the energy separation between nodes).
+ */
+TEST( WsmContinuumMu5Hamiltonian, wsm_continuum_cme_mu5 ) {
+  int rank;
+  MPI_Comm_rank(PETSC_COMM_WORLD, &rank);
+
+  const std::size_t k_dim = 3;
+
+  // Energy unit is Delta.
+  double b = 2.0;
+  // k unit is hbar v_F / Delta.
+  double k0 = std::sqrt(std::pow(b, 2.0) - 1.0);
+
+  // Parameters for result plots.
+  /*
+  std::array<unsigned int, k_dim> Nk = {64, 64, 64};
+  anomtrans::kVals<k_dim> k_min = {-2.0 * k0, -2.0 * k0, -2.0 * k0};
+  anomtrans::kVals<k_dim> k_max = {2.0 * k0, 2.0 * k0, 2.0 * k0};
+  double mu5 = 0.05;
+  double mu_factor = 0.49;
+  unsigned int num_mus = 2;
+  double beta = 16.0;
+  double berry_broadening = 1e-4;
+  */
+  // Parameters for regression test.
+  std::array<unsigned int, k_dim> Nk = {4, 4, 4};
+  anomtrans::kVals<k_dim> k_min = {-2.0 * k0, -2.0 * k0, -2.0 * k0};
+  anomtrans::kVals<k_dim> k_max = {2.0 * k0, 2.0 * k0, 2.0 * k0};
+  double mu5 = 0.005;
+  double mu_factor = 0.45;
+  unsigned int num_mus = 1;
+  double beta = 4.0;
+  double berry_broadening = 1e-4;
+
+  unsigned int Nbands = 4;
+  anomtrans::kmBasis<k_dim> kmb(Nk, Nbands, k_min, k_max);
+
+  anomtrans::WsmContinuumMu5Hamiltonian H(b, mu5, kmb);
+
+  // Choose D = 2pi * \delta_{i, j}: Cartesian and reciprocal lattice
+  // coordinates are equivalent. Appropriate for continuum model
+  // with unitless momenta.
+  double pi2 = 2.0 * anomtrans::pi;
+  std::array<double, k_dim> a1 = {pi2, 0.0, 0.0};
+  std::array<double, k_dim> a2 = {0.0, pi2, 0.0};
+  std::array<double, k_dim> a3 = {0.0, 0.0, pi2};
+  anomtrans::DimMatrix<k_dim> D = {a1, a2, a3};
+
+  PetscReal max_energy_difference = anomtrans::find_max_energy_difference(kmb, H);
+  double beta_max = anomtrans::get_beta_max(max_energy_difference);
+
+  if (beta > beta_max) {
+    PetscPrintf(PETSC_COMM_WORLD, "Warning: beta > beta_max: beta = %e ; beta_max = %e\n", beta, beta_max);
+  }
+
+  std::array<double, k_dim> Bhat = {0.0, 0.0, 1.0};
+
+  Vec Ekm = anomtrans::get_energies(kmb, H);
+
+  std::array<Mat, k_dim> v_op = anomtrans::calculate_velocity(kmb, H);
+
+  PetscInt Ekm_min_index, Ekm_max_index;
+  PetscReal Ekm_min, Ekm_max;
+  PetscErrorCode ierr = VecMin(Ekm, &Ekm_min_index, &Ekm_min);CHKERRXX(ierr);
+  ierr = VecMax(Ekm, &Ekm_max_index, &Ekm_max);CHKERRXX(ierr);
+
+  const unsigned int deriv_approx_order = 2;
+  anomtrans::DerivStencil<1> stencil(anomtrans::DerivApproxType::central, deriv_approx_order);
+  auto d_dk_Cart = anomtrans::make_d_dk_Cartesian(D, kmb, stencil);
+
+  auto DH0_cross_Bhat = anomtrans::make_DH0_cross_Bhat(kmb, H, Bhat);
+
+  auto R = anomtrans::make_berry_connection(kmb, H, berry_broadening);
+  auto Omega = anomtrans::make_berry_curvature(kmb, H, berry_broadening);
+  auto Bhat_dot_Omega = anomtrans::Vec_from_sum_const(anomtrans::make_complex_array(Bhat), Omega);
+
+  double mu_min = (1 - mu_factor) * Ekm_min + mu_factor * Ekm_max;
+  double mu_max = mu_factor * Ekm_min + (1 - mu_factor) * Ekm_max;
+  auto mus = anomtrans::linspace(mu_min, mu_max, num_mus);
+
+  std::vector<std::vector<PetscReal>> all_rho0;
+  std::vector<std::vector<PetscReal>> all_xi_B;
+  std::vector<PetscReal> all_current_S_B;
+  std::vector<PetscReal> all_current_xi_B;
+  for (auto mu : mus) {
+    auto dm_rho0 = anomtrans::make_eq_node<anomtrans::StaticDMGraphNode>(Ekm, beta, mu);
+    Vec rho0_km;
+    ierr = VecDuplicate(Ekm, &rho0_km);CHKERRXX(ierr);
+    ierr = MatGetDiagonal(dm_rho0->rho, rho0_km);CHKERRXX(ierr);
+
+    anomtrans::add_linear_response_magnetic(dm_rho0, kmb, DH0_cross_Bhat, d_dk_Cart, R,
+        Bhat_dot_Omega, H, berry_broadening);
+
+    auto dm_S_B = dm_rho0->children[anomtrans::StaticDMDerivedBy::P_inv_DB];
+    auto dm_xi_B = dm_rho0->children[anomtrans::StaticDMDerivedBy::B_dot_Omega];
+    Vec xi_B;
+    ierr = VecDuplicate(rho0_km, &xi_B);CHKERRXX(ierr);
+    ierr = MatGetDiagonal(dm_xi_B->rho, xi_B);CHKERRXX(ierr);
+
+    auto collected_rho0 = anomtrans::split_scalars(anomtrans::collect_contents(rho0_km)).first;
+    all_rho0.push_back(collected_rho0);
+    auto collected_xi_B = anomtrans::split_scalars(anomtrans::collect_contents(xi_B)).first;
+    all_xi_B.push_back(collected_xi_B);
+
+    // Have obtained linear response to magnetic field. Can calculate this
+    // part of the longitudinal conductivity.
+    PetscScalar current_S_B = anomtrans::calculate_current_ev(kmb, v_op, dm_S_B->rho).at(2);
+    all_current_S_B.push_back(current_S_B.real());
+
+    PetscScalar current_xi_B = anomtrans::calculate_current_ev(kmb, v_op, dm_xi_B->rho).at(2);
+    all_current_xi_B.push_back(current_xi_B.real());
+
+    ierr = VecDestroy(&xi_B);CHKERRXX(ierr);
+    ierr = VecDestroy(&rho0_km);CHKERRXX(ierr);
+  }
+
+  auto collected_Ekm = anomtrans::split_scalars(anomtrans::collect_contents(Ekm)).first;
+
+  // Done with PETSc data.
+  for (std::size_t dc = 0; dc < k_dim; dc++) {
+    ierr = MatDestroy(&(d_dk_Cart.at(dc)));CHKERRXX(ierr);
+    ierr = MatDestroy(&(DH0_cross_Bhat.at(dc)));CHKERRXX(ierr);
+    ierr = MatDestroy(&(R.at(dc)));CHKERRXX(ierr);
+    ierr = MatDestroy(&(v_op.at(dc)));CHKERRXX(ierr);
+    ierr = VecDestroy(&(Omega.at(dc)));CHKERRXX(ierr);
+  }
+
+  ierr = VecDestroy(&Bhat_dot_Omega);CHKERRXX(ierr);
+  ierr = VecDestroy(&Ekm);CHKERRXX(ierr);
+
+  if (rank == 0) {
+    // Write out the collected data.
+    std::vector<anomtrans::kComps<k_dim>> all_k_comps;
+    std::vector<unsigned int> all_ms;
+
+    for (PetscInt ikm = 0; ikm < kmb.end_ikm; ikm++) {
+      auto this_km = kmb.decompose(ikm);
+      all_k_comps.push_back(std::get<0>(this_km));
+      all_ms.push_back(std::get<1>(this_km));
+    }
+
+    json j_out = {
+      {"mus", mus},
+      {"k_comps", all_k_comps},
+      {"ms", all_ms},
+      {"Ekm", collected_Ekm},
+      {"rho0", all_rho0},
+      {"xi_B", all_xi_B},
+      {"_series_current_S_B", all_current_S_B},
+      {"_series_current_xi_B", all_current_xi_B},
+    };
+
+    std::stringstream outpath;
+    outpath << "wsm_continuum_cme_mu5_test_out.json";
+
+    std::ofstream fp_out(outpath.str());
+    fp_out << j_out.dump();
+    fp_out.close();
+
+    // Check for changes from saved old result.
+    boost::optional<std::string> test_data_dir = anomtrans::getenv_optional("ANOMTRANS_TEST_DATA_DIR");
+    if (not test_data_dir) {
+      throw std::runtime_error("Could not get ANOMTRANS_TEST_DATA_DIR environment variable for regression test data");
+    }
+
+    std::stringstream known_path;
+    known_path << *test_data_dir << "/wsm_continuum_cme_mu5_test_out.json";
 
     json j_known;
     std::ifstream fp_k(known_path.str());
