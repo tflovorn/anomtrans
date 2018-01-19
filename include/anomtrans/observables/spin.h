@@ -1,8 +1,9 @@
-#ifndef ANOMTRANS_SPIN_H
-#define ANOMTRANS_SPIN_H
+#ifndef ANOMTRANS_OBSERVABLES_SPIN_H
+#define ANOMTRANS_OBSERVABLES_SPIN_H
 
 #include <cstddef>
 #include <array>
+#include <boost/optional.hpp>
 #include <Eigen/Core>
 #include <petscksp.h>
 #include "grid_basis.h"
@@ -35,16 +36,18 @@ std::array<Mat, 3> calculate_spin_operator(const kmBasis<k_dim> &kmb,
  *  @returns The Cartesian components of <S> (units of hbar).
  *  @param spin The spin operator components, as returned by calculate_spin_operator().
  *  @param rho The density matrix <rho>.
+ *  @param ret_Mat Iff true, the matrix product is returned, normalized according to the
+ *                 k-space metric.
  *  @todo Return PetscReal instead of PetscScalar? Output should be guaranteed to be real.
  */
 template <std::size_t k_dim>
-std::array<PetscScalar, 3> calculate_spin_ev(const kmBasis<k_dim> &kmb, std::array<Mat, 3> spin, Mat rho) {
-  std::array<PetscScalar, 3> result;
+ArrayResult<3> calculate_spin_ev(const kmBasis<k_dim> &kmb, std::array<Mat, 3> spin, Mat rho,
+    bool ret_Mat) {
+  ArrayResult<3> result;
   for (std::size_t dc = 0; dc < 3; dc++) {
     std::array<Mat, 2> prod_Mats = {spin.at(dc), rho};
-    result.at(dc) = Mat_product_trace_normalized(kmb, prod_Mats);
+    result.at(dc) = Mat_product_trace_normalized(kmb, prod_Mats, ret_Mat);
   }
-
   return result;
 }
 
@@ -56,26 +59,42 @@ std::array<PetscScalar, 3> calculate_spin_ev(const kmBasis<k_dim> &kmb, std::arr
  *  @param spin The spin operator components, as returned by calculate_spin_operator().
  *  @param v The velocity operator components, as returned by calculate_velocity_operator().
  *  @param rho The density matrix <rho>.
+ *  @param ret_Mat Iff true, the matrix product is returned, normalized according to the
+ *                 k-space metric.
  *  @todo Return PetscReal instead of PetscScalar? Output should be guaranteed to be real.
  */
 template <std::size_t k_dim>
-std::array<std::array<PetscScalar, k_dim>, 3> calculate_spin_current_ev(const kmBasis<k_dim> &kmb,
-    std::array<Mat, 3> spin, std::array<Mat, k_dim> v, Mat rho) {
-  std::array<std::array<PetscScalar, k_dim>, 3> js_ev;
+NestedArrayResult<3, k_dim> calculate_spin_current_ev(const kmBasis<k_dim> &kmb,
+    std::array<Mat, 3> spin, std::array<Mat, k_dim> v, Mat rho, bool ret_Mat) {
+  NestedArrayResult<3, k_dim> result;
 
   for (std::size_t dc_s = 0; dc_s < 3; dc_s++) {
     for (std::size_t dc_v = 0; dc_v < k_dim; dc_v++) {
       std::array<Mat, 3> prod_Mats_sv = {spin.at(dc_s), v.at(dc_v), rho};
       std::array<Mat, 3> prod_Mats_vs = {v.at(dc_v), spin.at(dc_s), rho};
 
-      js_ev.at(dc_s).at(dc_v) = 0.5 * (Mat_product_trace_normalized(kmb, prod_Mats_sv)
-          + Mat_product_trace_normalized(kmb, prod_Mats_vs));
+      auto js_sv = Mat_product_trace_normalized(kmb, prod_Mats_sv, ret_Mat);
+      auto js_vs = Mat_product_trace_normalized(kmb, prod_Mats_vs, ret_Mat);
+
+      result.at(dc_s).at(dc_v).first = 0.5 * (js_sv.first + js_vs.first);
+
+      if (ret_Mat) {
+        // js_sv.second <- 0.5 * (js_sv.second + js_vs.second)
+        PetscErrorCode ierr = MatAXPY(*js_sv.second, 1.0, *js_vs.second,
+            DIFFERENT_NONZERO_PATTERN);CHKERRXX(ierr);
+        ierr = MatScale(*js_sv.second, 0.5);CHKERRXX(ierr);
+
+        // No longer need js_vs.
+        ierr = MatDestroy(&(*js_vs.second));CHKERRXX(ierr);
+
+        result.at(dc_s).at(dc_v).second = js_sv.second;
+      }
     }
   }
 
-  return js_ev;
+  return result;
 }
 
 } // namespace anomtrans
 
-#endif // ANOMTRANS_SPIN_H
+#endif // ANOMTRANS_OBSERVABLES_SPIN_H

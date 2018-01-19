@@ -1,5 +1,5 @@
-#ifndef ANOMTRANS_MAT_H
-#define ANOMTRANS_MAT_H
+#ifndef ANOMTRANS_UTIL_MAT_H
+#define ANOMTRANS_UTIL_MAT_H
 
 #include <cstddef>
 #include <cassert>
@@ -7,6 +7,8 @@
 #include <stdexcept>
 #include <array>
 #include <vector>
+#include <utility>
+#include <boost/optional.hpp>
 #include <petscksp.h>
 
 namespace anomtrans {
@@ -147,22 +149,31 @@ Mat Mat_from_sum_fn(F coeffs, std::array<Mat, len> Bs,
   return A;
 }
 
+using OneResult = std::pair<PetscScalar, boost::optional<Mat>>;
+
+template <std::size_t dim>
+using ArrayResult = std::array<OneResult, dim>;
+
+template <std::size_t dim_outer, std::size_t dim_inner>
+using NestedArrayResult = std::array<std::array<OneResult, dim_inner>, dim_outer>;
+
 /** @brief Calculate the trace the product of the matrices given by xs, in the order of the
- *         elements of xs.
+ *         elements of xs. Return a pair (trace of product, optional<product>), where the
+ *         optional contains the product iff `ret_Mat` is true.
  *  @todo Add fill parameter as input?
  */
 template <std::size_t num_Mats>
-PetscScalar Mat_product_trace(std::array<Mat, num_Mats> xs) {
+OneResult Mat_product_trace(std::array<Mat, num_Mats> xs, bool ret_Mat) {
   static_assert(num_Mats > 0, "must have at least one Mat to trace over");
 
   // TODO - can use constexpr if when available.
   if (num_Mats == 1) {
     PetscScalar tr;
     PetscErrorCode ierr = MatGetTrace(xs.at(0), &tr);CHKERRXX(ierr);
-    return tr;
+    return std::make_pair(tr, xs.at(0));
   } else if (num_Mats == 2) {
     // TODO can optimize this?
-    // Only diagonal elements of AB needed.
+    // Only diagonal elements of AB needed for trace.
     Mat prod;
     PetscErrorCode ierr = MatMatMult(xs.at(0), xs.at(1), MAT_INITIAL_MATRIX,
         PETSC_DEFAULT, &prod);CHKERRXX(ierr);
@@ -170,11 +181,15 @@ PetscScalar Mat_product_trace(std::array<Mat, num_Mats> xs) {
     PetscScalar tr;
     ierr = MatGetTrace(prod, &tr);CHKERRXX(ierr);
 
-    ierr = MatDestroy(&prod);CHKERRXX(ierr);
-    return tr;
+    if (ret_Mat) {
+      return std::make_pair(tr, prod);
+    } else {
+      ierr = MatDestroy(&prod);CHKERRXX(ierr);
+      return std::make_pair(tr, boost::none);
+    }
   } else if (num_Mats == 3) {
     // TODO can optimize this?
-    // Only diagonal elements of ABC needed.
+    // Only diagonal elements of ABC needed for trace.
     Mat prod;
     PetscErrorCode ierr = MatMatMatMult(xs.at(0), xs.at(1), xs.at(2), MAT_INITIAL_MATRIX,
         PETSC_DEFAULT, &prod);CHKERRXX(ierr);
@@ -182,8 +197,12 @@ PetscScalar Mat_product_trace(std::array<Mat, num_Mats> xs) {
     PetscScalar tr;
     ierr = MatGetTrace(prod, &tr);CHKERRXX(ierr);
 
-    ierr = MatDestroy(&prod);CHKERRXX(ierr);
-    return tr;
+    if (ret_Mat) {
+      return std::make_pair(tr, prod);
+    } else {
+      ierr = MatDestroy(&prod);CHKERRXX(ierr);
+      return std::make_pair(tr, boost::none);
+    }
   } else {
     throw std::invalid_argument("num_Mats > 3 in Mat_product_trace not implemented");
   }
@@ -191,4 +210,4 @@ PetscScalar Mat_product_trace(std::array<Mat, num_Mats> xs) {
 
 } // namespace anomtrans
 
-#endif // ANOMTRANS_MAT_H
+#endif // ANOMTRANS_UTIL_MAT_H

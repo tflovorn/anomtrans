@@ -1,5 +1,5 @@
-#ifndef ANOMTRANS_RHO0_H
-#define ANOMTRANS_RHO0_H
+#ifndef ANOMTRANS_OBSERVABLES_RHO0_H
+#define ANOMTRANS_OBSERVABLES_RHO0_H
 
 #include <petscksp.h>
 #include "util/vec.h"
@@ -32,4 +32,4 @@ double get_beta_max(PetscReal max_energy_difference);
 
 } // namespace anomtrans
 
-#endif // ANOMTRANS_RHO0_H
+#endif // ANOMTRANS_OBSERVABLES_RHO0_H

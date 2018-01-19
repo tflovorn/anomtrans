@@ -503,18 +503,29 @@ std::vector<PetscScalar> collect_band_elem(const kmBasis<k_dim> &kmb, Mat S,
 }
 
 /** @brief Calculate the trace the product of the matrices given by xs, in the order of the
- *         elements of xs, normalized by the number of k-points sampled.
+ *         elements of xs, normalized according to the k-space metric.
+ *         Return a pair (trace of product, optional<product>), where the optional contains
+ *         the product iff `ret_Mat` is true. If returned, the product is also normalized.
  *  @todo Add fill parameter as input?
  */
 template <std::size_t k_dim, std::size_t num_Mats>
-PetscScalar Mat_product_trace_normalized(const kmBasis<k_dim> &kmb, std::array<Mat, num_Mats> xs) {
+OneResult Mat_product_trace_normalized(const kmBasis<k_dim> &kmb, std::array<Mat, num_Mats> xs,
+    bool ret_Mat) {
   static_assert(num_Mats > 0, "must have at least one Mat to trace over");
-  PetscInt Nk_tot = 1;
-  for (std::size_t d = 0; d < k_dim; d++) {
-    Nk_tot *= kmb.Nk.at(d);
+
+  auto result = Mat_product_trace(xs, ret_Mat);
+
+  // TODO - for non-periodic kmb, factor of 1/(2pi)^(k_dim) is part of the metric.
+  // (For periodic kmb, this factor is incorporated in the transformation to
+  // reciprocal lattice coordinates.)
+
+  result.first = kmb.k_sample_point_volume() * result.first;
+
+  if (ret_Mat) {
+    PetscErrorCode ierr = MatScale(*result.second, kmb.k_sample_point_volume());CHKERRXX(ierr);
   }
 
-  return kmb.k_sample_point_volume() * Mat_product_trace(xs);
+  return result;
 }
 
 } // namespace anomtrans

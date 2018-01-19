@@ -330,10 +330,11 @@ TEST( Rashba_electric, Rashba_electric ) {
     // Have obtained linear response to electric field. Can calculate this
     // part of the longitudinal conductivity.
     // sigma_xx = -e Tr[v_x <rho_{E_x}>] / E_y
-    PetscScalar sigma_xx = anomtrans::calculate_current_ev(kmb, v_op, dm_n_E->rho).at(0);
+    bool ret_Mat = false;
+    PetscScalar sigma_xx = anomtrans::calculate_current_ev(kmb, v_op, dm_n_E->rho, ret_Mat).at(0).first;
     all_sigma_xxs.push_back(sigma_xx.real());
 
-    PetscScalar sy = anomtrans::calculate_spin_ev(kmb, spin_op, dm_n_E->rho).at(1);
+    PetscScalar sy = anomtrans::calculate_spin_ev(kmb, spin_op, dm_n_E->rho, ret_Mat).at(1).first;
     all_sys.push_back(sy.real());
 
     auto collected_rho0 = anomtrans::split_scalars(anomtrans::collect_contents(rho0_km)).first;
@@ -345,11 +346,11 @@ TEST( Rashba_electric, Rashba_electric ) {
     auto dm_S_E_extrinsic = dm_n_E->children[anomtrans::StaticDMDerivedBy::P_inv_Kod];
 
     PetscScalar js_sz_vy_intrinsic = anomtrans::calculate_spin_current_ev(kmb, spin_op, v_op,
-        dm_S_E_intrinsic->rho).at(2).at(1);
+        dm_S_E_intrinsic->rho, ret_Mat).at(2).at(1).first;
     all_js_sz_vys_intrinsic.push_back(js_sz_vy_intrinsic.real());
 
     PetscScalar js_sz_vy_extrinsic = anomtrans::calculate_spin_current_ev(kmb, spin_op, v_op,
-        dm_S_E_extrinsic->rho).at(2).at(1);
+        dm_S_E_extrinsic->rho, ret_Mat).at(2).at(1).first;
     all_js_sz_vys_extrinsic.push_back(js_sz_vy_extrinsic.real());
 
     auto collected_S_E_pm_int = anomtrans::split_scalars(anomtrans::collect_band_elem(kmb, dm_S_E_intrinsic->rho, 0, 1));

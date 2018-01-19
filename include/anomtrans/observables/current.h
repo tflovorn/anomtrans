@@ -1,11 +1,13 @@
-#ifndef ANOMTRANS_CURRENT_H
-#define ANOMTRANS_CURRENT_H
+#ifndef ANOMTRANS_OBSERVABLES_CURRENT_H
+#define ANOMTRANS_OBSERVABLES_CURRENT_H
 
 #include <stdexcept>
-#include <tuple>
+#include <array>
+#include <utility>
 #include <algorithm>
 #include <petscksp.h>
 #include "util/vec.h"
+#include "util/mat.h"
 #include "grid_basis.h"
 
 namespace anomtrans {
@@ -13,15 +15,17 @@ namespace anomtrans {
 /** @brief Compute \hbar times <v>, the expectation value of the velocity operator:
  *         \hbar <v> = \hbar Tr[v <rho>] = \sum_{kmm'} <km|\grad_k H_k|km'> <rho>_k^{mm'}.
  *  @returns The Cartesian components of \hbar <v>.
+ *  @param ret_Mat Iff true, the matrix product is returned, normalized according to the
+ *                 k-space metric.
  *  @todo Return PetscReal instead of PetscScalar? Output should be guaranteed to be real.
  */
 template <std::size_t k_dim>
-std::array<PetscScalar, k_dim> calculate_velocity_ev(const kmBasis<k_dim> &kmb,
-    std::array<Mat, k_dim> v, Mat rho) {
-  std::array<PetscScalar, k_dim> result;
+ArrayResult<k_dim> calculate_velocity_ev(const kmBasis<k_dim> &kmb,
+    std::array<Mat, k_dim> v, Mat rho, bool ret_Mat) {
+  ArrayResult<k_dim> result;
   for (std::size_t dc = 0; dc < k_dim; dc++) {
     std::array<Mat, 2> prod_Mats = {v.at(dc), rho};
-    result.at(dc) = Mat_product_trace_normalized(kmb, prod_Mats);
+    result.at(dc) = Mat_product_trace_normalized(kmb, prod_Mats, ret_Mat);
   }
 
   return result;
@@ -29,23 +33,28 @@ std::array<PetscScalar, k_dim> calculate_velocity_ev(const kmBasis<k_dim> &kmb,
 
 /** @brief Compute the expectation value of the current operator:
  *         \sigma_a = Tr[j_a <rho>] = -e/hbar Tr[v_a <rho>].
+ *  @param ret_Mat Iff true, the matrix product is returned, normalized according to the
+ *                 k-space metric.
  *  @returns The Cartesian components of \sigma_a, in units of hbar/e.
  *  @todo Return PetscReal instead of PetscScalar? Output should be guaranteed to be real.
  */
 template <std::size_t k_dim>
-std::array<PetscScalar, k_dim> calculate_current_ev(const kmBasis<k_dim> &kmb,
-    std::array<Mat, k_dim> v, Mat rho) {
-  auto v_ev = calculate_velocity_ev(kmb, v, rho);
+ArrayResult<k_dim> calculate_current_ev(const kmBasis<k_dim> &kmb,
+    std::array<Mat, k_dim> v, Mat rho, bool ret_Mat) {
+  auto result = calculate_velocity_ev(kmb, v, rho, ret_Mat);
 
-  std::array<PetscScalar, k_dim> conductivity;
-  std::transform(v_ev.begin(), v_ev.end(), conductivity.begin(),
-      [](PetscScalar v_ev)->PetscScalar { return -v_ev; });
+  for (std::size_t d = 0; d < k_dim; d++) {
+    result.at(d).first = -result.at(d).first;
+    if (ret_Mat) {
+      PetscErrorCode ierr = MatScale(*(result.at(d).second), -1.0);CHKERRXX(ierr);
+    }
+  }
 
-  return conductivity;
+  return result;
 }
 
 /** @brief Compute the velocity operator in units of \hbar:
- *         v_{km, km'} = <km|\grad_k H_k|km'>
+ *         v_{km, km'} = (1/\hbar) <km|\grad_k H_k|km'>
  *  @returns The Cartesian components of v.
  */
 template <std::size_t k_dim, typename Hamiltonian>
@@ -63,4 +72,4 @@ std::array<Mat, k_dim> calculate_velocity(const kmBasis<k_dim> &kmb,
 
 } // namespace anomtrans
 
-#endif // ANOMTRANS_CURRENT_H
+#endif // ANOMTRANS_OBSERVABLES_CURRENT_H

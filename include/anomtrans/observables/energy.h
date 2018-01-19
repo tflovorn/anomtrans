@@ -1,14 +1,14 @@
-#ifndef ANOMTRANS_ENERGY_H
-#define ANOMTRANS_ENERGY_H
+#ifndef ANOMTRANS_OBSERVABLES_ENERGY_H
+#define ANOMTRANS_OBSERVABLES_ENERGY_H
 
 #include <cstddef>
 #include <vector>
 #include <algorithm>
 #include <petscksp.h>
 #include "util/vec.h"
+#include "util/util.h"
 #include "grid_basis.h"
 #include "derivative.h"
-#include "util/util.h"
 
 namespace anomtrans {
 
@@ -189,4 +189,4 @@ Mat apply_precession_term_dynamic(const kmBasis<k_dim> &kmb, const Hamiltonian &
 
 } // namespace anomtrans
 
-#endif // ANOMTRANS_ENERGY_H
+#endif // ANOMTRANS_OBSERVABLES_ENERGY_H

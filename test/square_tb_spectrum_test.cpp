@@ -199,7 +199,8 @@ TEST( square_TB_Hall, square_TB_Hall ) {
     // Have obtained linear response to electric field. Can calculate this
     // part of the longitudinal conductivity.
     // sigma_yy = -e Tr[v_y <rho_{E_y}>] / E_y
-    PetscScalar sigma_yy = anomtrans::calculate_current_ev(kmb, v_op, dm_n_E->rho).at(1);
+    bool ret_Mat = false;
+    PetscScalar sigma_yy = anomtrans::calculate_current_ev(kmb, v_op, dm_n_E->rho, ret_Mat).at(1).first;
 
     anomtrans::add_next_order_magnetic(dm_n_E, kmb, DH0_cross_Bhat, d_dk_Cart, R, ksp, Bhat_dot_Omega,
         H, sigma, disorder_term_od, berry_broadening);
@@ -211,7 +212,7 @@ TEST( square_TB_Hall, square_TB_Hall ) {
     // Have obtained linear response to E_y B_z. Can calculate this part of
     // the transverse conductivity.
     // sigma_{xy, Hall} = -e Tr[v_x <rho_{E_y B_z}>] / (E_y B_z)
-    PetscScalar sigma_Hall = anomtrans::calculate_current_ev(kmb, v_op, dm_n_EB->rho).at(0);
+    PetscScalar sigma_Hall = anomtrans::calculate_current_ev(kmb, v_op, dm_n_EB->rho, ret_Mat).at(0).first;
 
     auto collected_rho0 = anomtrans::split_scalars(anomtrans::collect_contents(rho0_km)).first;
     all_rho0.push_back(collected_rho0);

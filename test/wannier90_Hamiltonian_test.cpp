@@ -285,35 +285,37 @@ TEST( Wannier90_WSe2_dynamic, DISABLED_Wannier90_WSe2_dynamic ) {
   ierr = MatAXPY(S_0_2_extrinsic_plus, 1.0, dm_S_0_2_extrinsic_Ey_sin->rho,
       DIFFERENT_NONZERO_PATTERN);CHKERRXX(ierr);
 
-  auto sigma_n_0_2_plus = anomtrans::calculate_current_ev(kmb, v_op, n_0_2_plus);
+  bool ret_Mat = false;
+  auto sigma_n_0_2_plus = anomtrans::calculate_current_ev(kmb, v_op, n_0_2_plus, ret_Mat);
   auto sigma_S_0_2_intrinsic_plus = anomtrans::calculate_current_ev(kmb, v_op,
-      S_0_2_intrinsic_plus);
+      S_0_2_intrinsic_plus, ret_Mat);
   auto sigma_S_0_2_extrinsic_plus = anomtrans::calculate_current_ev(kmb, v_op,
-      S_0_2_extrinsic_plus);
-  PetscReal sigma_n_0_2_xx_plus = sigma_n_0_2_plus.at(0).real();
-  PetscReal sigma_n_0_2_xy_plus = sigma_n_0_2_plus.at(1).real();
-  PetscReal sigma_S_0_2_intrinsic_xx_plus = sigma_S_0_2_intrinsic_plus.at(0).real();
-  PetscReal sigma_S_0_2_intrinsic_xy_plus = sigma_S_0_2_intrinsic_plus.at(1).real();
-  PetscReal sigma_S_0_2_extrinsic_xx_plus = sigma_S_0_2_extrinsic_plus.at(0).real();
-  PetscReal sigma_S_0_2_extrinsic_xy_plus = sigma_S_0_2_extrinsic_plus.at(1).real();
+      S_0_2_extrinsic_plus, ret_Mat);
+  PetscReal sigma_n_0_2_xx_plus = sigma_n_0_2_plus.at(0).first.real();
+  PetscReal sigma_n_0_2_xy_plus = sigma_n_0_2_plus.at(1).first.real();
+  PetscReal sigma_S_0_2_intrinsic_xx_plus = sigma_S_0_2_intrinsic_plus.at(0).first.real();
+  PetscReal sigma_S_0_2_intrinsic_xy_plus = sigma_S_0_2_intrinsic_plus.at(1).first.real();
+  PetscReal sigma_S_0_2_extrinsic_xx_plus = sigma_S_0_2_extrinsic_plus.at(0).first.real();
+  PetscReal sigma_S_0_2_extrinsic_xy_plus = sigma_S_0_2_extrinsic_plus.at(1).first.real();
 
-  auto spin_n_0_2_plus = anomtrans::calculate_spin_ev(kmb, spin_op, n_0_2_plus);
+  auto spin_n_0_2_plus = anomtrans::calculate_spin_ev(kmb, spin_op, n_0_2_plus, ret_Mat);
   auto spin_S_0_2_intrinsic_plus = anomtrans::calculate_spin_ev(kmb, spin_op,
-      S_0_2_intrinsic_plus);
+      S_0_2_intrinsic_plus, ret_Mat);
   auto spin_S_0_2_extrinsic_plus = anomtrans::calculate_spin_ev(kmb, spin_op,
-      S_0_2_extrinsic_plus);
-  PetscReal spin_n_0_2_z_plus = spin_n_0_2_plus.at(2).real();
-  PetscReal spin_S_0_2_intrinsic_z_plus = spin_S_0_2_intrinsic_plus.at(2).real();
-  PetscReal spin_S_0_2_extrinsic_z_plus = spin_S_0_2_extrinsic_plus.at(2).real();
+      S_0_2_extrinsic_plus, ret_Mat);
+  PetscReal spin_n_0_2_z_plus = spin_n_0_2_plus.at(2).first.real();
+  PetscReal spin_S_0_2_intrinsic_z_plus = spin_S_0_2_intrinsic_plus.at(2).first.real();
+  PetscReal spin_S_0_2_extrinsic_z_plus = spin_S_0_2_extrinsic_plus.at(2).first.real();
 
-  auto js_n_0_2_plus = anomtrans::calculate_spin_current_ev(kmb, spin_op, v_op, n_0_2_plus);
+  auto js_n_0_2_plus = anomtrans::calculate_spin_current_ev(kmb, spin_op, v_op, n_0_2_plus,
+      ret_Mat);
   auto js_S_0_2_intrinsic_plus = anomtrans::calculate_spin_current_ev(kmb, spin_op, v_op,
-      S_0_2_intrinsic_plus);
+      S_0_2_intrinsic_plus, ret_Mat);
   auto js_S_0_2_extrinsic_plus = anomtrans::calculate_spin_current_ev(kmb, spin_op, v_op,
-      S_0_2_extrinsic_plus);
-  PetscReal js_n_0_2_sz_vy_plus = js_n_0_2_plus.at(2).at(1).real();
-  PetscReal js_S_0_2_intrinsic_sz_vy_plus = js_S_0_2_intrinsic_plus.at(2).at(1).real();
-  PetscReal js_S_0_2_extrinsic_sz_vy_plus = js_S_0_2_extrinsic_plus.at(2).at(1).real();
+      S_0_2_extrinsic_plus, ret_Mat);
+  PetscReal js_n_0_2_sz_vy_plus = js_n_0_2_plus.at(2).at(1).first.real();
+  PetscReal js_S_0_2_intrinsic_sz_vy_plus = js_S_0_2_intrinsic_plus.at(2).at(1).first.real();
+  PetscReal js_S_0_2_extrinsic_sz_vy_plus = js_S_0_2_extrinsic_plus.at(2).at(1).first.real();
 
   // Done with PETSc data.
   ierr = MatDestroy(&n_0_2_plus);CHKERRXX(ierr);
