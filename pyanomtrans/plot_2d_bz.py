@@ -173,8 +173,6 @@ def extract_at_k2(kmb, sorted_data, target_k2):
 
         if is_list(val[0]):
             for i, val_sublist in enumerate(val):
-                print(val_sublist)
-                print(sorted_data[key][i])
                 assert(len(val_sublist) == len(sorted_data[key][i]) / kmb.Nk[2])
         else:
             assert(len(val) == len(sorted_data[key]) / kmb.Nk[2])
@@ -182,7 +180,7 @@ def extract_at_k2(kmb, sorted_data, target_k2):
     return sorted_data_k2
 
 def _main():
-    parser = argparse.ArgumentParser("Plot Fermi surface as shown by |df(Emk)/dk|",
+    parser = argparse.ArgumentParser("Plot data on the 2D Brillouin zone, or slices of the 3D zone",
             formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument("prefix", type=str,
             help="Prefix for file giving plot data: should be in the form prefix.json")
