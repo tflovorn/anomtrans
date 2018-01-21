@@ -107,13 +107,6 @@ std::shared_ptr<DMNodeType> make_eq_node(Vec Ekm, double beta, double mu) {
     return rho0_node;
 }
 
-/** @brief Given a node containing the equilibrium density matrix,
- *         add children to it corresponding to linear response to an applied magnetic
- *         field and return a list of those children.
- *  @todo Add parameters necessary to implement this.
- */
-//DMGraphNode::ChildrenMap add_linear_response_magnetic(DMGraphNode &eq_node);
-
 namespace internal {
 
 template <std::size_t k_dim, typename Hamiltonian, typename UU_OD>
