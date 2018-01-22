@@ -14,7 +14,9 @@
 
 namespace anomtrans {
 
-/** @brief Construct the collision matrix: hbar K.
+/** @brief Compute the result of applying the diagonal-to-off-diagonal collision operator
+ *         $K^{od}$ to the given diagonal density matrix `n_all`: returns 
+ *         $\hbar K^{od}(<n>)$.
  *  @param kmb Object representing the discretization of k-space and the number
  *             of bands.
  *  @param H Class instance giving the Hamiltonian of the system. Should have the methods
@@ -29,7 +31,7 @@ namespace anomtrans {
  *               is applied. Passed as a std::vector here since all nodes require all values.
  */
 template <std::size_t k_dim, typename Hamiltonian, typename UU_OD>
-Mat apply_collision_od(const kmBasis<k_dim> &kmb, const Hamiltonian &H, const double sigma,
+OwnedMat apply_collision_od(const kmBasis<k_dim> &kmb, const Hamiltonian &H, const double sigma,
     const UU_OD &disorder_term, const std::vector<PetscScalar> &n_all) {
   // TODO could make this an argument to avoid recomputing.
   Vec Ekm = get_energies(kmb, H);
@@ -49,10 +51,10 @@ Mat apply_collision_od(const kmBasis<k_dim> &kmb, const Hamiltonian &H, const do
   PetscReal threshold = get_fermi_surface_threshold(sigma);
 
   // [S]_{km, k''m''} = \delta_{k, k''} [J(<n>)]_{k}^{m, m''}
-  Mat Jn = make_Mat(kmb.end_ikm, kmb.end_ikm, kmb.Nbands);
+  OwnedMat Jn = make_Mat(kmb.end_ikm, kmb.end_ikm, kmb.Nbands);
 
   PetscInt begin, end;
-  PetscErrorCode ierr = MatGetOwnershipRange(Jn, &begin, &end);CHKERRXX(ierr);
+  PetscErrorCode ierr = MatGetOwnershipRange(Jn.M, &begin, &end);CHKERRXX(ierr);
 
   for (PetscInt ikm = begin; ikm < end; ikm++) {
     kmComps<k_dim> km = kmb.decompose(ikm);
@@ -111,12 +113,12 @@ Mat apply_collision_od(const kmBasis<k_dim> &kmb, const Hamiltonian &H, const do
       column_vals.push_back(total);
     }
 
-    ierr = MatSetValues(Jn, 1, &ikm, column_ikms.size(), column_ikms.data(), column_vals.data(),
+    ierr = MatSetValues(Jn.M, 1, &ikm, column_ikms.size(), column_ikms.data(), column_vals.data(),
         INSERT_VALUES);CHKERRXX(ierr);
   }
 
-  ierr = MatAssemblyBegin(Jn, MAT_FINAL_ASSEMBLY);CHKERRXX(ierr);
-  ierr = MatAssemblyEnd(Jn, MAT_FINAL_ASSEMBLY);CHKERRXX(ierr);
+  ierr = MatAssemblyBegin(Jn.M, MAT_FINAL_ASSEMBLY);CHKERRXX(ierr);
+  ierr = MatAssemblyEnd(Jn.M, MAT_FINAL_ASSEMBLY);CHKERRXX(ierr);
 
   ierr = VecDestroy(&Ekm_all);CHKERRXX(ierr);
   ierr = VecDestroy(&Ekm);CHKERRXX(ierr);

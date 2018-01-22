@@ -21,10 +21,10 @@ namespace anomtrans {
  */
 template <std::size_t k_dim>
 ArrayResult<k_dim> calculate_velocity_ev(const kmBasis<k_dim> &kmb,
-    std::array<Mat, k_dim> v, Mat rho, bool ret_Mat) {
+    std::array<OwnedMat, k_dim>& v, Mat rho, bool ret_Mat) {
   ArrayResult<k_dim> result;
   for (std::size_t dc = 0; dc < k_dim; dc++) {
-    std::array<Mat, 2> prod_Mats = {v.at(dc), rho};
+    std::array<Mat, 2> prod_Mats = {v.at(dc).M, rho};
     result.at(dc) = Mat_product_trace_normalized(kmb, prod_Mats, ret_Mat);
   }
 
@@ -40,13 +40,13 @@ ArrayResult<k_dim> calculate_velocity_ev(const kmBasis<k_dim> &kmb,
  */
 template <std::size_t k_dim>
 ArrayResult<k_dim> calculate_current_ev(const kmBasis<k_dim> &kmb,
-    std::array<Mat, k_dim> v, Mat rho, bool ret_Mat) {
+    std::array<OwnedMat, k_dim>& v, Mat rho, bool ret_Mat) {
   auto result = calculate_velocity_ev(kmb, v, rho, ret_Mat);
 
   for (std::size_t d = 0; d < k_dim; d++) {
     result.at(d).first = -result.at(d).first;
     if (ret_Mat) {
-      PetscErrorCode ierr = MatScale(*(result.at(d).second), -1.0);CHKERRXX(ierr);
+      PetscErrorCode ierr = MatScale((*(result.at(d).second)).M, -1.0);CHKERRXX(ierr);
     }
   }
 
@@ -58,14 +58,14 @@ ArrayResult<k_dim> calculate_current_ev(const kmBasis<k_dim> &kmb,
  *  @returns The Cartesian components of v.
  */
 template <std::size_t k_dim, typename Hamiltonian>
-std::array<Mat, k_dim> calculate_velocity(const kmBasis<k_dim> &kmb,
+std::array<OwnedMat, k_dim> calculate_velocity(const kmBasis<k_dim> &kmb,
     const Hamiltonian &H) {
   auto v_elem = [&kmb, &H](PetscInt ikm, unsigned int mp)->std::array<PetscScalar, k_dim> {
     auto ikm_comps = kmb.decompose(ikm);
     return H.gradient(ikm_comps, mp);
   };
 
-  std::array<Mat, k_dim> v = construct_k_diagonal_Mat_array<k_dim>(kmb, v_elem);
+  auto v = construct_k_diagonal_Mat_array<k_dim>(kmb, v_elem);
 
   return v;
 }

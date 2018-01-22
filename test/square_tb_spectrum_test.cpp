@@ -96,7 +96,7 @@ TEST( square_TB_Hall, square_TB_Hall ) {
 
   Vec Ekm = anomtrans::get_energies(kmb, H);
 
-  std::array<Mat, k_dim> v_op = anomtrans::calculate_velocity(kmb, H);
+  auto v_op = anomtrans::calculate_velocity(kmb, H);
 
   PetscInt Ekm_min_index, Ekm_max_index;
   PetscReal Ekm_min, Ekm_max;
@@ -124,14 +124,14 @@ TEST( square_TB_Hall, square_TB_Hall ) {
         H, ULambda, ikm1, ikm2, ikm3);
   };
 
-  Mat collision = anomtrans::make_collision(kmb, H, sigma, disorder_term);
+  anomtrans::OwnedMat collision = anomtrans::make_collision(kmb, H, sigma, disorder_term);
 
   // Create the linear solver context.
   KSP ksp;
   ierr = KSPCreate(PETSC_COMM_WORLD, &ksp);CHKERRXX(ierr);
   // This uses collision again as the preconditioning matrix.
   // TODO - is there a better choice?
-  ierr = KSPSetOperators(ksp, collision, collision);CHKERRXX(ierr);
+  ierr = KSPSetOperators(ksp, collision.M, collision.M);CHKERRXX(ierr);
   // Could use KSPSetFromOptions here. In this case, prefer to keep options
   // hard-coded to have identical output from each test run.
 
@@ -142,14 +142,15 @@ TEST( square_TB_Hall, square_TB_Hall ) {
   // Maximum number of elements expected for sum of Cartesian derivatives.
   PetscInt Ehat_grad_expected_elems_per_row = stencil.approx_order*k_dim*k_dim*k_dim;
 
-  Mat Ehat_dot_grad_k = anomtrans::Mat_from_sum_const(anomtrans::make_complex_array(Ehat),
-      d_dk_Cart, Ehat_grad_expected_elems_per_row);
+  auto Ehat_dot_grad_k = anomtrans::Mat_from_sum_const(anomtrans::make_complex_array(Ehat),
+      anomtrans::unowned(d_dk_Cart), Ehat_grad_expected_elems_per_row);
   auto DH0_cross_Bhat = anomtrans::make_DH0_cross_Bhat(kmb, H, Bhat);
 
   // TODO - what is a good way to choose broadening for Berry connection?
   double berry_broadening = 1e-4;
   auto R = anomtrans::make_berry_connection(kmb, H, berry_broadening);
-  auto Ehat_dot_R = anomtrans::Mat_from_sum_const(anomtrans::make_complex_array(Ehat), R, kmb.Nbands);
+  auto Ehat_dot_R = anomtrans::Mat_from_sum_const(anomtrans::make_complex_array(Ehat),
+      anomtrans::unowned(R), kmb.Nbands);
 
   auto Omega = anomtrans::make_berry_curvature(kmb, H, berry_broadening);
   auto Bhat_dot_Omega = anomtrans::Vec_from_sum_const(anomtrans::make_complex_array(Bhat), Omega);
@@ -168,7 +169,7 @@ TEST( square_TB_Hall, square_TB_Hall ) {
     auto dm_rho0 = anomtrans::make_eq_node<anomtrans::StaticDMGraphNode>(Ekm, beta, mu);
     Vec rho0_km;
     ierr = VecDuplicate(Ekm, &rho0_km);CHKERRXX(ierr);
-    ierr = MatGetDiagonal(dm_rho0->rho, rho0_km);CHKERRXX(ierr);
+    ierr = MatGetDiagonal(dm_rho0->rho.M, rho0_km);CHKERRXX(ierr);
 
     // Get normalized version of rho0 to use for nullspace.
     // TODO can we safely pass a nullptr instead of rho0_orig_norm?
@@ -186,33 +187,33 @@ TEST( square_TB_Hall, square_TB_Hall ) {
     // TODO does this mean that the nullspace has dimension larger than 1?
     MatNullSpace nullspace;
     ierr = MatNullSpaceCreate(PETSC_COMM_WORLD, PETSC_FALSE, 1, &rho0_normalized, &nullspace);CHKERRXX(ierr);
-    ierr = MatSetNullSpace(collision, nullspace);CHKERRXX(ierr);
+    ierr = MatSetNullSpace(collision.M, nullspace);CHKERRXX(ierr);
     // NOTE rho0_normalized must not be modified after this call until we are done with nullspace.
 
-    anomtrans::add_linear_response_electric(dm_rho0, kmb, Ehat_dot_grad_k, Ehat_dot_R, ksp,
+    anomtrans::add_linear_response_electric(dm_rho0, kmb, Ehat_dot_grad_k.M, Ehat_dot_R.M, ksp,
         H, sigma, disorder_term_od, berry_broadening);
     auto dm_n_E = dm_rho0->children[anomtrans::StaticDMDerivedBy::Kdd_inv_DE];
     Vec rho1_B0;
     ierr = VecDuplicate(rho0_km, &rho1_B0);CHKERRXX(ierr);
-    ierr = MatGetDiagonal(dm_n_E->rho, rho1_B0);CHKERRXX(ierr);
+    ierr = MatGetDiagonal(dm_n_E->rho.M, rho1_B0);CHKERRXX(ierr);
 
     // Have obtained linear response to electric field. Can calculate this
     // part of the longitudinal conductivity.
     // sigma_yy = -e Tr[v_y <rho_{E_y}>] / E_y
     bool ret_Mat = false;
-    PetscScalar sigma_yy = anomtrans::calculate_current_ev(kmb, v_op, dm_n_E->rho, ret_Mat).at(1).first;
+    PetscScalar sigma_yy = anomtrans::calculate_current_ev(kmb, v_op, dm_n_E->rho.M, ret_Mat).at(1).first;
 
     anomtrans::add_next_order_magnetic(dm_n_E, kmb, DH0_cross_Bhat, d_dk_Cart, R, ksp, Bhat_dot_Omega,
         H, sigma, disorder_term_od, berry_broadening);
     auto dm_n_EB = dm_n_E->children[anomtrans::StaticDMDerivedBy::Kdd_inv_DB];
     Vec rho1_Bfinite;
     ierr = VecDuplicate(rho0_km, &rho1_Bfinite);CHKERRXX(ierr);
-    ierr = MatGetDiagonal(dm_n_EB->rho, rho1_Bfinite);CHKERRXX(ierr);
+    ierr = MatGetDiagonal(dm_n_EB->rho.M, rho1_Bfinite);CHKERRXX(ierr);
 
     // Have obtained linear response to E_y B_z. Can calculate this part of
     // the transverse conductivity.
     // sigma_{xy, Hall} = -e Tr[v_x <rho_{E_y B_z}>] / (E_y B_z)
-    PetscScalar sigma_Hall = anomtrans::calculate_current_ev(kmb, v_op, dm_n_EB->rho, ret_Mat).at(0).first;
+    PetscScalar sigma_Hall = anomtrans::calculate_current_ev(kmb, v_op, dm_n_EB->rho.M, ret_Mat).at(0).first;
 
     auto collected_rho0 = anomtrans::split_scalars(anomtrans::collect_contents(rho0_km)).first;
     all_rho0.push_back(collected_rho0);
@@ -235,17 +236,11 @@ TEST( square_TB_Hall, square_TB_Hall ) {
 
   // Done with PETSc data.
   for (std::size_t dc = 0; dc < k_dim; dc++) {
-    ierr = MatDestroy(&(d_dk_Cart.at(dc)));CHKERRXX(ierr);
-    ierr = MatDestroy(&(DH0_cross_Bhat.at(dc)));CHKERRXX(ierr);
-    ierr = MatDestroy(&(R.at(dc)));CHKERRXX(ierr);
-    ierr = MatDestroy(&(v_op.at(dc)));CHKERRXX(ierr);
     ierr = VecDestroy(&(Omega.at(dc)));CHKERRXX(ierr);
   }
 
   ierr = VecDestroy(&Bhat_dot_Omega);CHKERRXX(ierr);
-  ierr = MatDestroy(&Ehat_dot_R);CHKERRXX(ierr);
   ierr = KSPDestroy(&ksp);CHKERRXX(ierr);
-  ierr = MatDestroy(&collision);CHKERRXX(ierr);
   ierr = VecDestroy(&Ekm);CHKERRXX(ierr);
 
   if (rank == 0) {

@@ -13,6 +13,43 @@
 
 namespace anomtrans {
 
+/** @brief Container which owns a PETSc `Mat`. When an `OwnedMat` is destroyed,
+ *         the corresponding destruction operation for the contained `Mat` is called.
+ *         An `OwnedMat` has the same semantics as a `unique_ptr`: it cannot be copied,
+ *         but it may be moved from.
+ *  @invariant The owned `Mat` is exposed as a public non-const field to allow this field
+ *             to be used in PETSc interfaces without wrapping all PETSc functions.
+ *             This `Mat` must not be destroyed or reassigned.
+ *  @note Following the recommendation of
+ *        [https://herbsutter.com/2013/06/05/gotw-91-solution-smart-pointer-parameters/](GOTW 91),
+ *        we will still accept a `Mat` as input to functions where the ownership
+ *        semantics are not relevant. The `Mat` is equivalent to GOTW 91's `widget*`.
+ *        However, functions which would accept a container of Mat's (e.g. std::array<Mat, N>)
+ *        may instead accept a container of OwnedMat's by reference, to avoid requiring
+ *        conversion from array<OwnedMat> to array<Mat>. We will generally prefer to avoid
+ *        containers of Mat's, but they may be useful when the container is necessary to
+ *        express association, but not ownership (e.g. the std::array<Mat, N> arguments of
+ *        `Mat_from_sum_fn` and `Mat_product_trace`).
+ */
+class OwnedMat {
+public:
+  Mat M;
+
+  OwnedMat();
+
+  OwnedMat(Mat _M);
+
+  ~OwnedMat();
+
+  OwnedMat(const OwnedMat& other) = delete;
+
+  OwnedMat& operator=(const OwnedMat& other) = delete;
+
+  OwnedMat(OwnedMat&& other);
+
+  OwnedMat& operator=(OwnedMat&& other);
+};
+
 /** @brief Create and preallocate a m x n PETSc matrix. The returned matrix
  *         is ready for MatSetValues() calls. Before use in matrix-vector
  *         products, MatAssemblyBegin() and MatAssemblyEnd() should be called.
@@ -22,11 +59,23 @@ namespace anomtrans {
  *                                expected to be included; used to preallocate
  *                                memory.
  */
-Mat make_Mat(PetscInt m, PetscInt n, PetscInt expected_elems_per_row);
+OwnedMat make_Mat(PetscInt m, PetscInt n, PetscInt expected_elems_per_row);
 
 /** @brief Create a diagonal PETSC matrix, with diagonal elements given by `v`.
  */
-Mat make_diag_Mat(Vec v);
+OwnedMat make_diag_Mat(Vec v);
+
+/** @brief Given an array `Bs` which owns matrices, return the corresponding
+ *         array which refers to those matrices but does not own them.
+ */
+template <std::size_t len>
+std::array<Mat, len> unowned(std::array<OwnedMat, len>& Bs) {
+  std::array<Mat, len> Bs_unowned;
+  for (std::size_t i = 0; i < len; i++) {
+    Bs_unowned.at(i) = Bs.at(i).M;
+  }
+  return Bs_unowned;
+}
 
 /** @brief Set all diagonal entries of `M` to `alpha`.
  *  @pre `M` must be a square matrix.
@@ -51,7 +100,7 @@ bool check_Mat_equal(Mat A, Mat B, double tol);
  *        nonzeros)?
  */
 template<std::size_t len>
-Mat Mat_from_sum_const(std::array<PetscScalar, len> coeffs, std::array<Mat, len> Bs,
+OwnedMat Mat_from_sum_const(std::array<PetscScalar, len> coeffs, std::array<Mat, len> Bs,
     PetscInt expected_elems_per_row) {
   static_assert(len > 0, "must have at least 1 Mat for Mat_from_sum_const");
 
@@ -65,7 +114,7 @@ Mat Mat_from_sum_const(std::array<PetscScalar, len> coeffs, std::array<Mat, len>
  *  @todo Add parameter for MatMatMult fill parameter?
  *  @todo Add parameter for MatAYPX nonzero pattern?
  */
-Mat commutator(Mat A, Mat B);
+OwnedMat commutator(Mat A, Mat B);
 
 /** @brief Construct a matrix [A]_{ij} = \sum_d coeffs(d, i, j) * [Bs(d)]_{ij}.
  *  @param coeffs A function taking 3 arguments: a list dimension `d` from 0 to len
@@ -82,7 +131,7 @@ Mat commutator(Mat A, Mat B);
  *        have the problem that the data for coeffs(d, i, j) must be allocated.
  */
 template<std::size_t len, typename F>
-Mat Mat_from_sum_fn(F coeffs, std::array<Mat, len> Bs,
+OwnedMat Mat_from_sum_fn(F coeffs, std::array<Mat, len> Bs,
     PetscInt expected_elems_per_row) {
   // Need at least one matrix/coeff pair to have a well-defined output.
   static_assert(len > 0, "must have at least 1 Mat for Mat_from_sum_fn");
@@ -105,7 +154,7 @@ Mat Mat_from_sum_fn(F coeffs, std::array<Mat, len> Bs,
     }
   }
 
-  Mat A = make_Mat(ms.at(0), ns.at(0), expected_elems_per_row);
+  OwnedMat A = make_Mat(ms.at(0), ns.at(0), expected_elems_per_row);
 
   // Build the sum.
   // Do this using MatGetRow/MatSetValues to avoid losing the preallocation
@@ -137,19 +186,19 @@ Mat Mat_from_sum_fn(F coeffs, std::array<Mat, len> Bs,
         mult_cols.push_back(cols[col_index]);
         mult_vals.push_back(val);
       }
-      ierr = MatSetValues(A, 1, &local_row, mult_cols.size(), mult_cols.data(), mult_vals.data(), ADD_VALUES);CHKERRXX(ierr);
+      ierr = MatSetValues(A.M, 1, &local_row, mult_cols.size(), mult_cols.data(), mult_vals.data(), ADD_VALUES);CHKERRXX(ierr);
 
       ierr = MatRestoreRow(Bs.at(d), local_row, &ncols, &cols, &vals);CHKERRXX(ierr);
     }
   }
 
-  PetscErrorCode ierr = MatAssemblyBegin(A, MAT_FINAL_ASSEMBLY);CHKERRXX(ierr);
-  ierr = MatAssemblyEnd(A, MAT_FINAL_ASSEMBLY);CHKERRXX(ierr);
+  PetscErrorCode ierr = MatAssemblyBegin(A.M, MAT_FINAL_ASSEMBLY);CHKERRXX(ierr);
+  ierr = MatAssemblyEnd(A.M, MAT_FINAL_ASSEMBLY);CHKERRXX(ierr);
 
   return A;
 }
 
-using OneResult = std::pair<PetscScalar, boost::optional<Mat>>;
+using OneResult = std::pair<PetscScalar, boost::optional<OwnedMat>>;
 
 template <std::size_t dim>
 using ArrayResult = std::array<OneResult, dim>;
@@ -170,7 +219,17 @@ OneResult Mat_product_trace(std::array<Mat, num_Mats> xs, bool ret_Mat) {
   if (num_Mats == 1) {
     PetscScalar tr;
     PetscErrorCode ierr = MatGetTrace(xs.at(0), &tr);CHKERRXX(ierr);
-    return std::make_pair(tr, xs.at(0));
+
+    if (ret_Mat) {
+      // Result owns the output product matrix, so we need to make a copy
+      // since we haven't created a product matrix.
+      Mat prod;
+      ierr = MatDuplicate(xs.at(0), MAT_COPY_VALUES, &prod);CHKERRXX(ierr);
+
+      return std::make_pair(tr, OwnedMat(prod));
+    } else {
+      return std::make_pair(tr, boost::none);
+    }
   } else if (num_Mats == 2) {
     // TODO can optimize this?
     // Only diagonal elements of AB needed for trace.
@@ -182,7 +241,7 @@ OneResult Mat_product_trace(std::array<Mat, num_Mats> xs, bool ret_Mat) {
     ierr = MatGetTrace(prod, &tr);CHKERRXX(ierr);
 
     if (ret_Mat) {
-      return std::make_pair(tr, prod);
+      return std::make_pair(tr, OwnedMat(prod));
     } else {
       ierr = MatDestroy(&prod);CHKERRXX(ierr);
       return std::make_pair(tr, boost::none);
@@ -198,7 +257,7 @@ OneResult Mat_product_trace(std::array<Mat, num_Mats> xs, bool ret_Mat) {
     ierr = MatGetTrace(prod, &tr);CHKERRXX(ierr);
 
     if (ret_Mat) {
-      return std::make_pair(tr, prod);
+      return std::make_pair(tr, OwnedMat(prod));
     } else {
       ierr = MatDestroy(&prod);CHKERRXX(ierr);
       return std::make_pair(tr, boost::none);

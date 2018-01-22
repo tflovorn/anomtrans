@@ -64,7 +64,7 @@ TEST( Rashba_electric, berry_connection ) {
   anomtrans::kmBasis<k_dim> kmb(Nk, Nbands);
 
   anomtrans::Rashba_Hamiltonian H(t, tr, kmb);
-  std::array<Mat, k_dim> R = anomtrans::make_berry_connection(kmb, H, berry_broadening);
+  auto R = anomtrans::make_berry_connection(kmb, H, berry_broadening);
 
   auto Rpm_expected = [](anomtrans::kVals<k_dim> k)->std::array<PetscScalar, k_dim> {
     // Assumes a = 1 and k-points where denom = 0 are avoided.
@@ -110,7 +110,7 @@ TEST( Rashba_electric, berry_connection ) {
   };
 
   PetscInt begin, end;
-  PetscErrorCode ierr = MatGetOwnershipRange(R.at(0), &begin, &end);CHKERRXX(ierr);
+  PetscErrorCode ierr = MatGetOwnershipRange(R.at(0).M, &begin, &end);CHKERRXX(ierr);
 
   for (PetscInt ikm = begin; ikm < end; ikm++) {
     anomtrans::kmComps<k_dim> km = kmb.decompose(ikm);
@@ -134,7 +134,7 @@ TEST( Rashba_electric, berry_connection ) {
       PetscInt ncols;
       const PetscInt *cols;
       const PetscScalar *vals;
-      ierr = MatGetRow(R.at(dc), ikm, &ncols, &cols, &vals);CHKERRXX(ierr);
+      ierr = MatGetRow(R.at(dc).M, ikm, &ncols, &cols, &vals);CHKERRXX(ierr);
 
       for (PetscInt col_index = 0; col_index < ncols; col_index++) {
         PetscInt col = cols[col_index];
@@ -161,7 +161,7 @@ TEST( Rashba_electric, berry_connection ) {
         ASSERT_TRUE(anomtrans::scalars_approx_equal(Rk_pm.at(dc), val, 100.0*macheps, 100.0*macheps));
       }
 
-      ierr = MatRestoreRow(R.at(dc), ikm, &ncols, &cols, &vals);CHKERRXX(ierr);
+      ierr = MatRestoreRow(R.at(dc).M, ikm, &ncols, &cols, &vals);CHKERRXX(ierr);
     }
   }
 }
@@ -223,8 +223,8 @@ TEST( Rashba_electric, Rashba_electric ) {
 
   Vec Ekm = anomtrans::get_energies(kmb, H);
 
-  std::array<Mat, k_dim> v_op = anomtrans::calculate_velocity(kmb, H);
-  std::array<Mat, 3> spin_op = anomtrans::calculate_spin_operator(kmb, H);
+  auto v_op = anomtrans::calculate_velocity(kmb, H);
+  auto spin_op = anomtrans::calculate_spin_operator(kmb, H);
 
   PetscInt Ekm_min_index, Ekm_max_index;
   PetscReal Ekm_min, Ekm_max;
@@ -252,14 +252,14 @@ TEST( Rashba_electric, Rashba_electric ) {
         H, ULambda, ikm1, ikm2, ikm3);
   };
 
-  Mat collision = anomtrans::make_collision(kmb, H, sigma, disorder_term);
+  auto collision = anomtrans::make_collision(kmb, H, sigma, disorder_term);
 
   // Create the linear solver context.
   KSP ksp;
   ierr = KSPCreate(PETSC_COMM_WORLD, &ksp);CHKERRXX(ierr);
   // This uses collision again as the preconditioning matrix.
   // TODO - is there a better choice?
-  ierr = KSPSetOperators(ksp, collision, collision);CHKERRXX(ierr);
+  ierr = KSPSetOperators(ksp, collision.M, collision.M);CHKERRXX(ierr);
   // Could use KSPSetFromOptions here. In this case, prefer to keep options
   // hard-coded to have identical output from each test run.
 
@@ -270,13 +270,14 @@ TEST( Rashba_electric, Rashba_electric ) {
   // Maximum number of elements expected for sum of Cartesian derivatives.
   PetscInt Ehat_grad_expected_elems_per_row = stencil.approx_order*k_dim*k_dim*k_dim;
 
-  Mat Ehat_dot_grad_k = anomtrans::Mat_from_sum_const(anomtrans::make_complex_array(Ehat),
-      d_dk_Cart, Ehat_grad_expected_elems_per_row);
+  auto Ehat_dot_grad_k = anomtrans::Mat_from_sum_const(anomtrans::make_complex_array(Ehat),
+      anomtrans::unowned(d_dk_Cart), Ehat_grad_expected_elems_per_row);
 
   // TODO - what is a good way to choose broadening for Berry connection?
   double berry_broadening = 1e-8;
   auto R = anomtrans::make_berry_connection(kmb, H, berry_broadening);
-  auto Ehat_dot_R = anomtrans::Mat_from_sum_const(anomtrans::make_complex_array(Ehat), R, kmb.Nbands);
+  auto Ehat_dot_R = anomtrans::Mat_from_sum_const(anomtrans::make_complex_array(Ehat),
+      anomtrans::unowned(R), kmb.Nbands);
 
   auto Omega = anomtrans::make_berry_curvature(kmb, H, berry_broadening);
 
@@ -299,7 +300,7 @@ TEST( Rashba_electric, Rashba_electric ) {
     auto dm_rho0 = anomtrans::make_eq_node<anomtrans::StaticDMGraphNode>(Ekm, beta, mu);
     Vec rho0_km;
     ierr = VecDuplicate(Ekm, &rho0_km);CHKERRXX(ierr);
-    ierr = MatGetDiagonal(dm_rho0->rho, rho0_km);CHKERRXX(ierr);
+    ierr = MatGetDiagonal(dm_rho0->rho.M, rho0_km);CHKERRXX(ierr);
 
     // Get normalized version of rho0 to use for nullspace.
     // TODO can we safely pass a nullptr instead of rho0_orig_norm?
@@ -317,24 +318,24 @@ TEST( Rashba_electric, Rashba_electric ) {
     // TODO does this mean that the nullspace has dimension larger than 1?
     MatNullSpace nullspace;
     ierr = MatNullSpaceCreate(PETSC_COMM_WORLD, PETSC_FALSE, 1, &rho0_normalized, &nullspace);CHKERRXX(ierr);
-    ierr = MatSetNullSpace(collision, nullspace);CHKERRXX(ierr);
+    ierr = MatSetNullSpace(collision.M, nullspace);CHKERRXX(ierr);
     // NOTE rho0_normalized must not be modified after this call until we are done with nullspace.
 
-    anomtrans::add_linear_response_electric(dm_rho0, kmb, Ehat_dot_grad_k, Ehat_dot_R, ksp,
+    anomtrans::add_linear_response_electric(dm_rho0, kmb, Ehat_dot_grad_k.M, Ehat_dot_R.M, ksp,
         H, sigma, disorder_term_od, berry_broadening);
     auto dm_n_E = dm_rho0->children[anomtrans::StaticDMDerivedBy::Kdd_inv_DE];
     Vec n_E;
     ierr = VecDuplicate(rho0_km, &n_E);CHKERRXX(ierr);
-    ierr = MatGetDiagonal(dm_n_E->rho, n_E);CHKERRXX(ierr);
+    ierr = MatGetDiagonal(dm_n_E->rho.M, n_E);CHKERRXX(ierr);
 
     // Have obtained linear response to electric field. Can calculate this
     // part of the longitudinal conductivity.
     // sigma_xx = -e Tr[v_x <rho_{E_x}>] / E_y
     bool ret_Mat = false;
-    PetscScalar sigma_xx = anomtrans::calculate_current_ev(kmb, v_op, dm_n_E->rho, ret_Mat).at(0).first;
+    PetscScalar sigma_xx = anomtrans::calculate_current_ev(kmb, v_op, dm_n_E->rho.M, ret_Mat).at(0).first;
     all_sigma_xxs.push_back(sigma_xx.real());
 
-    PetscScalar sy = anomtrans::calculate_spin_ev(kmb, spin_op, dm_n_E->rho, ret_Mat).at(1).first;
+    PetscScalar sy = anomtrans::calculate_spin_ev(kmb, spin_op, dm_n_E->rho.M, ret_Mat).at(1).first;
     all_sys.push_back(sy.real());
 
     auto collected_rho0 = anomtrans::split_scalars(anomtrans::collect_contents(rho0_km)).first;
@@ -346,24 +347,26 @@ TEST( Rashba_electric, Rashba_electric ) {
     auto dm_S_E_extrinsic = dm_n_E->children[anomtrans::StaticDMDerivedBy::P_inv_Kod];
 
     PetscScalar js_sz_vy_intrinsic = anomtrans::calculate_spin_current_ev(kmb, spin_op, v_op,
-        dm_S_E_intrinsic->rho, ret_Mat).at(2).at(1).first;
+        dm_S_E_intrinsic->rho.M, ret_Mat).at(2).at(1).first;
     all_js_sz_vys_intrinsic.push_back(js_sz_vy_intrinsic.real());
 
     PetscScalar js_sz_vy_extrinsic = anomtrans::calculate_spin_current_ev(kmb, spin_op, v_op,
-        dm_S_E_extrinsic->rho, ret_Mat).at(2).at(1).first;
+        dm_S_E_extrinsic->rho.M, ret_Mat).at(2).at(1).first;
     all_js_sz_vys_extrinsic.push_back(js_sz_vy_extrinsic.real());
 
-    auto collected_S_E_pm_int = anomtrans::split_scalars(anomtrans::collect_band_elem(kmb, dm_S_E_intrinsic->rho, 0, 1));
+    auto collected_S_E_pm_int = anomtrans::split_scalars(anomtrans::collect_band_elem(kmb,
+          dm_S_E_intrinsic->rho.M, 0, 1));
     all_S_E_pm_int_real.push_back(collected_S_E_pm_int.first);
     all_S_E_pm_int_imag.push_back(collected_S_E_pm_int.second);
 
-    auto collected_S_E_pm_ext = anomtrans::split_scalars(anomtrans::collect_band_elem(kmb, dm_S_E_extrinsic->rho, 0, 1));
+    auto collected_S_E_pm_ext = anomtrans::split_scalars(anomtrans::collect_band_elem(kmb,
+          dm_S_E_extrinsic->rho.M, 0, 1));
     all_S_E_pm_ext_real.push_back(collected_S_E_pm_ext.first);
     all_S_E_pm_ext_imag.push_back(collected_S_E_pm_ext.second);
 
     Mat S_E_total;
-    ierr = MatDuplicate(dm_S_E_intrinsic->rho, MAT_COPY_VALUES, &S_E_total);CHKERRXX(ierr);
-    ierr = MatAXPY(S_E_total, 1.0, dm_S_E_extrinsic->rho, DIFFERENT_NONZERO_PATTERN);CHKERRXX(ierr);
+    ierr = MatDuplicate(dm_S_E_intrinsic->rho.M, MAT_COPY_VALUES, &S_E_total);CHKERRXX(ierr);
+    ierr = MatAXPY(S_E_total, 1.0, dm_S_E_extrinsic->rho.M, DIFFERENT_NONZERO_PATTERN);CHKERRXX(ierr);
 
     auto collected_S_E_pm = anomtrans::split_scalars(anomtrans::collect_band_elem(kmb, S_E_total, 0, 1));
     all_S_E_pm_real.push_back(collected_S_E_pm.first);
@@ -380,16 +383,10 @@ TEST( Rashba_electric, Rashba_electric ) {
 
   // Done with PETSc data.
   for (std::size_t dc = 0; dc < k_dim; dc++) {
-    ierr = MatDestroy(&(d_dk_Cart.at(dc)));CHKERRXX(ierr);
-    ierr = MatDestroy(&(R.at(dc)));CHKERRXX(ierr);
-    ierr = MatDestroy(&(v_op.at(dc)));CHKERRXX(ierr);
-    ierr = MatDestroy(&(spin_op.at(dc)));CHKERRXX(ierr);
     ierr = VecDestroy(&(Omega.at(dc)));CHKERRXX(ierr);
   }
 
-  ierr = MatDestroy(&Ehat_dot_R);CHKERRXX(ierr);
   ierr = KSPDestroy(&ksp);CHKERRXX(ierr);
-  ierr = MatDestroy(&collision);CHKERRXX(ierr);
   ierr = VecDestroy(&Ekm);CHKERRXX(ierr);
 
   if (rank == 0) {

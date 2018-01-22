@@ -368,16 +368,16 @@ std::size_t get_Nk_total(const kComps<k_dim> Nk) {
  *        This could also help to support caching strategies for eigenvectors etc.
  */
 template <std::size_t out_dim, std::size_t k_dim, typename ElemFunc>
-std::array<Mat, out_dim> construct_k_diagonal_Mat_array(const kmBasis<k_dim> &kmb, ElemFunc f) {
+std::array<OwnedMat, out_dim> construct_k_diagonal_Mat_array(const kmBasis<k_dim> &kmb, ElemFunc f) {
   static_assert(out_dim > 0, "must have at least one output element");
 
-  std::array<Mat, out_dim> As;
+  std::array<OwnedMat, out_dim> As;
   for (std::size_t d = 0; d < out_dim; d++) {
     As.at(d) = make_Mat(kmb.end_ikm, kmb.end_ikm, kmb.Nbands);
   }
 
   PetscInt begin, end;
-  PetscErrorCode ierr = MatGetOwnershipRange(As.at(0), &begin, &end);CHKERRXX(ierr);
+  PetscErrorCode ierr = MatGetOwnershipRange(As.at(0).M, &begin, &end);CHKERRXX(ierr);
 
   for (PetscInt ikm = begin; ikm < end; ikm++) {
     std::vector<PetscInt> row_cols;
@@ -403,14 +403,14 @@ std::array<Mat, out_dim> construct_k_diagonal_Mat_array(const kmBasis<k_dim> &km
 
     for (std::size_t d = 0; d < out_dim; d++) {
       assert(row_cols.size() == row_vals.at(d).size());
-      ierr = MatSetValues(As.at(d), 1, &ikm, row_cols.size(), row_cols.data(), row_vals.at(d).data(),
+      ierr = MatSetValues(As.at(d).M, 1, &ikm, row_cols.size(), row_cols.data(), row_vals.at(d).data(),
           INSERT_VALUES);CHKERRXX(ierr);
     }
   }
 
   for (std::size_t d = 0; d < out_dim; d++) {
-    ierr = MatAssemblyBegin(As.at(d), MAT_FINAL_ASSEMBLY);CHKERRXX(ierr);
-    ierr = MatAssemblyEnd(As.at(d), MAT_FINAL_ASSEMBLY);CHKERRXX(ierr);
+    ierr = MatAssemblyBegin(As.at(d).M, MAT_FINAL_ASSEMBLY);CHKERRXX(ierr);
+    ierr = MatAssemblyEnd(As.at(d).M, MAT_FINAL_ASSEMBLY);CHKERRXX(ierr);
   }
 
   return As;
@@ -429,7 +429,7 @@ std::array<Mat, out_dim> construct_k_diagonal_Mat_array(const kmBasis<k_dim> &km
  *        This could also help to support caching strategies for eigenvectors etc.
  */
 template <std::size_t k_dim, typename ElemFunc>
-Mat construct_k_diagonal_Mat(const kmBasis<k_dim> &kmb, ElemFunc f) {
+OwnedMat construct_k_diagonal_Mat(const kmBasis<k_dim> &kmb, ElemFunc f) {
   auto f_array = [&f](PetscInt ikm, unsigned int mp)->std::array<PetscScalar, 1> {
     return {f(ikm, mp)};
   };
@@ -522,7 +522,7 @@ OneResult Mat_product_trace_normalized(const kmBasis<k_dim> &kmb, std::array<Mat
   result.first = kmb.k_sample_point_volume() * result.first;
 
   if (ret_Mat) {
-    PetscErrorCode ierr = MatScale(*result.second, kmb.k_sample_point_volume());CHKERRXX(ierr);
+    PetscErrorCode ierr = MatScale((*result.second).M, kmb.k_sample_point_volume());CHKERRXX(ierr);
   }
 
   return result;

@@ -67,7 +67,7 @@ PetscReal get_fermi_surface_threshold(double sigma);
  *        Would cold smearing be better than Gaussian?
  */
 template <std::size_t k_dim, typename Hamiltonian, typename UU>
-Mat make_collision(const kmBasis<k_dim> &kmb, const Hamiltonian &H, const double sigma,
+OwnedMat make_collision(const kmBasis<k_dim> &kmb, const Hamiltonian &H, const double sigma,
     const UU &disorder_term) {
   // TODO could make this an argument to avoid recomputing.
   Vec Ekm = get_energies(kmb, H);
@@ -148,7 +148,7 @@ Mat make_collision(const kmBasis<k_dim> &kmb, const Hamiltonian &H, const double
   ierr = VecDestroy(&Ekm_all);CHKERRXX(ierr);
   ierr = VecDestroy(&Ekm);CHKERRXX(ierr);
 
-  return K;
+  return OwnedMat(K);
 }
 
 /** @brief Return true iff the (k', m') point given by sorted_ikpmp_index is on

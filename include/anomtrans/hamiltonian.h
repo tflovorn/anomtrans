@@ -18,17 +18,17 @@ namespace anomtrans {
  *        for 0 <= dc < k_dim, only components with dc in this range are given here.
  */
 template <std::size_t k_dim, typename Hamiltonian>
-std::array<Mat, k_dim> make_DH0_cross_Bhat(const kmBasis<k_dim> &kmb, const Hamiltonian &H,
+std::array<OwnedMat, k_dim> make_DH0_cross_Bhat(const kmBasis<k_dim> &kmb, const Hamiltonian &H,
     std::array<double, 3> Bhat) {
   static_assert(k_dim > 0, "must have number of spatial dimensions > 0");
 
-  std::array<Mat, k_dim> result;
+  std::array<OwnedMat, k_dim> result;
   for (std::size_t dc = 0; dc < k_dim; dc++) {
     result.at(dc) = make_Mat(kmb.end_ikm, kmb.end_ikm, kmb.Nbands);
   }
 
   PetscInt begin, end;
-  PetscErrorCode ierr = MatGetOwnershipRange(result.at(0), &begin, &end);CHKERRXX(ierr);
+  PetscErrorCode ierr = MatGetOwnershipRange(result.at(0).M, &begin, &end);CHKERRXX(ierr);
 
   for (PetscInt local_row = begin; local_row < end; local_row++) {
     std::vector<PetscInt> result_row_cols;
@@ -54,14 +54,14 @@ std::array<Mat, k_dim> make_DH0_cross_Bhat(const kmBasis<k_dim> &kmb, const Hami
     }
 
     for (std::size_t dc = 0; dc < k_dim; dc++) {
-      PetscErrorCode ierr = MatSetValues(result.at(dc), 1, &local_row, result_row_cols.size(),
+      PetscErrorCode ierr = MatSetValues(result.at(dc).M, 1, &local_row, result_row_cols.size(),
           result_row_cols.data(), result_row_vals.at(dc).data(), INSERT_VALUES);CHKERRXX(ierr);
     }
   }
 
   for (std::size_t dc = 0; dc < k_dim; dc++) {
-    PetscErrorCode ierr = MatAssemblyBegin(result.at(dc), MAT_FINAL_ASSEMBLY);CHKERRXX(ierr);
-    ierr = MatAssemblyEnd(result.at(dc), MAT_FINAL_ASSEMBLY);CHKERRXX(ierr);
+    PetscErrorCode ierr = MatAssemblyBegin(result.at(dc).M, MAT_FINAL_ASSEMBLY);CHKERRXX(ierr);
+    ierr = MatAssemblyEnd(result.at(dc).M, MAT_FINAL_ASSEMBLY);CHKERRXX(ierr);
   }
 
   return result;

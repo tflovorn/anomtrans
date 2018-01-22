@@ -2,7 +2,41 @@
 
 namespace anomtrans {
 
-Mat make_Mat(PetscInt m, PetscInt n, PetscInt expected_elems_per_row) {
+OwnedMat::OwnedMat() {}
+
+OwnedMat::OwnedMat(Mat _M) : M(_M) {}
+
+OwnedMat::~OwnedMat() {
+  // If we don't own a `Mat`, do nothing.
+  if (M == nullptr) {
+    return;
+  }
+
+  // Release the `Mat` that we own. If the release operation fails,
+  // suppress the error. (Could be nice to report the error, but maybe if
+  // deallocation fails, PetscPrintf would also fail...).
+  //
+  // Examining the implementation of `MatDestroy` (as of PETSC 3.8),
+  // it appears that this function will suppress any errors it encounters,
+  // so we should never encounter an exception here.
+  try {
+    PetscErrorCode ierr = MatDestroy(&M);CHKERRXX(ierr);
+  } catch (...) {}
+}
+
+OwnedMat::OwnedMat(OwnedMat&& other) : M(other.M) {
+  other.M = nullptr;
+}
+
+OwnedMat& OwnedMat::operator=(OwnedMat&& other) {
+  if (this != &other) {
+    M = other.M;
+    other.M = nullptr;
+  }
+  return *this;
+}
+
+OwnedMat make_Mat(PetscInt m, PetscInt n, PetscInt expected_elems_per_row) {
   Mat A;
   PetscErrorCode ierr = MatCreate(PETSC_COMM_WORLD, &A);CHKERRXX(ierr);
   ierr = MatSetSizes(A, PETSC_DECIDE, PETSC_DECIDE, m, n);CHKERRXX(ierr);
@@ -30,14 +64,14 @@ Mat make_Mat(PetscInt m, PetscInt n, PetscInt expected_elems_per_row) {
   //
   // TODO is using MatXAIJSetPreallocation the right thing to do here instead?
 
-  return A;
+  return OwnedMat(A);
 }
 
-Mat make_diag_Mat(Vec v) {
+OwnedMat make_diag_Mat(Vec v) {
   PetscInt size;
   PetscErrorCode ierr = VecGetSize(v, &size);CHKERRXX(ierr);
 
-  Mat result = make_Mat(size, size, 1);
+  OwnedMat result = make_Mat(size, size, 1);
 
   // Would like to just call MatDiagonalSet here to set diagonal elements.
   // However, documentation there claims that diagonal elements must already
@@ -56,13 +90,13 @@ Mat make_diag_Mat(Vec v) {
     assert(static_cast<int>(value_index) < end - begin);
 
     PetscScalar value = local_values[value_index];
-    ierr = MatSetValue(result, local_row, local_row, value, INSERT_VALUES);
+    ierr = MatSetValue(result.M, local_row, local_row, value, INSERT_VALUES);
   }
 
   ierr = VecRestoreArray(v, &local_values);CHKERRXX(ierr);
 
-  ierr = MatAssemblyBegin(result, MAT_FINAL_ASSEMBLY);CHKERRXX(ierr);
-  ierr = MatAssemblyEnd(result, MAT_FINAL_ASSEMBLY);CHKERRXX(ierr);
+  ierr = MatAssemblyBegin(result.M, MAT_FINAL_ASSEMBLY);CHKERRXX(ierr);
+  ierr = MatAssemblyEnd(result.M, MAT_FINAL_ASSEMBLY);CHKERRXX(ierr);
 
   return result;
 }
@@ -129,7 +163,7 @@ bool check_Mat_equal(Mat A, Mat B, double tol) {
   return true;
 }
 
-Mat commutator(Mat A, Mat B) {
+OwnedMat commutator(Mat A, Mat B) {
   Mat prod_left, prod_tot;
   // prod_left = AB
   PetscErrorCode ierr = MatMatMult(A, B, MAT_INITIAL_MATRIX,
@@ -141,7 +175,7 @@ Mat commutator(Mat A, Mat B) {
 
   ierr = MatDestroy(&prod_left);CHKERRXX(ierr);
 
-  return prod_tot;
+  return OwnedMat(prod_tot);
 }
 
 } // namespace anomtrans

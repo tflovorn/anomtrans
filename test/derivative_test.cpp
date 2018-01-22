@@ -74,7 +74,7 @@ TEST( derivative, linear ) {
     PetscErrorCode ierr = VecDuplicate(f_vals, &df_dk);CHKERRXX(ierr);
 
     for (std::size_t d = 0; d < k_dim; d++) {
-      ierr = MatMult(d_dk.at(d), f_vals, df_dk);CHKERRXX(ierr);
+      ierr = MatMult(d_dk.at(d).M, f_vals, df_dk);CHKERRXX(ierr);
 
       std::vector<PetscInt> df_dk_ikms;
       std::vector<PetscScalar> df_dk_vals;
@@ -143,7 +143,7 @@ TEST( derivative, quadratic ) {
     PetscErrorCode ierr = VecDuplicate(f_vals, &df_dk);CHKERRXX(ierr);
 
     for (std::size_t d = 0; d < k_dim; d++) {
-      ierr = MatMult(d_dk.at(d), f_vals, df_dk);CHKERRXX(ierr);
+      ierr = MatMult(d_dk.at(d).M, f_vals, df_dk);CHKERRXX(ierr);
 
       std::vector<PetscInt> df_dk_ikms;
       std::vector<PetscScalar> df_dk_vals;
@@ -220,7 +220,7 @@ TEST( derivative, square_TB_fermi_surface ) {
   // Since a1 = \hat{x}, a2 = \hat{y}, we should have d_dk == 2*pi*d_dk_Cart.
   for (std::size_t d = 0; d < k_dim; d++) {
     Mat d_dk_Cart_d_2pi;
-    MatDuplicate(d_dk_Cart.at(d), MAT_COPY_VALUES, &d_dk_Cart_d_2pi);
+    MatDuplicate(d_dk_Cart.at(d).M, MAT_COPY_VALUES, &d_dk_Cart_d_2pi);
     MatScale(d_dk_Cart_d_2pi, 2*anomtrans::pi);
 
     // Tried to use PETSc MatEqual() for this, got confusing errors about unequal
@@ -230,7 +230,7 @@ TEST( derivative, square_TB_fermi_surface ) {
     // The appropriate scale for floating-point comparison here is 1 (or more
     // generally would be a, if we had a1 = {a, 0}, a2 = {0, a}).
     double tol = 2*std::numeric_limits<double>::epsilon();
-    ASSERT_TRUE( anomtrans::check_Mat_equal(d_dk.at(d), d_dk_Cart_d_2pi, tol) );
+    ASSERT_TRUE( anomtrans::check_Mat_equal(d_dk.at(d).M, d_dk_Cart_d_2pi, tol) );
 
     ierr = MatDestroy(&d_dk_Cart_d_2pi);CHKERRXX(ierr);
   }
@@ -248,7 +248,7 @@ TEST( derivative, square_TB_fermi_surface ) {
       Vec d_rho0_dk_d;
       PetscErrorCode ierr = VecCreateMPI(PETSC_COMM_WORLD, PETSC_DECIDE, kmb.end_ikm, &d_rho0_dk_d);CHKERRXX(ierr);
       // d_rho0_dk(d) = [d_dk]_{d} * rho0
-      ierr = MatMult(d_dk.at(d), rho0_km, d_rho0_dk_d);CHKERRXX(ierr);
+      ierr = MatMult(d_dk.at(d).M, rho0_km, d_rho0_dk_d);CHKERRXX(ierr);
       
       ierr = VecAssemblyBegin(d_rho0_dk_d);CHKERRXX(ierr);
       ierr = VecAssemblyEnd(d_rho0_dk_d);CHKERRXX(ierr);
@@ -310,10 +310,6 @@ TEST( derivative, square_TB_fermi_surface ) {
 
   // Done with PETSc data.
   ierr = VecDestroy(&Ekm);CHKERRXX(ierr);
-  for (std::size_t d = 0; d < k_dim; d++) {
-    ierr = MatDestroy(&(d_dk.at(d)));CHKERRXX(ierr);
-    ierr = MatDestroy(&(d_dk_Cart.at(d)));CHKERRXX(ierr);
-  }
 
   if (rank == 0) {
     // Write out the collected data.

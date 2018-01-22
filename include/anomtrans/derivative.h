@@ -208,18 +208,18 @@ IndexValPairs finite_difference(const kmBasis<k_dim> &kmb,
  *  @todo Generalize to derivatives beyond order 1?
  */
 template <std::size_t k_dim>
-std::array<Mat, k_dim> make_d_dk_recip(const kmBasis<k_dim> &kmb,
+std::array<OwnedMat, k_dim> make_d_dk_recip(const kmBasis<k_dim> &kmb,
     const DerivStencil<1> &stencil) {
   PetscInt expected_elems_per_row = stencil.approx_order*k_dim;
 
-  std::array<Mat, k_dim> d_dk_recip;
+  std::array<OwnedMat, k_dim> d_dk_recip;
   // TODO could factor out loop body, same for each d
   // (d just used in finite_difference call and putting into array)
   for (std::size_t d = 0; d < k_dim; d++) {
-    Mat d_dk_d = make_Mat(kmb.end_ikm, kmb.end_ikm, expected_elems_per_row);
+    d_dk_recip.at(d) = make_Mat(kmb.end_ikm, kmb.end_ikm, expected_elems_per_row);
     
     PetscInt begin, end;
-    PetscErrorCode ierr = MatGetOwnershipRange(d_dk_d, &begin, &end);CHKERRXX(ierr);
+    PetscErrorCode ierr = MatGetOwnershipRange(d_dk_recip.at(d).M, &begin, &end);CHKERRXX(ierr);
 
     // TODO would it be better to group row data and only call MatSetValues once?
     for (PetscInt local_row = begin; local_row < end; local_row++) {
@@ -227,14 +227,12 @@ std::array<Mat, k_dim> make_d_dk_recip(const kmBasis<k_dim> &kmb,
       std::vector<PetscScalar> column_vals;
       std::tie(column_ikms, column_vals) = finite_difference(kmb, stencil, local_row, d);
       
-      ierr = MatSetValues(d_dk_d, 1, &local_row, column_ikms.size(),
+      ierr = MatSetValues(d_dk_recip.at(d).M, 1, &local_row, column_ikms.size(),
           column_ikms.data(), column_vals.data(), INSERT_VALUES);CHKERRXX(ierr);
     }
 
-    ierr = MatAssemblyBegin(d_dk_d, MAT_FINAL_ASSEMBLY);CHKERRXX(ierr);
-    ierr = MatAssemblyEnd(d_dk_d, MAT_FINAL_ASSEMBLY);CHKERRXX(ierr);
-    
-    d_dk_recip.at(d) = d_dk_d;
+    ierr = MatAssemblyBegin(d_dk_recip.at(d).M, MAT_FINAL_ASSEMBLY);CHKERRXX(ierr);
+    ierr = MatAssemblyEnd(d_dk_recip.at(d).M, MAT_FINAL_ASSEMBLY);CHKERRXX(ierr);
   }
 
   return d_dk_recip;
@@ -251,14 +249,14 @@ std::array<Mat, k_dim> make_d_dk_recip(const kmBasis<k_dim> &kmb,
  *  @todo Generalize to derivatives beyond order 1?
  */
 template <std::size_t k_dim>
-std::array<Mat, k_dim> make_d_dk_Cartesian(DimMatrix<k_dim> D, const kmBasis<k_dim> &kmb,
+std::array<OwnedMat, k_dim> make_d_dk_Cartesian(DimMatrix<k_dim> D, const kmBasis<k_dim> &kmb,
     const DerivStencil<1> &stencil) {
   auto d_dk_recip = make_d_dk_recip(kmb, stencil);
 
   // Each d/dk_c could contain elements from each d/dk_i.
   PetscInt expected_elems_per_row = stencil.approx_order*k_dim*k_dim;
 
-  std::array<Mat, k_dim> d_dk_Cart;
+  std::array<OwnedMat, k_dim> d_dk_Cart;
   for (std::size_t dc = 0; dc < k_dim; dc++) {
     // d_dk_Cart[dc] = \sum_i D[c, i] * d_dk[i]
     std::array<PetscScalar, k_dim> coeffs;
@@ -268,9 +266,7 @@ std::array<Mat, k_dim> make_d_dk_Cartesian(DimMatrix<k_dim> D, const kmBasis<k_d
       coeffs.at(di) = coeff;
     }
 
-    Mat d_dk_c = Mat_from_sum_const(coeffs, d_dk_recip, expected_elems_per_row);
-
-    d_dk_Cart.at(dc) = d_dk_c;
+    d_dk_Cart.at(dc) = Mat_from_sum_const(coeffs, unowned(d_dk_recip), expected_elems_per_row);
   }
 
   return d_dk_Cart;
@@ -281,7 +277,7 @@ std::array<Mat, k_dim> make_d_dk_Cartesian(DimMatrix<k_dim> D, const kmBasis<k_d
  *           = \sum_{k'} [d x]_{km, k'm'}.
  */
 template <std::size_t k_dim>
-Mat apply_deriv(const kmBasis<k_dim> &kmb, Mat deriv, Mat rho) {
+OwnedMat apply_deriv(const kmBasis<k_dim> &kmb, Mat deriv, Mat rho) {
   PetscInt size_m, size_n;
   PetscErrorCode ierr = MatGetSize(deriv, &size_m, &size_n);CHKERRXX(ierr);
   assert(size_m == size_n);
@@ -290,7 +286,7 @@ Mat apply_deriv(const kmBasis<k_dim> &kmb, Mat deriv, Mat rho) {
   ierr = MatMatMult(deriv, rho, MAT_INITIAL_MATRIX, PETSC_DEFAULT, &prod);CHKERRXX(ierr);
 
   PetscInt expected_elems_per_row = kmb.Nbands;
-  Mat result = make_Mat(size_m, size_m, expected_elems_per_row);
+  OwnedMat result = make_Mat(size_m, size_m, expected_elems_per_row);
 
   PetscInt begin, end;
   ierr = MatGetOwnershipRange(deriv, &begin, &end);CHKERRXX(ierr);
@@ -335,12 +331,12 @@ Mat apply_deriv(const kmBasis<k_dim> &kmb, Mat deriv, Mat rho) {
     }
 
     assert(result_row_cols.size() == result_row_vals.size());
-    ierr = MatSetValues(result, 1, &km, result_row_cols.size(),
+    ierr = MatSetValues(result.M, 1, &km, result_row_cols.size(),
         result_row_cols.data(), result_row_vals.data(), INSERT_VALUES);CHKERRXX(ierr);
   }
 
-  ierr = MatAssemblyBegin(result, MAT_FINAL_ASSEMBLY);CHKERRXX(ierr);
-  ierr = MatAssemblyEnd(result, MAT_FINAL_ASSEMBLY);CHKERRXX(ierr);
+  ierr = MatAssemblyBegin(result.M, MAT_FINAL_ASSEMBLY);CHKERRXX(ierr);
+  ierr = MatAssemblyEnd(result.M, MAT_FINAL_ASSEMBLY);CHKERRXX(ierr);
 
   ierr = MatDestroy(&prod);CHKERRXX(ierr);
 

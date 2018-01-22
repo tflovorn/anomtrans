@@ -50,14 +50,15 @@ PetscReal find_max_energy_difference(const kmBasis<k_dim> &kmb, const Hamiltonia
   // Will need to generalize to allow continuum models.
   DerivStencil<1> stencil(DerivApproxType::forward, 1);
 
-  std::array<Mat, k_dim> d_dk = make_d_dk_recip(kmb, stencil);
+  auto d_dk = make_d_dk_recip(kmb, stencil);
 
   Vec dE_dk;
   PetscErrorCode ierr = VecDuplicate(Ekm, &dE_dk);CHKERRXX(ierr);
 
   PetscReal ediff_max = 0.0;
   for (std::size_t d = 0; d < k_dim; d++) {
-    ierr = MatMult(d_dk.at(d), Ekm, dE_dk);CHKERRXX(ierr);
+    ierr = MatMult(d_dk.at(d).M, Ekm, dE_dk);CHKERRXX(ierr);
+    // TODO - this should be `* k_step`
     PetscReal ediff_d_max = get_Vec_MaxAbs(dE_dk) / kmb.Nk.at(d);
 
     if (ediff_d_max > ediff_max) {
@@ -115,7 +116,7 @@ std::pair<SortResult, std::vector<PetscInt>> sort_energies(const kmBasis<k_dim> 
  *  @todo Prefer to act on rho in-place?
  */
 template <std::size_t k_dim, typename Hamiltonian>
-Mat apply_precession_term(const kmBasis<k_dim> &kmb, const Hamiltonian &H, Mat rho,
+OwnedMat apply_precession_term(const kmBasis<k_dim> &kmb, const Hamiltonian &H, Mat rho,
     double broadening) {
   return apply_precession_term_dynamic(kmb, H, rho, broadening, 0, 0.0);
 }
@@ -135,7 +136,7 @@ Mat apply_precession_term(const kmBasis<k_dim> &kmb, const Hamiltonian &H, Mat r
  *  @todo Prefer to act on rho in-place?
  */
 template <std::size_t k_dim, typename Hamiltonian>
-Mat apply_precession_term_dynamic(const kmBasis<k_dim> &kmb, const Hamiltonian &H, Mat rho,
+OwnedMat apply_precession_term_dynamic(const kmBasis<k_dim> &kmb, const Hamiltonian &H, Mat rho,
     double broadening, int n, double omega) {
   Mat result;
   PetscErrorCode ierr = MatDuplicate(rho, MAT_SHARE_NONZERO_PATTERN, &result);CHKERRXX(ierr);
@@ -184,7 +185,7 @@ Mat apply_precession_term_dynamic(const kmBasis<k_dim> &kmb, const Hamiltonian &
   ierr = MatAssemblyBegin(result, MAT_FINAL_ASSEMBLY);CHKERRXX(ierr);
   ierr = MatAssemblyEnd(result, MAT_FINAL_ASSEMBLY);CHKERRXX(ierr);
 
-  return result;
+  return OwnedMat(result);
 }
 
 } // namespace anomtrans

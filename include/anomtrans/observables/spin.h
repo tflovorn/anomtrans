@@ -3,6 +3,7 @@
 
 #include <cstddef>
 #include <array>
+#include <utility>
 #include <boost/optional.hpp>
 #include <Eigen/Core>
 #include <petscksp.h>
@@ -21,13 +22,13 @@ std::array<Eigen::Matrix2cd, 3> pauli_matrices();
  *  @returns The Cartesian components of the spin operator (units of hbar).
  */
 template <std::size_t k_dim, typename Hamiltonian>
-std::array<Mat, 3> calculate_spin_operator(const kmBasis<k_dim> &kmb,
+std::array<OwnedMat, 3> calculate_spin_operator(const kmBasis<k_dim> &kmb,
     const Hamiltonian &H) {
   auto spin_elem = [&H](PetscInt ikm, unsigned int mp)->std::array<PetscScalar, 3> {
     return H.spin(ikm, mp);
   };
 
-  std::array<Mat, 3> spin = construct_k_diagonal_Mat_array<3>(kmb, spin_elem);
+  auto spin = construct_k_diagonal_Mat_array<3>(kmb, spin_elem);
 
   return spin;
 }
@@ -41,11 +42,11 @@ std::array<Mat, 3> calculate_spin_operator(const kmBasis<k_dim> &kmb,
  *  @todo Return PetscReal instead of PetscScalar? Output should be guaranteed to be real.
  */
 template <std::size_t k_dim>
-ArrayResult<3> calculate_spin_ev(const kmBasis<k_dim> &kmb, std::array<Mat, 3> spin, Mat rho,
-    bool ret_Mat) {
+ArrayResult<3> calculate_spin_ev(const kmBasis<k_dim> &kmb, std::array<OwnedMat, 3>& spin,
+    Mat rho, bool ret_Mat) {
   ArrayResult<3> result;
   for (std::size_t dc = 0; dc < 3; dc++) {
-    std::array<Mat, 2> prod_Mats = {spin.at(dc), rho};
+    std::array<Mat, 2> prod_Mats = {spin.at(dc).M, rho};
     result.at(dc) = Mat_product_trace_normalized(kmb, prod_Mats, ret_Mat);
   }
   return result;
@@ -65,13 +66,13 @@ ArrayResult<3> calculate_spin_ev(const kmBasis<k_dim> &kmb, std::array<Mat, 3> s
  */
 template <std::size_t k_dim>
 NestedArrayResult<3, k_dim> calculate_spin_current_ev(const kmBasis<k_dim> &kmb,
-    std::array<Mat, 3> spin, std::array<Mat, k_dim> v, Mat rho, bool ret_Mat) {
+    std::array<OwnedMat, 3>& spin, std::array<OwnedMat, k_dim>& v, Mat rho, bool ret_Mat) {
   NestedArrayResult<3, k_dim> result;
 
   for (std::size_t dc_s = 0; dc_s < 3; dc_s++) {
     for (std::size_t dc_v = 0; dc_v < k_dim; dc_v++) {
-      std::array<Mat, 3> prod_Mats_sv = {spin.at(dc_s), v.at(dc_v), rho};
-      std::array<Mat, 3> prod_Mats_vs = {v.at(dc_v), spin.at(dc_s), rho};
+      std::array<Mat, 3> prod_Mats_sv = {spin.at(dc_s).M, v.at(dc_v).M, rho};
+      std::array<Mat, 3> prod_Mats_vs = {v.at(dc_v).M, spin.at(dc_s).M, rho};
 
       auto js_sv = Mat_product_trace_normalized(kmb, prod_Mats_sv, ret_Mat);
       auto js_vs = Mat_product_trace_normalized(kmb, prod_Mats_vs, ret_Mat);
@@ -80,14 +81,11 @@ NestedArrayResult<3, k_dim> calculate_spin_current_ev(const kmBasis<k_dim> &kmb,
 
       if (ret_Mat) {
         // js_sv.second <- 0.5 * (js_sv.second + js_vs.second)
-        PetscErrorCode ierr = MatAXPY(*js_sv.second, 1.0, *js_vs.second,
+        PetscErrorCode ierr = MatAXPY((*js_sv.second).M, 1.0, (*js_vs.second).M,
             DIFFERENT_NONZERO_PATTERN);CHKERRXX(ierr);
-        ierr = MatScale(*js_sv.second, 0.5);CHKERRXX(ierr);
+        ierr = MatScale((*js_sv.second).M, 0.5);CHKERRXX(ierr);
 
-        // No longer need js_vs.
-        ierr = MatDestroy(&(*js_vs.second));CHKERRXX(ierr);
-
-        result.at(dc_s).at(dc_v).second = js_sv.second;
+        result.at(dc_s).at(dc_v).second = std::move(js_sv.second);
       }
     }
   }

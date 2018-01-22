@@ -18,7 +18,7 @@ namespace anomtrans {
  *        (E_{km'} - E_{km}) / ((E_{km'} - E_{km})^2 + broadening^2).
  */
 template <std::size_t k_dim, typename Hamiltonian>
-std::array<Mat, k_dim> make_berry_connection(const kmBasis<k_dim> &kmb, const Hamiltonian &H,
+std::array<OwnedMat, k_dim> make_berry_connection(const kmBasis<k_dim> &kmb, const Hamiltonian &H,
     double broadening) {
   static_assert(k_dim > 0, "must have number of spatial dimensions > 0");
 
@@ -38,7 +38,7 @@ std::array<Mat, k_dim> make_berry_connection(const kmBasis<k_dim> &kmb, const Ha
     return result;
   };
 
-  std::array<Mat, k_dim> R = construct_k_diagonal_Mat_array<k_dim>(kmb, R_elem);
+  auto R = construct_k_diagonal_Mat_array<k_dim>(kmb, R_elem);
 
   return R;
 }

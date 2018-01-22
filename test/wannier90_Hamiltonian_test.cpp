@@ -151,8 +151,8 @@ TEST( Wannier90_WSe2_dynamic, DISABLED_Wannier90_WSe2_dynamic ) {
 
   Vec Ekm = anomtrans::get_energies(kmb, H);
 
-  std::array<Mat, k_dim> v_op = anomtrans::calculate_velocity(kmb, H);
-  std::array<Mat, 3> spin_op = anomtrans::calculate_spin_operator(kmb, H);
+  auto v_op = anomtrans::calculate_velocity(kmb, H);
+  auto spin_op = anomtrans::calculate_spin_operator(kmb, H);
 
   std::size_t Nk_tot = anomtrans::get_Nk_total(Nk);
   for (std::size_t d = 0; d < k_dim; d++) {
@@ -170,14 +170,14 @@ TEST( Wannier90_WSe2_dynamic, DISABLED_Wannier90_WSe2_dynamic ) {
     return disorder_coeff*anomtrans::on_site_diagonal_disorder(Nbands, H, ikm1, ikm2, ikm3);
   };
 
-  Mat collision = anomtrans::make_collision(kmb, H, sigma, disorder_term);
+  auto collision = anomtrans::make_collision(kmb, H, sigma, disorder_term);
 
   // Create the linear solver context.
   KSP ksp;
   PetscErrorCode ierr = KSPCreate(PETSC_COMM_WORLD, &ksp);CHKERRXX(ierr);
   // This uses collision again as the preconditioning matrix.
   // TODO - is there a better choice?
-  ierr = KSPSetOperators(ksp, collision, collision);CHKERRXX(ierr);
+  ierr = KSPSetOperators(ksp, collision.M, collision.M);CHKERRXX(ierr);
   // Could use KSPSetFromOptions here. In this case, prefer to keep options
   // hard-coded to have identical output from each test run.
 
@@ -192,14 +192,16 @@ TEST( Wannier90_WSe2_dynamic, DISABLED_Wannier90_WSe2_dynamic ) {
   // Maximum number of elements expected for sum of Cartesian derivatives.
   PetscInt Ehat_grad_expected_elems_per_row = stencil.approx_order*k_dim*k_dim*k_dim;
 
-  Mat Ex_dot_grad_k = anomtrans::Mat_from_sum_const(anomtrans::make_complex_array(Ex),
-      d_dk_Cart, Ehat_grad_expected_elems_per_row);
-  Mat Ey_dot_grad_k = anomtrans::Mat_from_sum_const(anomtrans::make_complex_array(Ey),
-      d_dk_Cart, Ehat_grad_expected_elems_per_row);
+  auto Ex_dot_grad_k = anomtrans::Mat_from_sum_const(anomtrans::make_complex_array(Ex),
+      anomtrans::unowned(d_dk_Cart), Ehat_grad_expected_elems_per_row);
+  auto Ey_dot_grad_k = anomtrans::Mat_from_sum_const(anomtrans::make_complex_array(Ey),
+      anomtrans::unowned(d_dk_Cart), Ehat_grad_expected_elems_per_row);
 
   auto R = anomtrans::make_berry_connection(kmb, H, berry_broadening);
-  auto Ex_dot_R = anomtrans::Mat_from_sum_const(anomtrans::make_complex_array(Ex), R, kmb.Nbands);
-  auto Ey_dot_R = anomtrans::Mat_from_sum_const(anomtrans::make_complex_array(Ey), R, kmb.Nbands);
+  auto Ex_dot_R = anomtrans::Mat_from_sum_const(anomtrans::make_complex_array(Ex),
+      anomtrans::unowned(R), kmb.Nbands);
+  auto Ey_dot_R = anomtrans::Mat_from_sum_const(anomtrans::make_complex_array(Ey),
+      anomtrans::unowned(R), kmb.Nbands);
 
   // Chemical potential in the gap.
   // Valence band maximum at K: -0.504 eV, Gamma: -1.005 eV.
@@ -219,7 +221,7 @@ TEST( Wannier90_WSe2_dynamic, DISABLED_Wannier90_WSe2_dynamic ) {
   auto dm_rho0_Ey_sin = anomtrans::make_eq_node<anomtrans::DynDMGraphNode>(Ekm, beta, mu);
   Vec rho0_km;
   ierr = VecDuplicate(Ekm, &rho0_km);CHKERRXX(ierr);
-  ierr = MatGetDiagonal(dm_rho0_Ex_cos->rho, rho0_km);CHKERRXX(ierr);
+  ierr = MatGetDiagonal(dm_rho0_Ex_cos->rho.M, rho0_km);CHKERRXX(ierr);
 
   // Get normalized version of rho0 to use for nullspace.
   // TODO can we safely pass a nullptr instead of rho0_orig_norm?
@@ -237,29 +239,29 @@ TEST( Wannier90_WSe2_dynamic, DISABLED_Wannier90_WSe2_dynamic ) {
   // TODO does this mean that the nullspace has dimension larger than 1?
   MatNullSpace nullspace;
   ierr = MatNullSpaceCreate(PETSC_COMM_WORLD, PETSC_FALSE, 1, &rho0_normalized, &nullspace);CHKERRXX(ierr);
-  ierr = MatSetNullSpace(collision, nullspace);CHKERRXX(ierr);
+  ierr = MatSetNullSpace(collision.M, nullspace);CHKERRXX(ierr);
   // NOTE rho0_normalized must not be modified after this call until we are done with nullspace.
 
   // Add <rho_{1,1}> and <rho_{-1,1}> for (Ex, cos) and (Ey, sin) cases.
-  anomtrans::add_dynamic_electric_n_nonzero(dm_rho0_Ex_cos, boost::none, 1, omega, kmb, Ex_dot_grad_k,
-      Ex_dot_R, H, berry_broadening, anomtrans::DynVariation::cos);
-  anomtrans::add_dynamic_electric_n_nonzero(boost::none, dm_rho0_Ex_cos, -1, omega, kmb, Ex_dot_grad_k,
-      Ex_dot_R, H, berry_broadening, anomtrans::DynVariation::cos);
+  anomtrans::add_dynamic_electric_n_nonzero(dm_rho0_Ex_cos, boost::none, 1, omega, kmb, Ex_dot_grad_k.M,
+      Ex_dot_R.M, H, berry_broadening, anomtrans::DynVariation::cos);
+  anomtrans::add_dynamic_electric_n_nonzero(boost::none, dm_rho0_Ex_cos, -1, omega, kmb, Ex_dot_grad_k.M,
+      Ex_dot_R.M, H, berry_broadening, anomtrans::DynVariation::cos);
   auto dm_rho_1_1_Ex_cos = dm_rho0_Ex_cos->children[anomtrans::DynDMDerivedBy::omega_inv_DE_up];
   auto dm_rho_m1_1_Ex_cos = dm_rho0_Ex_cos->children[anomtrans::DynDMDerivedBy::omega_inv_DE_down];
 
-  anomtrans::add_dynamic_electric_n_nonzero(dm_rho0_Ey_sin, boost::none, 1, omega, kmb, Ey_dot_grad_k,
-      Ey_dot_R, H, berry_broadening, anomtrans::DynVariation::sin);
-  anomtrans::add_dynamic_electric_n_nonzero(boost::none, dm_rho0_Ey_sin, -1, omega, kmb, Ey_dot_grad_k,
-      Ey_dot_R, H, berry_broadening, anomtrans::DynVariation::sin);
+  anomtrans::add_dynamic_electric_n_nonzero(dm_rho0_Ey_sin, boost::none, 1, omega, kmb, Ey_dot_grad_k.M,
+      Ey_dot_R.M, H, berry_broadening, anomtrans::DynVariation::sin);
+  anomtrans::add_dynamic_electric_n_nonzero(boost::none, dm_rho0_Ey_sin, -1, omega, kmb, Ey_dot_grad_k.M,
+      Ey_dot_R.M, H, berry_broadening, anomtrans::DynVariation::sin);
   auto dm_rho_1_1_Ey_sin = dm_rho0_Ey_sin->children[anomtrans::DynDMDerivedBy::omega_inv_DE_up];
   auto dm_rho_m1_1_Ey_sin = dm_rho0_Ey_sin->children[anomtrans::DynDMDerivedBy::omega_inv_DE_down];
 
   // Add <rho_{0, 2}> for (Ex, cos) and (Ey, sin) cases.
-  anomtrans::add_dynamic_electric_n_zero(dm_rho_m1_1_Ex_cos, dm_rho_1_1_Ex_cos, omega, kmb, Ex_dot_grad_k,
-      Ex_dot_R, ksp, H, sigma, disorder_term_od, berry_broadening, anomtrans::DynVariation::cos);
-  anomtrans::add_dynamic_electric_n_zero(dm_rho_m1_1_Ey_sin, dm_rho_1_1_Ey_sin, omega, kmb, Ey_dot_grad_k,
-      Ey_dot_R, ksp, H, sigma, disorder_term_od, berry_broadening, anomtrans::DynVariation::sin);
+  anomtrans::add_dynamic_electric_n_zero(dm_rho_m1_1_Ex_cos, dm_rho_1_1_Ex_cos, omega, kmb, Ex_dot_grad_k.M,
+      Ex_dot_R.M, ksp, H, sigma, disorder_term_od, berry_broadening, anomtrans::DynVariation::cos);
+  anomtrans::add_dynamic_electric_n_zero(dm_rho_m1_1_Ey_sin, dm_rho_1_1_Ey_sin, omega, kmb, Ey_dot_grad_k.M,
+      Ey_dot_R.M, ksp, H, sigma, disorder_term_od, berry_broadening, anomtrans::DynVariation::sin);
 
   // Valley (anomalous) hall effect at second order in electric field
   // from <rho_{0, 2}>. Intrinsic contribution. Current in y, electric field in x.
@@ -272,17 +274,17 @@ TEST( Wannier90_WSe2_dynamic, DISABLED_Wannier90_WSe2_dynamic ) {
   auto dm_S_0_2_extrinsic_Ey_sin = dm_rho_m1_1_Ey_sin->children[anomtrans::DynDMDerivedBy::P_inv_Kod_up];
 
   Mat n_0_2_plus, S_0_2_intrinsic_plus, S_0_2_extrinsic_plus;
-  ierr = MatDuplicate(dm_n_0_2_Ex_cos->rho, MAT_COPY_VALUES,
+  ierr = MatDuplicate(dm_n_0_2_Ex_cos->rho.M, MAT_COPY_VALUES,
       &n_0_2_plus);CHKERRXX(ierr);
-  ierr = MatAXPY(n_0_2_plus, 1.0, dm_n_0_2_Ey_sin->rho,
+  ierr = MatAXPY(n_0_2_plus, 1.0, dm_n_0_2_Ey_sin->rho.M,
       DIFFERENT_NONZERO_PATTERN);CHKERRXX(ierr);
-  ierr = MatDuplicate(dm_S_0_2_intrinsic_Ex_cos->rho, MAT_COPY_VALUES,
+  ierr = MatDuplicate(dm_S_0_2_intrinsic_Ex_cos->rho.M, MAT_COPY_VALUES,
       &S_0_2_intrinsic_plus);CHKERRXX(ierr);
-  ierr = MatAXPY(S_0_2_intrinsic_plus, 1.0, dm_S_0_2_intrinsic_Ey_sin->rho,
+  ierr = MatAXPY(S_0_2_intrinsic_plus, 1.0, dm_S_0_2_intrinsic_Ey_sin->rho.M,
       DIFFERENT_NONZERO_PATTERN);CHKERRXX(ierr);
-  ierr = MatDuplicate(dm_S_0_2_extrinsic_Ex_cos->rho, MAT_COPY_VALUES,
+  ierr = MatDuplicate(dm_S_0_2_extrinsic_Ex_cos->rho.M, MAT_COPY_VALUES,
       &S_0_2_extrinsic_plus);CHKERRXX(ierr);
-  ierr = MatAXPY(S_0_2_extrinsic_plus, 1.0, dm_S_0_2_extrinsic_Ey_sin->rho,
+  ierr = MatAXPY(S_0_2_extrinsic_plus, 1.0, dm_S_0_2_extrinsic_Ey_sin->rho.M,
       DIFFERENT_NONZERO_PATTERN);CHKERRXX(ierr);
 
   bool ret_Mat = false;
@@ -322,23 +324,11 @@ TEST( Wannier90_WSe2_dynamic, DISABLED_Wannier90_WSe2_dynamic ) {
   ierr = MatDestroy(&S_0_2_intrinsic_plus);CHKERRXX(ierr);
   ierr = MatDestroy(&S_0_2_extrinsic_plus);CHKERRXX(ierr);
 
-  for (std::size_t dc = 0; dc < k_dim; dc++) {
-    ierr = MatDestroy(&(d_dk_Cart.at(dc)));CHKERRXX(ierr);
-    ierr = MatDestroy(&(R.at(dc)));CHKERRXX(ierr);
-    ierr = MatDestroy(&(v_op.at(dc)));CHKERRXX(ierr);
-    ierr = MatDestroy(&(spin_op.at(dc)));CHKERRXX(ierr);
-  }
-
   ierr = MatNullSpaceDestroy(&nullspace);CHKERRXX(ierr);
   ierr = VecDestroy(&rho0_normalized);CHKERRXX(ierr);
   ierr = VecDestroy(&rho0_km);CHKERRXX(ierr);
 
-  ierr = MatDestroy(&Ex_dot_grad_k);CHKERRXX(ierr);
-  ierr = MatDestroy(&Ey_dot_grad_k);CHKERRXX(ierr);
-  ierr = MatDestroy(&Ex_dot_R);CHKERRXX(ierr);
-  ierr = MatDestroy(&Ey_dot_R);CHKERRXX(ierr);
   ierr = KSPDestroy(&ksp);CHKERRXX(ierr);
-  ierr = MatDestroy(&collision);CHKERRXX(ierr);
   ierr = VecDestroy(&Ekm);CHKERRXX(ierr);
 
   json j_out = {

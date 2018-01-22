@@ -99,7 +99,7 @@ TEST( Rashba_magnetized_electric, Rashba_magnetized_electric ) {
 
   Vec Ekm = anomtrans::get_energies(kmb, H);
 
-  std::array<Mat, k_dim> v_op = anomtrans::calculate_velocity(kmb, H);
+  auto v_op = anomtrans::calculate_velocity(kmb, H);
 
   PetscInt Ekm_min_index, Ekm_max_index;
   PetscReal Ekm_min, Ekm_max;
@@ -127,14 +127,14 @@ TEST( Rashba_magnetized_electric, Rashba_magnetized_electric ) {
         H, ULambda, ikm1, ikm2, ikm3);
   };
 
-  Mat collision = anomtrans::make_collision(kmb, H, sigma, disorder_term);
+  auto collision = anomtrans::make_collision(kmb, H, sigma, disorder_term);
 
   // Create the linear solver context.
   KSP ksp;
   ierr = KSPCreate(PETSC_COMM_WORLD, &ksp);CHKERRXX(ierr);
   // This uses collision again as the preconditioning matrix.
   // TODO - is there a better choice?
-  ierr = KSPSetOperators(ksp, collision, collision);CHKERRXX(ierr);
+  ierr = KSPSetOperators(ksp, collision.M, collision.M);CHKERRXX(ierr);
   // Could use KSPSetFromOptions here. In this case, prefer to keep options
   // hard-coded to have identical output from each test run.
 
@@ -145,13 +145,14 @@ TEST( Rashba_magnetized_electric, Rashba_magnetized_electric ) {
   // Maximum number of elements expected for sum of Cartesian derivatives.
   PetscInt Ehat_grad_expected_elems_per_row = stencil.approx_order*k_dim*k_dim*k_dim;
 
-  Mat Ehat_dot_grad_k = anomtrans::Mat_from_sum_const(anomtrans::make_complex_array(Ehat),
-      d_dk_Cart, Ehat_grad_expected_elems_per_row);
+  auto Ehat_dot_grad_k = anomtrans::Mat_from_sum_const(anomtrans::make_complex_array(Ehat),
+      anomtrans::unowned(d_dk_Cart), Ehat_grad_expected_elems_per_row);
 
   // TODO - what is a good way to choose broadening for Berry connection?
   double berry_broadening = 1e-4;
   auto R = anomtrans::make_berry_connection(kmb, H, berry_broadening);
-  auto Ehat_dot_R = anomtrans::Mat_from_sum_const(anomtrans::make_complex_array(Ehat), R, kmb.Nbands);
+  auto Ehat_dot_R = anomtrans::Mat_from_sum_const(anomtrans::make_complex_array(Ehat),
+      anomtrans::unowned(R), kmb.Nbands);
 
   auto Omega = anomtrans::make_berry_curvature(kmb, H, berry_broadening);
 
@@ -173,7 +174,7 @@ TEST( Rashba_magnetized_electric, Rashba_magnetized_electric ) {
     auto dm_rho0 = anomtrans::make_eq_node<anomtrans::StaticDMGraphNode>(Ekm, beta, mu);
     Vec rho0_km;
     ierr = VecDuplicate(Ekm, &rho0_km);CHKERRXX(ierr);
-    ierr = MatGetDiagonal(dm_rho0->rho, rho0_km);CHKERRXX(ierr);
+    ierr = MatGetDiagonal(dm_rho0->rho.M, rho0_km);CHKERRXX(ierr);
 
     // Get normalized version of rho0 to use for nullspace.
     // TODO can we safely pass a nullptr instead of rho0_orig_norm?
@@ -191,21 +192,21 @@ TEST( Rashba_magnetized_electric, Rashba_magnetized_electric ) {
     // TODO does this mean that the nullspace has dimension larger than 1?
     MatNullSpace nullspace;
     ierr = MatNullSpaceCreate(PETSC_COMM_WORLD, PETSC_FALSE, 1, &rho0_normalized, &nullspace);CHKERRXX(ierr);
-    ierr = MatSetNullSpace(collision, nullspace);CHKERRXX(ierr);
+    ierr = MatSetNullSpace(collision.M, nullspace);CHKERRXX(ierr);
     // NOTE rho0_normalized must not be modified after this call until we are done with nullspace.
 
-    anomtrans::add_linear_response_electric(dm_rho0, kmb, Ehat_dot_grad_k, Ehat_dot_R, ksp,
+    anomtrans::add_linear_response_electric(dm_rho0, kmb, Ehat_dot_grad_k.M, Ehat_dot_R.M, ksp,
         H, sigma, disorder_term_od, berry_broadening);
     auto dm_n_E = dm_rho0->children[anomtrans::StaticDMDerivedBy::Kdd_inv_DE];
     Vec n_E;
     ierr = VecDuplicate(rho0_km, &n_E);CHKERRXX(ierr);
-    ierr = MatGetDiagonal(dm_n_E->rho, n_E);CHKERRXX(ierr);
+    ierr = MatGetDiagonal(dm_n_E->rho.M, n_E);CHKERRXX(ierr);
 
     // Have obtained linear response to electric field. Can calculate this
     // part of the longitudinal conductivity.
     // sigma_xx = -e Tr[v_x <rho_{E_x}>] / E_y
     bool ret_Mat = false;
-    PetscScalar sigma_xx = anomtrans::calculate_current_ev(kmb, v_op, dm_n_E->rho,
+    PetscScalar sigma_xx = anomtrans::calculate_current_ev(kmb, v_op, dm_n_E->rho.M,
         ret_Mat).at(0).first;
     all_sigma_xxs.push_back(sigma_xx.real());
 
@@ -218,24 +219,26 @@ TEST( Rashba_magnetized_electric, Rashba_magnetized_electric ) {
     auto dm_S_E_extrinsic = dm_n_E->children[anomtrans::StaticDMDerivedBy::P_inv_Kod];
 
     PetscScalar sigma_xy_anom_intrinsic = anomtrans::calculate_current_ev(kmb, v_op,
-        dm_S_E_intrinsic->rho, ret_Mat).at(1).first;
+        dm_S_E_intrinsic->rho.M, ret_Mat).at(1).first;
     all_sigma_xy_anom_intrinsics.push_back(sigma_xy_anom_intrinsic.real());
 
     PetscScalar sigma_xy_anom_extrinsic = anomtrans::calculate_current_ev(kmb, v_op,
-        dm_S_E_extrinsic->rho, ret_Mat).at(1).first;
+        dm_S_E_extrinsic->rho.M, ret_Mat).at(1).first;
     all_sigma_xy_anom_extrinsics.push_back(sigma_xy_anom_extrinsic.real());
 
-    auto collected_S_E_pm_int = anomtrans::split_scalars(anomtrans::collect_band_elem(kmb, dm_S_E_intrinsic->rho, 0, 1));
+    auto collected_S_E_pm_int = anomtrans::split_scalars(anomtrans::collect_band_elem(kmb,
+          dm_S_E_intrinsic->rho.M, 0, 1));
     all_S_E_pm_int_real.push_back(collected_S_E_pm_int.first);
     all_S_E_pm_int_imag.push_back(collected_S_E_pm_int.second);
 
-    auto collected_S_E_pm_ext = anomtrans::split_scalars(anomtrans::collect_band_elem(kmb, dm_S_E_extrinsic->rho, 0, 1));
+    auto collected_S_E_pm_ext = anomtrans::split_scalars(anomtrans::collect_band_elem(kmb,
+          dm_S_E_extrinsic->rho.M, 0, 1));
     all_S_E_pm_ext_real.push_back(collected_S_E_pm_ext.first);
     all_S_E_pm_ext_imag.push_back(collected_S_E_pm_ext.second);
 
     Mat S_E_total;
-    ierr = MatDuplicate(dm_S_E_intrinsic->rho, MAT_COPY_VALUES, &S_E_total);CHKERRXX(ierr);
-    ierr = MatAXPY(S_E_total, 1.0, dm_S_E_extrinsic->rho, DIFFERENT_NONZERO_PATTERN);CHKERRXX(ierr);
+    ierr = MatDuplicate(dm_S_E_intrinsic->rho.M, MAT_COPY_VALUES, &S_E_total);CHKERRXX(ierr);
+    ierr = MatAXPY(S_E_total, 1.0, dm_S_E_extrinsic->rho.M, DIFFERENT_NONZERO_PATTERN);CHKERRXX(ierr);
 
     auto collected_S_E_pm = anomtrans::split_scalars(anomtrans::collect_band_elem(kmb, S_E_total, 0, 1));
     all_S_E_pm_real.push_back(collected_S_E_pm.first);
@@ -252,15 +255,10 @@ TEST( Rashba_magnetized_electric, Rashba_magnetized_electric ) {
 
   // Done with PETSc data.
   for (std::size_t dc = 0; dc < k_dim; dc++) {
-    ierr = MatDestroy(&(d_dk_Cart.at(dc)));CHKERRXX(ierr);
-    ierr = MatDestroy(&(R.at(dc)));CHKERRXX(ierr);
-    ierr = MatDestroy(&(v_op.at(dc)));CHKERRXX(ierr);
     ierr = VecDestroy(&(Omega.at(dc)));CHKERRXX(ierr);
   }
 
-  ierr = MatDestroy(&Ehat_dot_R);CHKERRXX(ierr);
   ierr = KSPDestroy(&ksp);CHKERRXX(ierr);
-  ierr = MatDestroy(&collision);CHKERRXX(ierr);
   ierr = VecDestroy(&Ekm);CHKERRXX(ierr);
 
   if (rank == 0) {

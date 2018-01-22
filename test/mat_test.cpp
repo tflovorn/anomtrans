@@ -32,8 +32,8 @@ int main(int argc, char* argv[]) {
 /** @brief Check that commutator(A, B) correctly calculates AB - BA.
  */
 TEST( mat, commutator ) {
-  Mat A = anomtrans::make_Mat(2, 2, 2);
-  Mat B = anomtrans::make_Mat(2, 2, 2);
+  anomtrans::OwnedMat A = anomtrans::make_Mat(2, 2, 2);
+  anomtrans::OwnedMat B = anomtrans::make_Mat(2, 2, 2);
 
   std::vector<PetscInt> used_cols = {0, 1};
   std::vector<std::vector<PetscScalar>> A_elems = {{1.0, 2.0}, {3.0, 4.0}};
@@ -45,7 +45,7 @@ TEST( mat, commutator ) {
   // Eigen Matrix to generalize this. Eigen Matrix construction is transparent.
   // Also add function to convert the other way, from PETSc Mat to Eigen Matrix.
   PetscInt begin, end;
-  PetscErrorCode ierr = MatGetOwnershipRange(A, &begin, &end);CHKERRXX(ierr);
+  PetscErrorCode ierr = MatGetOwnershipRange(A.M, &begin, &end);CHKERRXX(ierr);
 
   for (PetscInt local_row = begin; local_row < end; local_row++) {
     std::vector<PetscScalar> A_row_elems = A_elems.at(local_row);
@@ -53,21 +53,21 @@ TEST( mat, commutator ) {
 
     assert(used_cols.size() == A_row_elems.size());
     assert(used_cols.size() == B_row_elems.size());
-    ierr = MatSetValues(A, 1, &local_row, used_cols.size(), used_cols.data(),
+    ierr = MatSetValues(A.M, 1, &local_row, used_cols.size(), used_cols.data(),
         A_row_elems.data(), INSERT_VALUES);CHKERRXX(ierr);
-    ierr = MatSetValues(B, 1, &local_row, used_cols.size(), used_cols.data(),
+    ierr = MatSetValues(B.M, 1, &local_row, used_cols.size(), used_cols.data(),
         B_row_elems.data(), INSERT_VALUES);CHKERRXX(ierr);
   }
 
-  ierr = MatAssemblyBegin(A, MAT_FINAL_ASSEMBLY);CHKERRXX(ierr);
-  ierr = MatAssemblyEnd(A, MAT_FINAL_ASSEMBLY);CHKERRXX(ierr);
+  ierr = MatAssemblyBegin(A.M, MAT_FINAL_ASSEMBLY);CHKERRXX(ierr);
+  ierr = MatAssemblyEnd(A.M, MAT_FINAL_ASSEMBLY);CHKERRXX(ierr);
 
-  ierr = MatAssemblyBegin(B, MAT_FINAL_ASSEMBLY);CHKERRXX(ierr);
-  ierr = MatAssemblyEnd(B, MAT_FINAL_ASSEMBLY);CHKERRXX(ierr);
+  ierr = MatAssemblyBegin(B.M, MAT_FINAL_ASSEMBLY);CHKERRXX(ierr);
+  ierr = MatAssemblyEnd(B.M, MAT_FINAL_ASSEMBLY);CHKERRXX(ierr);
 
   // AB - BA = [[-4, 12],
   //            [12, 4]].   Check that commutator(A, B) has this value.
-  Mat comm = anomtrans::commutator(A, B);
+  anomtrans::OwnedMat comm = anomtrans::commutator(A.M, B.M);
 
   std::vector<std::vector<PetscScalar>> expected_elems = {{-4.0, -12.0}, {12.0, 4.0}};
 
@@ -77,7 +77,7 @@ TEST( mat, commutator ) {
     PetscInt ncols;
     const PetscInt *cols;
     const PetscScalar *vals;
-    ierr = MatGetRow(comm, local_row, &ncols, &cols, &vals);CHKERRXX(ierr);
+    ierr = MatGetRow(comm.M, local_row, &ncols, &cols, &vals);CHKERRXX(ierr);
 
     for (PetscInt col_index = 0; col_index < ncols; col_index++) {
       PetscInt col = cols[col_index];
@@ -87,12 +87,8 @@ TEST( mat, commutator ) {
             -1.0, 10.0*macheps));
     }
 
-    ierr = MatRestoreRow(comm, local_row, &ncols, &cols, &vals);CHKERRXX(ierr);
+    ierr = MatRestoreRow(comm.M, local_row, &ncols, &cols, &vals);CHKERRXX(ierr);
   }
-
-  ierr = MatDestroy(&comm);CHKERRXX(ierr);
-  ierr = MatDestroy(&A);CHKERRXX(ierr);
-  ierr = MatDestroy(&B);CHKERRXX(ierr);
 }
 
 /** @brief Use make_diag_Mat to create a diagonal matrix and verify it has
@@ -107,26 +103,25 @@ TEST( mat, make_diag_Mat ) {
 
   Vec v = anomtrans::vector_index_apply(vec_len, index_fn);
 
-  Mat m = anomtrans::make_diag_Mat(v);
+  anomtrans::OwnedMat m = anomtrans::make_diag_Mat(v);
 
   PetscInt begin, end;
-  PetscErrorCode ierr = MatGetOwnershipRange(m, &begin, &end);CHKERRXX(ierr);
+  PetscErrorCode ierr = MatGetOwnershipRange(m.M, &begin, &end);CHKERRXX(ierr);
 
   PetscInt ncols;
   const PetscInt *cols;
   const PetscScalar *vals;
 
   for (PetscInt local_row = begin; local_row < end; local_row++) {
-    ierr = MatGetRow(m, local_row, &ncols, &cols, &vals);CHKERRXX(ierr);
+    ierr = MatGetRow(m.M, local_row, &ncols, &cols, &vals);CHKERRXX(ierr);
 
     ASSERT_EQ(ncols, 1);
     ASSERT_EQ(cols[0], local_row);
     ASSERT_EQ(vals[0], index_fn(local_row));
 
-    ierr = MatRestoreRow(m, local_row, &ncols, &cols, &vals);CHKERRXX(ierr);
+    ierr = MatRestoreRow(m.M, local_row, &ncols, &cols, &vals);CHKERRXX(ierr);
   }
 
-  ierr = MatDestroy(&m);CHKERRXX(ierr);
   ierr = VecDestroy(&v);CHKERRXX(ierr);
 }
 
@@ -156,14 +151,14 @@ TEST( mat, Mat_from_sum_fn ) {
   };
 
   // Matrices to combine.
-  std::array<Mat, num_Mats> Bs;
+  std::array<anomtrans::OwnedMat, num_Mats> Bs;
   for (std::size_t d = 0; d < num_Mats; d++) {
     std::size_t nsq = (d + 1) * (d + 1);
 
     Bs.at(d) = anomtrans::make_Mat(Mat_dim, Mat_dim, Mat_dim);
 
     PetscInt begin, end;
-    PetscErrorCode ierr = MatGetOwnershipRange(Bs.at(d), &begin, &end);CHKERRXX(ierr);
+    PetscErrorCode ierr = MatGetOwnershipRange(Bs.at(d).M, &begin, &end);CHKERRXX(ierr);
 
     for (PetscInt local_row = begin; local_row < end; local_row++) {
       std::vector<PetscInt> local_cols;
@@ -177,19 +172,19 @@ TEST( mat, Mat_from_sum_fn ) {
       }
 
       assert(local_cols.size() == local_vals.size());
-      ierr = MatSetValues(Bs.at(d), 1, &local_row, local_cols.size(), local_cols.data(),
+      ierr = MatSetValues(Bs.at(d).M, 1, &local_row, local_cols.size(), local_cols.data(),
           local_vals.data(), INSERT_VALUES);CHKERRXX(ierr);
     }
 
-    ierr = MatAssemblyBegin(Bs.at(d), MAT_FINAL_ASSEMBLY);CHKERRXX(ierr);
-    ierr = MatAssemblyEnd(Bs.at(d), MAT_FINAL_ASSEMBLY);CHKERRXX(ierr);
+    ierr = MatAssemblyBegin(Bs.at(d).M, MAT_FINAL_ASSEMBLY);CHKERRXX(ierr);
+    ierr = MatAssemblyEnd(Bs.at(d).M, MAT_FINAL_ASSEMBLY);CHKERRXX(ierr);
   }
 
   // Construct total and check elements.
-  Mat total = anomtrans::Mat_from_sum_fn(coeffs, Bs, Mat_dim);
+  anomtrans::OwnedMat total = anomtrans::Mat_from_sum_fn(coeffs, anomtrans::unowned(Bs), Mat_dim);
 
   PetscInt begin, end;
-  PetscErrorCode ierr = MatGetOwnershipRange(total, &begin, &end);CHKERRXX(ierr);
+  PetscErrorCode ierr = MatGetOwnershipRange(total.M, &begin, &end);CHKERRXX(ierr);
 
   auto macheps = std::numeric_limits<PetscReal>::epsilon();
 
@@ -197,7 +192,7 @@ TEST( mat, Mat_from_sum_fn ) {
     PetscInt ncols;
     const PetscInt *cols;
     const PetscScalar *vals;
-    ierr = MatGetRow(total, local_row, &ncols, &cols, &vals);CHKERRXX(ierr);
+    ierr = MatGetRow(total.M, local_row, &ncols, &cols, &vals);CHKERRXX(ierr);
 
     for (PetscInt col_index = 0; col_index < ncols; col_index++) {
       PetscInt col = cols[col_index];
@@ -205,11 +200,6 @@ TEST( mat, Mat_from_sum_fn ) {
       ASSERT_TRUE(anomtrans::scalars_approx_equal(vals[col_index], expected(local_row, col),
           -1.0, 10.0*macheps));
     }
-    ierr = MatRestoreRow(total, local_row, &ncols, &cols, &vals);CHKERRXX(ierr);
-  }
-
-  ierr = MatDestroy(&total);CHKERRXX(ierr);
-  for (std::size_t d = 0; d < num_Mats; d++) {
-    ierr = MatDestroy(&(Bs.at(d)));CHKERRXX(ierr);
+    ierr = MatRestoreRow(total.M, local_row, &ncols, &cols, &vals);CHKERRXX(ierr);
   }
 }
