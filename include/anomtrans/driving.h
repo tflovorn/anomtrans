@@ -79,7 +79,7 @@ OwnedMat apply_driving_magnetic(const kmBasis<k_dim> &kmb, std::array<OwnedMat, 
 
   // Symmetrized product: {a dot b} = a dot b + b dot a.
   // a dot b part:
-  Mat result;
+  Mat result = nullptr;
   for (std::size_t dc = 0; dc < k_dim; dc++) {
     Mat prod;
     PetscErrorCode ierr = MatMatMult(DH0_cross_Bhat.at(dc).M, rho_part.at(dc).M, MAT_INITIAL_MATRIX,
