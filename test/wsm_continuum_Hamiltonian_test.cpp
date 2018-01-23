@@ -60,14 +60,17 @@ TEST( WsmContinuumHamiltonian, wsm_continuum_ahe ) {
   double k0 = std::sqrt(std::pow(b, 2.0) - 1.0);
 
   // Parameters for result plots.
+  // Choose even number of k-points along (kx, ky) to avoid (kx, ky) = (0, 0),
+  // so that when kz = +/- k0, we still avoid the Weyl node.
+  // Choose kz bounds and sampling such that we sample symmetrically around each Weyl node.
   /*
-  std::array<unsigned int, k_dim> Nk = {16, 16, 16};
-  anomtrans::kVals<k_dim> k_min = {-2.0 * k0, -2.0 * k0, -2.0 * k0};
-  anomtrans::kVals<k_dim> k_max = {2.0 * k0, 2.0 * k0, 2.0 * k0};
+  std::array<unsigned int, k_dim> Nk = {20, 20, 21};
+  anomtrans::kVals<k_dim> k_min = {-10.0 * k0, -10.0 * k0, -2.5 * k0};
+  anomtrans::kVals<k_dim> k_max = {10.0 * k0, 10.0 * k0, 2.5 * k0};
   double mu_factor = 0.45;
   unsigned int num_mus = 1;
-  double beta = 16.0;
-  double sigma = 0.1;
+  double beta = 1.0;
+  double sigma = 0.4;
   double berry_broadening = 1e-4;
   */
   // Parameters for regression test.
@@ -76,8 +79,8 @@ TEST( WsmContinuumHamiltonian, wsm_continuum_ahe ) {
   anomtrans::kVals<k_dim> k_max = {2.0 * k0, 2.0 * k0, 2.0 * k0};
   double mu_factor = 0.45;
   unsigned int num_mus = 1;
-  double beta = 4.0;
-  double sigma = 0.2;
+  double beta = 1.0;
+  double sigma = 0.4;
   double berry_broadening = 1e-4;
 
   unsigned int Nbands = 4;
@@ -553,14 +556,17 @@ TEST( WsmContinuumMu5Hamiltonian, wsm_continuum_cme_mu5 ) {
   double k0 = std::sqrt(std::pow(b, 2.0) - 1.0);
 
   // Parameters for result plots.
+  // Choose even number of k-points along (kx, ky) to avoid (kx, ky) = (0, 0),
+  // so that when kz = +/- k0, we still avoid the Weyl node.
+  // Choose kz bounds and sampling such that we sample symmetrically around each Weyl node.
   /*
-  std::array<unsigned int, k_dim> Nk = {64, 64, 64};
-  anomtrans::kVals<k_dim> k_min = {-2.0 * k0, -2.0 * k0, -2.0 * k0};
-  anomtrans::kVals<k_dim> k_max = {2.0 * k0, 2.0 * k0, 2.0 * k0};
+  std::array<unsigned int, k_dim> Nk = {20, 20, 21};
+  anomtrans::kVals<k_dim> k_min = {-10.0 * k0, -10.0 * k0, -10.0 * k0};
+  anomtrans::kVals<k_dim> k_max = {10.0 * k0, 10.0 * k0, 10.0 * k0};
   double mu5 = 0.05;
   double mu_factor = 0.49;
   unsigned int num_mus = 2;
-  double beta = 16.0;
+  double beta = 1.0;
   double berry_broadening = 1e-4;
   */
   // Parameters for regression test.
@@ -570,7 +576,7 @@ TEST( WsmContinuumMu5Hamiltonian, wsm_continuum_cme_mu5 ) {
   double mu5 = 0.005;
   double mu_factor = 0.45;
   unsigned int num_mus = 1;
-  double beta = 4.0;
+  double beta = 1.0;
   double berry_broadening = 1e-4;
 
   unsigned int Nbands = 4;
@@ -765,21 +771,24 @@ TEST( WsmContinuumHamiltonian, wsm_continuum_quadratic_magnetoconductivity ) {
   double k0 = std::sqrt(std::pow(b, 2.0) - 1.0);
 
   // Parameters for result plots.
+  // Choose even number of k-points along (kx, ky) to avoid (kx, ky) = (0, 0),
+  // so that when kz = +/- k0, we still avoid the Weyl node.
+  // Choose kz bounds and sampling such that we sample symmetrically around each Weyl node.
   /*
-  std::array<unsigned int, k_dim> Nk = {16, 16, 16};
-  anomtrans::kVals<k_dim> k_min = {-2.0 * k0, -2.0 * k0, -2.0 * k0};
-  anomtrans::kVals<k_dim> k_max = {2.0 * k0, 2.0 * k0, 2.0 * k0};
+  std::array<unsigned int, k_dim> Nk = {20, 20, 21};
+  anomtrans::kVals<k_dim> k_min = {-10.0 * k0, -10.0 * k0, -10.0 * k0};
+  anomtrans::kVals<k_dim> k_max = {10.0 * k0, 10.0 * k0, 10.0 * k0};
   unsigned int num_mus = 2;
-  double beta = 16.0;
-  double sigma = 0.0147;
+  double beta = 1.0;
+  double sigma = 0.4;
   */
   // Parameters for regression test.
   std::array<unsigned int, k_dim> Nk = {4, 4, 4};
   anomtrans::kVals<k_dim> k_min = {-2.0 * k0, -2.0 * k0, -2.0 * k0};
   anomtrans::kVals<k_dim> k_max = {2.0 * k0, 2.0 * k0, 2.0 * k0};
   unsigned int num_mus = 1;
-  double beta = 4.0;
-  double sigma = 0.2;
+  double beta = 1.0;
+  double sigma = 0.4;
 
   unsigned int Nbands = 4;
   anomtrans::kmBasis<k_dim> kmb(Nk, Nbands, k_min, k_max);

@@ -45,9 +45,7 @@ PetscReal find_max_energy_difference(const kmBasis<k_dim> &kmb, const Hamiltonia
   Vec Ekm = get_energies(kmb, H);
 
   // First-order approximant for foward difference first derivative
-  // = (E_{k+dk_i, m} - E_{k,m})/h_i = (E_{k+dk_i, m} - E_{k,m}) * kmb.Nk.at(i)
-  // TODO - this depends on distance along each reciprocal lattice direction = 1.
-  // Will need to generalize to allow continuum models.
+  // = (E_{k+dk_i, m} - E_{k,m})/h_i.
   DerivStencil<1> stencil(DerivApproxType::forward, 1);
 
   auto d_dk = make_d_dk_recip(kmb, stencil);
@@ -58,8 +56,8 @@ PetscReal find_max_energy_difference(const kmBasis<k_dim> &kmb, const Hamiltonia
   PetscReal ediff_max = 0.0;
   for (std::size_t d = 0; d < k_dim; d++) {
     ierr = MatMult(d_dk.at(d).M, Ekm, dE_dk);CHKERRXX(ierr);
-    // TODO - this should be `* k_step`
-    PetscReal ediff_d_max = get_Vec_MaxAbs(dE_dk) / kmb.Nk.at(d);
+
+    PetscReal ediff_d_max = get_Vec_MaxAbs(dE_dk) * kmb.k_step(d);
 
     if (ediff_d_max > ediff_max) {
       ediff_max = ediff_d_max;
