@@ -118,6 +118,25 @@ void set_Mat_diagonal(Mat M, PetscScalar alpha) {
   ierr = VecDestroy(&diag);CHKERRXX(ierr);
 }
 
+std::pair<std::vector<PetscReal>, std::vector<PetscReal>> collect_Mat_diagonal(Mat M) {
+  PetscInt num_rows, num_cols;
+  PetscErrorCode ierr = MatGetSize(M, &num_rows, &num_cols);CHKERRXX(ierr);
+
+  if (num_rows != num_cols) {
+    throw std::invalid_argument("matrix input to collect_Mat_diagonal must be square");
+  }
+
+  Vec diag;
+  ierr = VecCreateMPI(PETSC_COMM_WORLD, PETSC_DECIDE, num_rows, &diag);CHKERRXX(ierr);
+  ierr = MatGetDiagonal(M, diag);CHKERRXX(ierr);
+
+  auto collected = split_scalars(collect_contents(diag));
+
+  ierr = VecDestroy(&diag);CHKERRXX(ierr);
+
+  return collected;
+}
+
 bool check_Mat_equal(Mat A, Mat B, double tol) {
   PetscInt A_m, A_n, B_m, B_n;
   PetscErrorCode ierr = MatGetSize(A, &A_m, &A_n);CHKERRXX(ierr);

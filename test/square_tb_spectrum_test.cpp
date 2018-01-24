@@ -167,6 +167,8 @@ TEST( square_TB_Hall, square_TB_Hall ) {
   // K rho1_Bfinite = -Dbar_B rho1_B0
   for (auto mu : mus) {
     auto dm_rho0 = anomtrans::make_eq_node<anomtrans::StaticDMGraphNode>(Ekm, beta, mu);
+    all_rho0.push_back(anomtrans::collect_Mat_diagonal(dm_rho0->rho.M).first);
+
     Vec rho0_km;
     ierr = VecDuplicate(Ekm, &rho0_km);CHKERRXX(ierr);
     ierr = MatGetDiagonal(dm_rho0->rho.M, rho0_km);CHKERRXX(ierr);
@@ -193,9 +195,7 @@ TEST( square_TB_Hall, square_TB_Hall ) {
     anomtrans::add_linear_response_electric(dm_rho0, kmb, Ehat_dot_grad_k.M, Ehat_dot_R.M, ksp,
         H, sigma, disorder_term_od, berry_broadening);
     auto dm_n_E = dm_rho0->children[anomtrans::StaticDMDerivedBy::Kdd_inv_DE];
-    Vec rho1_B0;
-    ierr = VecDuplicate(rho0_km, &rho1_B0);CHKERRXX(ierr);
-    ierr = MatGetDiagonal(dm_n_E->rho.M, rho1_B0);CHKERRXX(ierr);
+    all_rho1_B0.push_back(anomtrans::collect_Mat_diagonal(dm_n_E->rho.M).first);
 
     // Have obtained linear response to electric field. Can calculate this
     // part of the longitudinal conductivity.
@@ -206,27 +206,16 @@ TEST( square_TB_Hall, square_TB_Hall ) {
     anomtrans::add_next_order_magnetic(dm_n_E, kmb, DH0_cross_Bhat, d_dk_Cart, R, ksp, Bhat_dot_Omega,
         H, sigma, disorder_term_od, berry_broadening);
     auto dm_n_EB = dm_n_E->children[anomtrans::StaticDMDerivedBy::Kdd_inv_DB];
-    Vec rho1_Bfinite;
-    ierr = VecDuplicate(rho0_km, &rho1_Bfinite);CHKERRXX(ierr);
-    ierr = MatGetDiagonal(dm_n_EB->rho.M, rho1_Bfinite);CHKERRXX(ierr);
+    all_rho1_Bfinite.push_back(anomtrans::collect_Mat_diagonal(dm_n_EB->rho.M).first);
 
     // Have obtained linear response to E_y B_z. Can calculate this part of
     // the transverse conductivity.
     // sigma_{xy, Hall} = -e Tr[v_x <rho_{E_y B_z}>] / (E_y B_z)
     PetscScalar sigma_Hall = anomtrans::calculate_current_ev(kmb, v_op, dm_n_EB->rho.M, ret_Mat).at(0).first;
 
-    auto collected_rho0 = anomtrans::split_scalars(anomtrans::collect_contents(rho0_km)).first;
-    all_rho0.push_back(collected_rho0);
-    auto collected_rho1_B0 = anomtrans::split_scalars(anomtrans::collect_contents(rho1_B0)).first;
-    all_rho1_B0.push_back(collected_rho1_B0);
-    auto collected_rho1_Bfinite = anomtrans::split_scalars(anomtrans::collect_contents(rho1_Bfinite)).first;
-    all_rho1_Bfinite.push_back(collected_rho1_Bfinite);
-
     all_sigma_yys.push_back(sigma_yy.real());
     all_Hall_conductivities.push_back(sigma_Hall.real());
 
-    ierr = VecDestroy(&rho1_Bfinite);CHKERRXX(ierr);
-    ierr = VecDestroy(&rho1_B0);CHKERRXX(ierr);
     ierr = MatNullSpaceDestroy(&nullspace);CHKERRXX(ierr);
     ierr = VecDestroy(&rho0_normalized);CHKERRXX(ierr);
     ierr = VecDestroy(&rho0_km);CHKERRXX(ierr);

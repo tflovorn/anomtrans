@@ -172,6 +172,8 @@ TEST( Rashba_magnetized_electric, Rashba_magnetized_electric ) {
   // For each mu, construct <n_E^(-1)> and <S_E^(0)>.
   for (auto mu : mus) {
     auto dm_rho0 = anomtrans::make_eq_node<anomtrans::StaticDMGraphNode>(Ekm, beta, mu);
+    all_rho0.push_back(anomtrans::collect_Mat_diagonal(dm_rho0->rho.M).first);
+
     Vec rho0_km;
     ierr = VecDuplicate(Ekm, &rho0_km);CHKERRXX(ierr);
     ierr = MatGetDiagonal(dm_rho0->rho.M, rho0_km);CHKERRXX(ierr);
@@ -198,9 +200,7 @@ TEST( Rashba_magnetized_electric, Rashba_magnetized_electric ) {
     anomtrans::add_linear_response_electric(dm_rho0, kmb, Ehat_dot_grad_k.M, Ehat_dot_R.M, ksp,
         H, sigma, disorder_term_od, berry_broadening);
     auto dm_n_E = dm_rho0->children[anomtrans::StaticDMDerivedBy::Kdd_inv_DE];
-    Vec n_E;
-    ierr = VecDuplicate(rho0_km, &n_E);CHKERRXX(ierr);
-    ierr = MatGetDiagonal(dm_n_E->rho.M, n_E);CHKERRXX(ierr);
+    all_n_E.push_back(anomtrans::collect_Mat_diagonal(dm_n_E->rho.M).first);
 
     // Have obtained linear response to electric field. Can calculate this
     // part of the longitudinal conductivity.
@@ -209,11 +209,6 @@ TEST( Rashba_magnetized_electric, Rashba_magnetized_electric ) {
     PetscScalar sigma_xx = anomtrans::calculate_current_ev(kmb, v_op, dm_n_E->rho.M,
         ret_Mat).at(0).first;
     all_sigma_xxs.push_back(sigma_xx.real());
-
-    auto collected_rho0 = anomtrans::split_scalars(anomtrans::collect_contents(rho0_km)).first;
-    all_rho0.push_back(collected_rho0);
-    auto collected_n_E = anomtrans::split_scalars(anomtrans::collect_contents(n_E)).first;
-    all_n_E.push_back(collected_n_E);
 
     auto dm_S_E_intrinsic = dm_rho0->children[anomtrans::StaticDMDerivedBy::P_inv_DE];
     auto dm_S_E_extrinsic = dm_n_E->children[anomtrans::StaticDMDerivedBy::P_inv_Kod];
@@ -245,7 +240,6 @@ TEST( Rashba_magnetized_electric, Rashba_magnetized_electric ) {
     all_S_E_pm_imag.push_back(collected_S_E_pm.second);
 
     ierr = MatDestroy(&S_E_total);CHKERRXX(ierr);
-    ierr = VecDestroy(&n_E);CHKERRXX(ierr);
     ierr = MatNullSpaceDestroy(&nullspace);CHKERRXX(ierr);
     ierr = VecDestroy(&rho0_normalized);CHKERRXX(ierr);
     ierr = VecDestroy(&rho0_km);CHKERRXX(ierr);

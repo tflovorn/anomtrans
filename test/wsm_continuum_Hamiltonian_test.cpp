@@ -177,6 +177,8 @@ TEST( WsmContinuumHamiltonian, wsm_continuum_ahe ) {
   // For each mu, construct <n_E^(-1)> and <S_E^(0)>.
   for (auto mu : mus) {
     auto dm_rho0 = anomtrans::make_eq_node<anomtrans::StaticDMGraphNode>(Ekm, beta, mu);
+    all_rho0.push_back(anomtrans::collect_Mat_diagonal(dm_rho0->rho.M).first);
+
     Vec rho0_km;
     ierr = VecDuplicate(Ekm, &rho0_km);CHKERRXX(ierr);
     ierr = MatGetDiagonal(dm_rho0->rho.M, rho0_km);CHKERRXX(ierr);
@@ -203,9 +205,7 @@ TEST( WsmContinuumHamiltonian, wsm_continuum_ahe ) {
     anomtrans::add_linear_response_electric(dm_rho0, kmb, Ehat_dot_grad_k.M, Ehat_dot_R.M, ksp,
         H, sigma, disorder_term_od, berry_broadening);
     auto dm_n_E = dm_rho0->children[anomtrans::StaticDMDerivedBy::Kdd_inv_DE];
-    Vec n_E;
-    ierr = VecDuplicate(rho0_km, &n_E);CHKERRXX(ierr);
-    ierr = MatGetDiagonal(dm_n_E->rho.M, n_E);CHKERRXX(ierr);
+    all_n_E.push_back(anomtrans::collect_Mat_diagonal(dm_n_E->rho.M).first);
 
     // Have obtained linear response to electric field. Can calculate this
     // part of the longitudinal conductivity.
@@ -215,23 +215,17 @@ TEST( WsmContinuumHamiltonian, wsm_continuum_ahe ) {
         ret_Mat).at(0).first;
     all_sigma_yys.push_back(sigma_yy.real());
 
-    auto collected_rho0 = anomtrans::split_scalars(anomtrans::collect_contents(rho0_km)).first;
-    all_rho0.push_back(collected_rho0);
-    auto collected_n_E = anomtrans::split_scalars(anomtrans::collect_contents(n_E)).first;
-    all_n_E.push_back(collected_n_E);
-
     auto dm_S_E_intrinsic = dm_rho0->children[anomtrans::StaticDMDerivedBy::P_inv_DE];
     auto dm_S_E_extrinsic = dm_n_E->children[anomtrans::StaticDMDerivedBy::P_inv_Kod];
 
-    PetscScalar sigma_xy_S_E_intrinsic = anomtrans::calculate_current_ev(kmb, v_op,
-        dm_S_E_intrinsic->rho.M, ret_Mat).at(0).first;
-    all_sigma_xy_S_E_intrinsic.push_back(sigma_xy_S_E_intrinsic.real());
+    auto sigma_S_E_intrinsic = anomtrans::calculate_current_ev(kmb, v_op,
+        dm_S_E_intrinsic->rho.M, ret_Mat);
+    all_sigma_xy_S_E_intrinsic.push_back(sigma_S_E_intrinsic.at(0).first.real());
 
-    PetscScalar sigma_xy_S_E_extrinsic = anomtrans::calculate_current_ev(kmb, v_op,
-        dm_S_E_extrinsic->rho.M, ret_Mat).at(0).first;
-    all_sigma_xy_S_E_extrinsic.push_back(sigma_xy_S_E_extrinsic.real());
+    auto sigma_S_E_extrinsic = anomtrans::calculate_current_ev(kmb, v_op,
+        dm_S_E_extrinsic->rho.M, ret_Mat);
+    all_sigma_xy_S_E_extrinsic.push_back(sigma_S_E_extrinsic.at(0).first.real());
 
-    ierr = VecDestroy(&n_E);CHKERRXX(ierr);
     ierr = MatNullSpaceDestroy(&nullspace);CHKERRXX(ierr);
     ierr = VecDestroy(&rho0_normalized);CHKERRXX(ierr);
     ierr = VecDestroy(&rho0_km);CHKERRXX(ierr);

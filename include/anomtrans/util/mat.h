@@ -10,6 +10,8 @@
 #include <utility>
 #include <boost/optional.hpp>
 #include <petscksp.h>
+#include "util/vec.h"
+#include "util/util.h"
 
 namespace anomtrans {
 
@@ -85,6 +87,14 @@ std::array<Mat, len> unowned(std::array<OwnedMat, len>& Bs) {
  *  @todo Possible to implement this function without allocating a Vec?
  */
 void set_Mat_diagonal(Mat M, PetscScalar alpha);
+
+/** @brief Scatter the contents of the diagonal of `M` onto rank 0 and return
+ *         a pair of `std::vector` with the local contents (which on rank 0 will
+ *         be the diagonal elements and empty `std::vector`s on other ranks).
+ *         The first element of the pair gives the real part of the diagonal
+ *         elements, and the second element gives the imaginary part.
+ */
+std::pair<std::vector<PetscReal>, std::vector<PetscReal>> collect_Mat_diagonal(Mat M);
 
 /** @brief Return true iff each element of A and B is equal to within tol.
  *  @pre A and B should have the same global sizes and same local row
