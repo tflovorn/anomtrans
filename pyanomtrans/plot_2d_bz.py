@@ -65,7 +65,7 @@ def get_Nk(k_comps):
 def get_Nbands(ms):
     return max(ms) + 1
 
-def is_list(x):
+def _is_list(x):
     return hasattr(x, '__iter__')
 
 def sorted_by_km(kmb, k_comps, ms, vals):
@@ -119,7 +119,7 @@ def process_data(prefix, only, kmb, sorted_data):
         if only is not None and key != only:
             continue
 
-        if is_list(val[0]):
+        if _is_list(val[0]):
             # val is a list of lists
             for subval_index, subval_all_bands in enumerate(val):
                 if _one_band_list(key):
@@ -152,7 +152,7 @@ def extract_at_k2(kmb, sorted_data, target_k2):
             this_k_comps = sorted_data['k_comps']
 
         sorted_data_k2[key] = []
-        if is_list(val[0]):
+        if _is_list(val[0]):
             for val_sublist in val:
                 sorted_data_k2[key].append([])
                 for i, k in enumerate(this_k_comps):
@@ -171,7 +171,7 @@ def extract_at_k2(kmb, sorted_data, target_k2):
         if key == 'k_comps':
             continue
 
-        if is_list(val[0]):
+        if _is_list(val[0]):
             for i, val_sublist in enumerate(val):
                 assert(len(val_sublist) == len(sorted_data[key][i]) / kmb.Nk[2])
         else:
@@ -179,21 +179,7 @@ def extract_at_k2(kmb, sorted_data, target_k2):
 
     return sorted_data_k2
 
-def _main():
-    parser = argparse.ArgumentParser("Plot data on the 2D Brillouin zone, or slices of the 3D zone",
-            formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument("prefix", type=str,
-            help="Prefix for file giving plot data: should be in the form prefix.json")
-    parser.add_argument("in_dir", type=str,
-            help="Directory containing file giving plot data")
-    parser.add_argument("--only", type=str, default=None,
-            help="If specified, plot only the series with the specified name")
-    args = parser.parse_args()
-
-    fpath = os.path.join(args.in_dir, "{}.json".format(args.prefix))
-    with open(fpath, 'r') as fp:
-        fdata = json.load(fp)
-
+def extract_sorted_data(fdata):
     all_data = {}
     for key, val in fdata.items():
         if _ignore_key(key):
@@ -203,7 +189,7 @@ def _main():
         if key not in all_data:
             all_data[key] = val
         else:
-            if is_list(val[0]) and key not in ['k_comps']:
+            if _is_list(val[0]) and key not in ['k_comps']:
                 # val is a list of lists
                 # Treat k_comps separately (the lists represent values we want to keep together)
                 for subval_index, subval in enumerate(val):
@@ -224,16 +210,35 @@ def _main():
     sorted_data = {}
     for key, val in all_data.items():
         # TODO could just sort once, put all vals in one tuple
-        if is_list(val[0]) and key not in ['k_comps']:
+        if _is_list(val[0]) and key not in ['k_comps']:
             if key not in sorted_data:
                 sorted_data[key] = []
 
             for subval_index, subval in enumerate(val):
                 this_sorted = sorted_by_km(kmb, all_data['k_comps'], all_data['ms'], subval)
                 sorted_data[key].append(this_sorted)
-
         else:
             sorted_data[key] = sorted_by_km(kmb, all_data['k_comps'], all_data['ms'], val)
+
+    return kmb, sorted_data
+
+def _main():
+    parser = argparse.ArgumentParser("Plot data on the 2D Brillouin zone, or slices of the 3D zone",
+            formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument("prefix", type=str,
+            help="Prefix for file giving plot data: should be in the form prefix.json")
+    parser.add_argument("in_dir", type=str,
+            help="Directory containing file giving plot data")
+    parser.add_argument("--only", type=str, default=None,
+            help="If specified, plot only the series with the specified name")
+    args = parser.parse_args()
+
+    fpath = os.path.join(args.in_dir, "{}.json".format(args.prefix))
+    with open(fpath, 'r') as fp:
+        fdata = json.load(fp)
+
+    kmb, sorted_data = extract_sorted_data(fdata)
+    Nk, Nbands = kmb.Nk, kmb.Nbands
 
     if len(Nk) == 1:
         raise ValueError("d == 1 unsupported")

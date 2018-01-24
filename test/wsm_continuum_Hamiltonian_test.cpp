@@ -174,6 +174,8 @@ TEST( WsmContinuumHamiltonian, wsm_continuum_ahe ) {
   std::vector<PetscReal> all_sigma_yys;
   std::vector<PetscReal> all_sigma_xy_S_E_intrinsic;
   std::vector<PetscReal> all_sigma_xy_S_E_extrinsic;
+  std::vector<std::vector<PetscReal>> all_sigma_xy_S_E_intrinsic_comp;
+  std::vector<std::vector<PetscReal>> all_sigma_xy_S_E_extrinsic_comp;
   // For each mu, construct <n_E^(-1)> and <S_E^(0)>.
   for (auto mu : mus) {
     auto dm_rho0 = anomtrans::make_eq_node<anomtrans::StaticDMGraphNode>(Ekm, beta, mu);
@@ -210,21 +212,24 @@ TEST( WsmContinuumHamiltonian, wsm_continuum_ahe ) {
     // Have obtained linear response to electric field. Can calculate this
     // part of the longitudinal conductivity.
     // sigma_yy = -e Tr[v_y <rho_{E_y}>] / E_y
-    bool ret_Mat = false;
     PetscScalar sigma_yy = anomtrans::calculate_current_ev(kmb, v_op, dm_n_E->rho.M,
-        ret_Mat).at(0).first;
+        false).at(0).first;
     all_sigma_yys.push_back(sigma_yy.real());
 
     auto dm_S_E_intrinsic = dm_rho0->children[anomtrans::StaticDMDerivedBy::P_inv_DE];
     auto dm_S_E_extrinsic = dm_n_E->children[anomtrans::StaticDMDerivedBy::P_inv_Kod];
 
     auto sigma_S_E_intrinsic = anomtrans::calculate_current_ev(kmb, v_op,
-        dm_S_E_intrinsic->rho.M, ret_Mat);
+        dm_S_E_intrinsic->rho.M, true);
     all_sigma_xy_S_E_intrinsic.push_back(sigma_S_E_intrinsic.at(0).first.real());
+    auto sigma_xy_S_E_intrinsic_comp = anomtrans::collect_Mat_diagonal((*sigma_S_E_intrinsic.at(0).second).M);
+    all_sigma_xy_S_E_intrinsic_comp.push_back(sigma_xy_S_E_intrinsic_comp.first);
 
     auto sigma_S_E_extrinsic = anomtrans::calculate_current_ev(kmb, v_op,
-        dm_S_E_extrinsic->rho.M, ret_Mat);
+        dm_S_E_extrinsic->rho.M, true);
     all_sigma_xy_S_E_extrinsic.push_back(sigma_S_E_extrinsic.at(0).first.real());
+    auto sigma_xy_S_E_extrinsic_comp = anomtrans::collect_Mat_diagonal((*sigma_S_E_extrinsic.at(0).second).M);
+    all_sigma_xy_S_E_extrinsic_comp.push_back(sigma_xy_S_E_extrinsic_comp.first);
 
     ierr = MatNullSpaceDestroy(&nullspace);CHKERRXX(ierr);
     ierr = VecDestroy(&rho0_normalized);CHKERRXX(ierr);
@@ -255,6 +260,8 @@ TEST( WsmContinuumHamiltonian, wsm_continuum_ahe ) {
       {"Ekm", collected_Ekm},
       {"rho0", all_rho0},
       {"n_E", all_n_E},
+      {"sigma_xy_S_E_intrinsic_comp", all_sigma_xy_S_E_intrinsic_comp},
+      {"sigma_xy_S_E_extrinsic_comp", all_sigma_xy_S_E_extrinsic_comp},
       {"_series_sigma_yy", all_sigma_yys},
       {"_series_sigma_xy_S_E_intrinsic", all_sigma_xy_S_E_intrinsic},
       {"_series_sigma_xy_S_E_extrinsic", all_sigma_xy_S_E_extrinsic},
