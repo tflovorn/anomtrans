@@ -320,10 +320,6 @@ TEST( Wannier90_WSe2_dynamic, DISABLED_Wannier90_WSe2_dynamic ) {
   PetscReal js_S_0_2_extrinsic_sz_vy_plus = js_S_0_2_extrinsic_plus.at(2).at(1).first.real();
 
   // Done with PETSc data.
-  ierr = MatDestroy(&n_0_2_plus);CHKERRXX(ierr);
-  ierr = MatDestroy(&S_0_2_intrinsic_plus);CHKERRXX(ierr);
-  ierr = MatDestroy(&S_0_2_extrinsic_plus);CHKERRXX(ierr);
-
   ierr = MatNullSpaceDestroy(&nullspace);CHKERRXX(ierr);
   ierr = VecDestroy(&rho0_normalized);CHKERRXX(ierr);
   ierr = VecDestroy(&rho0_km);CHKERRXX(ierr);
