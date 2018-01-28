@@ -18,11 +18,6 @@ namespace anomtrans {
  *             of bands.
  *  @param H Class instance giving the Hamiltonian of the system. Should have
  *           the method energy(kmComps<dim>).
- *  @note Vec is a reference type (Petsc implementation: typedef struct _p_Vec* Vec).
- *        We can safely create an object of type Vec on the stack, initialize it with
- *        VecCreate, and return it. The caller will need to call VecDestroy(&v) on
- *        the returned Vec.
- *  @todo Make kmb a constant ref - avoid copy.
  */
 template <std::size_t k_dim, typename Hamiltonian>
 OwnedVec get_energies(const kmBasis<k_dim> &kmb, const Hamiltonian &H) {

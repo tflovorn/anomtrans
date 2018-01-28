@@ -70,15 +70,13 @@ TEST( derivative, linear ) {
   auto check_deriv = [&kmb, &coeffs, &f_vals](anomtrans::DerivStencil<1> stencil) {
     auto d_dk = anomtrans::make_d_dk_recip(kmb, stencil);
 
-    Vec df_dk;
-    PetscErrorCode ierr = VecDuplicate(f_vals.v, &df_dk);CHKERRXX(ierr);
-
     for (std::size_t d = 0; d < k_dim; d++) {
-      ierr = MatMult(d_dk.at(d).M, f_vals.v, df_dk);CHKERRXX(ierr);
+      auto df_dk = anomtrans::make_Vec_with_structure(f_vals.v);
+      PetscErrorCode ierr = MatMult(d_dk.at(d).M, f_vals.v, df_dk.v);CHKERRXX(ierr);
 
       std::vector<PetscInt> df_dk_ikms;
       std::vector<PetscScalar> df_dk_vals;
-      std::tie(df_dk_ikms, df_dk_vals) = anomtrans::get_local_contents(df_dk);
+      std::tie(df_dk_ikms, df_dk_vals) = anomtrans::get_local_contents(df_dk.v);
 
       auto macheps = std::numeric_limits<PetscReal>::epsilon();
       auto eps_abs = 2.0 * macheps * std::abs(coeffs.at(d));
@@ -100,8 +98,6 @@ TEST( derivative, linear ) {
         ASSERT_TRUE(anomtrans::scalars_approx_equal(v, expected, eps_abs, eps_rel));
       }
     }
-
-    ierr = VecDestroy(&df_dk);CHKERRXX(ierr);
   };
 
   anomtrans::DerivStencil<1> stencil_forward(anomtrans::DerivApproxType::forward, 1);
@@ -137,15 +133,13 @@ TEST( derivative, quadratic ) {
   auto check_deriv = [&kmb, &coeffs, &f_vals](anomtrans::DerivStencil<1> stencil) {
     auto d_dk = anomtrans::make_d_dk_recip(kmb, stencil);
 
-    Vec df_dk;
-    PetscErrorCode ierr = VecDuplicate(f_vals.v, &df_dk);CHKERRXX(ierr);
-
     for (std::size_t d = 0; d < k_dim; d++) {
-      ierr = MatMult(d_dk.at(d).M, f_vals.v, df_dk);CHKERRXX(ierr);
+      auto df_dk = anomtrans::make_Vec_with_structure(f_vals.v);
+      PetscErrorCode ierr = MatMult(d_dk.at(d).M, f_vals.v, df_dk.v);CHKERRXX(ierr);
 
       std::vector<PetscInt> df_dk_ikms;
       std::vector<PetscScalar> df_dk_vals;
-      std::tie(df_dk_ikms, df_dk_vals) = anomtrans::get_local_contents(df_dk);
+      std::tie(df_dk_ikms, df_dk_vals) = anomtrans::get_local_contents(df_dk.v);
 
       auto macheps = std::numeric_limits<PetscReal>::epsilon();
       auto eps_abs = 2.0 * macheps * std::abs(coeffs.at(d));
@@ -168,8 +162,6 @@ TEST( derivative, quadratic ) {
         ASSERT_TRUE(anomtrans::scalars_approx_equal(v, expected, eps_abs, eps_rel));
       }
     }
-
-    ierr = VecDestroy(&df_dk);CHKERRXX(ierr);
   };
 
   anomtrans::DerivStencil<1> stencil_central(anomtrans::DerivApproxType::central, 2);
@@ -239,32 +231,28 @@ TEST( derivative, square_TB_fermi_surface ) {
   for (auto mu : mus) {
     auto rho0_km = anomtrans::make_rho0(Ekm.v, beta, mu);
 
-    std::array<Vec, k_dim> d_rho0_dk;
+    std::array<anomtrans::OwnedVec, k_dim> d_rho0_dk;
     for (std::size_t d = 0; d < k_dim; d++) {
-      Vec d_rho0_dk_d;
-      PetscErrorCode ierr = VecCreateMPI(PETSC_COMM_WORLD, PETSC_DECIDE, kmb.end_ikm, &d_rho0_dk_d);CHKERRXX(ierr);
+      d_rho0_dk.at(d) = anomtrans::make_Vec(kmb.end_ikm);
       // d_rho0_dk(d) = [d_dk]_{d} * rho0
-      ierr = MatMult(d_dk.at(d).M, rho0_km.v, d_rho0_dk_d);CHKERRXX(ierr);
+      ierr = MatMult(d_dk.at(d).M, rho0_km.v, d_rho0_dk.at(d).v);CHKERRXX(ierr);
       
-      ierr = VecAssemblyBegin(d_rho0_dk_d);CHKERRXX(ierr);
-      ierr = VecAssemblyEnd(d_rho0_dk_d);CHKERRXX(ierr);
-
-      d_rho0_dk.at(d) = d_rho0_dk_d;
+      ierr = VecAssemblyBegin(d_rho0_dk.at(d).v);CHKERRXX(ierr);
+      ierr = VecAssemblyEnd(d_rho0_dk.at(d).v);CHKERRXX(ierr);
     }
 
     // TODO could factor out the block below into a function that takes a std::vector of
     // Vecs and applies a function to corresponding elements, yi = f(x1i, x2i, ...)
     // in the same manner as vector_elem_apply.
-    Vec norm_d_rho0_dk;
-    ierr = VecCreateMPI(PETSC_COMM_WORLD, PETSC_DECIDE, kmb.end_ikm, &norm_d_rho0_dk);CHKERRXX(ierr);
+    auto norm_d_rho0_dk = anomtrans::make_Vec(kmb.end_ikm);
 
     PetscInt begin, end;
-    ierr = VecGetOwnershipRange(norm_d_rho0_dk, &begin, &end);CHKERRXX(ierr);
+    ierr = VecGetOwnershipRange(norm_d_rho0_dk.v, &begin, &end);CHKERRXX(ierr);
     PetscInt num_local_rows = end - begin;
 
     std::array<anomtrans::IndexValPairs, k_dim> local_d_rho0_dk;
     for (std::size_t d = 0; d < k_dim; d++) {
-      local_d_rho0_dk.at(d) = anomtrans::get_local_contents(d_rho0_dk.at(d));
+      local_d_rho0_dk.at(d) = anomtrans::get_local_contents(d_rho0_dk.at(d).v);
       auto d_rho0_dk_local_rows = std::get<0>(local_d_rho0_dk.at(d));
       ASSERT_EQ( begin, d_rho0_dk_local_rows.at(0) );
       ASSERT_EQ( end, d_rho0_dk_local_rows.at(num_local_rows - 1) + 1 );
@@ -283,22 +271,17 @@ TEST( derivative, square_TB_fermi_surface ) {
       norm_vals.push_back(norm);
     }
 
-    ierr = VecSetValues(norm_d_rho0_dk, local_rows.size(), local_rows.data(),
+    ierr = VecSetValues(norm_d_rho0_dk.v, local_rows.size(), local_rows.data(),
         norm_vals.data(), INSERT_VALUES);CHKERRXX(ierr);
 
-    ierr = VecAssemblyBegin(norm_d_rho0_dk);CHKERRXX(ierr);
-    ierr = VecAssemblyEnd(norm_d_rho0_dk);CHKERRXX(ierr);
+    ierr = VecAssemblyBegin(norm_d_rho0_dk.v);CHKERRXX(ierr);
+    ierr = VecAssemblyEnd(norm_d_rho0_dk.v);CHKERRXX(ierr);
 
     auto collected_rho0 = anomtrans::split_scalars(anomtrans::collect_contents(rho0_km.v));
-    auto collected_norm_d_rho0_dk = anomtrans::split_scalars(anomtrans::collect_contents(norm_d_rho0_dk));
+    auto collected_norm_d_rho0_dk = anomtrans::split_scalars(anomtrans::collect_contents(norm_d_rho0_dk.v));
 
     all_rho0.push_back(collected_rho0.first);
     all_norm_d_rho0_dk.push_back(collected_norm_d_rho0_dk.first);
-
-    ierr = VecDestroy(&norm_d_rho0_dk);CHKERRXX(ierr);
-    for (std::size_t d = 0; d < k_dim; d++) {
-      ierr = VecDestroy(&(d_rho0_dk.at(d)));CHKERRXX(ierr);
-    }
   }
 
   auto collected_Ekm = anomtrans::split_scalars(anomtrans::collect_contents(Ekm.v)).first;

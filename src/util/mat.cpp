@@ -105,13 +105,10 @@ void set_Mat_diagonal(Mat M, PetscScalar alpha) {
     throw std::invalid_argument("matrix input to set_Mat_diagonal must be square");
   }
 
-  Vec diag;
-  ierr = VecCreateMPI(PETSC_COMM_WORLD, PETSC_DECIDE, num_rows, &diag);CHKERRXX(ierr);
-  ierr = VecSet(diag, alpha);CHKERRXX(ierr);
+  auto diag = make_Vec(num_rows);
+  ierr = VecSet(diag.v, alpha);CHKERRXX(ierr);
 
-  ierr = MatDiagonalSet(M, diag, INSERT_VALUES);CHKERRXX(ierr);
-
-  ierr = VecDestroy(&diag);CHKERRXX(ierr);
+  ierr = MatDiagonalSet(M, diag.v, INSERT_VALUES);CHKERRXX(ierr);
 }
 
 std::pair<std::vector<PetscReal>, std::vector<PetscReal>> collect_Mat_diagonal(Mat M) {
@@ -122,13 +119,10 @@ std::pair<std::vector<PetscReal>, std::vector<PetscReal>> collect_Mat_diagonal(M
     throw std::invalid_argument("matrix input to collect_Mat_diagonal must be square");
   }
 
-  Vec diag;
-  ierr = VecCreateMPI(PETSC_COMM_WORLD, PETSC_DECIDE, num_rows, &diag);CHKERRXX(ierr);
-  ierr = MatGetDiagonal(M, diag);CHKERRXX(ierr);
+  auto diag = make_Vec(num_rows);
+  ierr = MatGetDiagonal(M, diag.v);CHKERRXX(ierr);
 
-  auto collected = split_scalars(collect_contents(diag));
-
-  ierr = VecDestroy(&diag);CHKERRXX(ierr);
+  auto collected = split_scalars(collect_contents(diag.v));
 
   return collected;
 }

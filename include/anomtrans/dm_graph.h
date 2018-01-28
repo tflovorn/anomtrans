@@ -105,16 +105,13 @@ std::map<StaticDMDerivedBy, OwnedMat> get_response_electric(Mat D_E_rho,
     const Hamiltonian &H, const double sigma, const UU_OD &disorder_term_od,
     double berry_broadening) {
   // Construct <n_E^(-1)> = Kdd^{-1} D_E (<rho>).
-  Vec D_E_rho_diag;
-  PetscErrorCode ierr = VecCreateMPI(PETSC_COMM_WORLD, PETSC_DECIDE, kmb.end_ikm,
-      &D_E_rho_diag);CHKERRXX(ierr);
-  ierr = MatGetDiagonal(D_E_rho, D_E_rho_diag);CHKERRXX(ierr);
+  auto D_E_rho_diag = make_Vec(kmb.end_ikm);
+  PetscErrorCode ierr = MatGetDiagonal(D_E_rho, D_E_rho_diag.v);CHKERRXX(ierr);
 
-  Vec n_E;
-  ierr = VecDuplicate(D_E_rho_diag, &n_E);CHKERRXX(ierr);
-  ierr = KSPSolve(Kdd_ksp, D_E_rho_diag, n_E);CHKERRXX(ierr);
+  auto n_E = make_Vec_with_structure(D_E_rho_diag.v);
+  ierr = KSPSolve(Kdd_ksp, D_E_rho_diag.v, n_E.v);CHKERRXX(ierr);
 
-  OwnedMat n_E_Mat = make_diag_Mat(n_E);
+  OwnedMat n_E_Mat = make_diag_Mat(n_E.v);
 
   // Construct <S_E>_k^{mm'} = [P^{-1} [D_E(<rho>) - K^{od}(<n_E>)]]_k^{mm'}
   //   = -i\hbar [D_E(<rho>) - K^{od}(<n_E>)]]_k^{mm'} / (E_{km} - E_{km'})
@@ -129,15 +126,12 @@ std::map<StaticDMDerivedBy, OwnedMat> get_response_electric(Mat D_E_rho,
   OwnedMat S_E_intrinsic = apply_precession_term(kmb, H, D_E_rho, berry_broadening);
 
   // Extrinsic part of S:
-  auto n_E_all = scatter_to_all(n_E);
+  auto n_E_all = scatter_to_all(n_E.v);
   auto n_E_all_std = std::get<1>(get_local_contents(n_E_all.v));
   OwnedMat K_od_n_E = apply_collision_od(kmb, H, sigma, disorder_term_od, n_E_all_std);
   ierr = MatScale(K_od_n_E.M, -1.0);CHKERRXX(ierr);
 
   OwnedMat S_E_extrinsic = apply_precession_term(kmb, H, K_od_n_E.M, berry_broadening);
-
-  ierr = VecDestroy(&n_E);CHKERRXX(ierr);
-  ierr = VecDestroy(&D_E_rho_diag);CHKERRXX(ierr);
 
   std::map<StaticDMDerivedBy, OwnedMat> result;
   result.insert(std::make_pair(StaticDMDerivedBy::Kdd_inv_DE, std::move(n_E_Mat)));
@@ -241,16 +235,13 @@ void add_linear_response_magnetic(std::shared_ptr<StaticDMGraphNode> eq_node,
 
   // Construct diagonal response, <\xi_B^{(0)}> = [P^{-1} D_B(<rho_0>)]_{mm}
   //  = (e / \hbar) n_{km} * (B dot Omega_{km}).
-  Vec eq_diag;
-  PetscErrorCode ierr = VecCreateMPI(PETSC_COMM_WORLD, PETSC_DECIDE, kmb.end_ikm,
-      &eq_diag);CHKERRXX(ierr);
-  ierr = MatGetDiagonal(eq_node->rho.M, eq_diag);CHKERRXX(ierr);
+  auto eq_diag = make_Vec(kmb.end_ikm);
+  PetscErrorCode ierr = MatGetDiagonal(eq_node->rho.M, eq_diag.v);CHKERRXX(ierr);
 
-  Vec xi;
-  ierr = VecDuplicate(eq_diag, &xi);CHKERRXX(ierr);
-  ierr = VecPointwiseMult(xi, eq_diag, Bhat_dot_Omega);CHKERRXX(ierr);
+  auto xi = make_Vec_with_structure(eq_diag.v);
+  ierr = VecPointwiseMult(xi.v, eq_diag.v, Bhat_dot_Omega);CHKERRXX(ierr);
 
-  OwnedMat child_xi_Mat = make_diag_Mat(xi);
+  OwnedMat child_xi_Mat = make_diag_Mat(xi.v);
   auto child_xi_node_kind = StaticDMKind::xi;
   int child_xi_impurity_order = 0;
   std::string child_xi_name = "\\xi_B^{(0)}";
@@ -261,8 +252,6 @@ void add_linear_response_magnetic(std::shared_ptr<StaticDMGraphNode> eq_node,
       child_xi_node_kind, child_xi_impurity_order, child_xi_name, child_xi_parents);
 
   eq_node->children[StaticDMDerivedBy::B_dot_Omega] = child_xi_node;
-
-  ierr = VecDestroy(&xi);CHKERRXX(ierr);
 }
 
 /** @brief Add children to `node` corresponding to the next order of the expansion in powers
@@ -284,16 +273,13 @@ void add_next_order_magnetic(std::shared_ptr<StaticDMGraphNode> parent_node,
   // Construct n child: Kdd^{-1} D_B (<rho>).
   OwnedMat D_B_rho = apply_driving_magnetic(kmb, DH0_cross_Bhat, d_dk_Cart, R, parent_node->rho.M);
 
-  Vec D_B_rho_diag;
-  PetscErrorCode ierr = VecCreateMPI(PETSC_COMM_WORLD, PETSC_DECIDE, kmb.end_ikm,
-      &D_B_rho_diag);CHKERRXX(ierr);
-  ierr = MatGetDiagonal(D_B_rho.M, D_B_rho_diag);CHKERRXX(ierr);
+  auto D_B_rho_diag = make_Vec(kmb.end_ikm);
+  PetscErrorCode ierr = MatGetDiagonal(D_B_rho.M, D_B_rho_diag.v);CHKERRXX(ierr);
 
-  Vec child_n_B;
-  ierr = VecDuplicate(D_B_rho_diag, &child_n_B);CHKERRXX(ierr);
-  ierr = KSPSolve(Kdd_ksp, D_B_rho_diag, child_n_B);CHKERRXX(ierr);
+  auto child_n_B = make_Vec_with_structure(D_B_rho_diag.v);
+  ierr = KSPSolve(Kdd_ksp, D_B_rho_diag.v, child_n_B.v);CHKERRXX(ierr);
 
-  OwnedMat child_n_B_Mat = make_diag_Mat(child_n_B);
+  OwnedMat child_n_B_Mat = make_diag_Mat(child_n_B.v);
   auto child_n_B_node_kind = StaticDMKind::n;
   int child_n_B_impurity_order = parent_node->impurity_order - 1;
   std::string child_n_B_name = ""; // TODO
@@ -330,7 +316,7 @@ void add_next_order_magnetic(std::shared_ptr<StaticDMGraphNode> parent_node,
   parent_node->children[StaticDMDerivedBy::P_inv_DB] = child_S_B_intrinsic_node;
 
   // Extrinsic part of S:
-  auto child_n_B_all = scatter_to_all(child_n_B);
+  auto child_n_B_all = scatter_to_all(child_n_B.v);
   auto child_n_B_all_std = std::get<1>(get_local_contents(child_n_B_all.v));
   OwnedMat K_od_child_n_B = apply_collision_od(kmb, H, sigma, disorder_term_od, child_n_B_all_std);
   ierr = MatScale(K_od_child_n_B.M, -1.0);CHKERRXX(ierr);
@@ -352,16 +338,14 @@ void add_next_order_magnetic(std::shared_ptr<StaticDMGraphNode> parent_node,
   if (parent_node->node_kind != StaticDMKind::S) {
     // Construct xi child.
     // xi and n have xi children, but S does not.
-    Vec parent_diag;
-    ierr = VecDuplicate(D_B_rho_diag, &parent_diag);CHKERRXX(ierr);
-    ierr = MatGetDiagonal(parent_node->rho.M, parent_diag);CHKERRXX(ierr);
+    auto parent_diag = make_Vec_with_structure(D_B_rho_diag.v);
+    ierr = MatGetDiagonal(parent_node->rho.M, parent_diag.v);CHKERRXX(ierr);
 
     // xi_{km} = n_{km} * (B dot Omega_{km})
-    Vec xi;
-    ierr = VecDuplicate(D_B_rho_diag, &xi);CHKERRXX(ierr);
-    ierr = VecPointwiseMult(xi, parent_diag, Bhat_dot_Omega);CHKERRXX(ierr);
+    auto xi = make_Vec_with_structure(D_B_rho_diag.v);
+    ierr = VecPointwiseMult(xi.v, parent_diag.v, Bhat_dot_Omega);CHKERRXX(ierr);
 
-    OwnedMat child_xi_Mat = make_diag_Mat(xi);
+    OwnedMat child_xi_Mat = make_diag_Mat(xi.v);
     auto child_xi_node_kind = StaticDMKind::xi;
     int child_xi_impurity_order = parent_node->impurity_order;
     std::string child_xi_name = ""; // TODO
@@ -372,12 +356,7 @@ void add_next_order_magnetic(std::shared_ptr<StaticDMGraphNode> parent_node,
         child_xi_node_kind, child_xi_impurity_order, child_xi_name, child_xi_parents);
 
     parent_node->children[StaticDMDerivedBy::B_dot_Omega] = child_xi_node;
-
-    ierr = VecDestroy(&xi);CHKERRXX(ierr);
   }
-
-  ierr = VecDestroy(&child_n_B);CHKERRXX(ierr);
-  ierr = VecDestroy(&D_B_rho_diag);CHKERRXX(ierr);
 }
 
 } // namespace anomtrans

@@ -458,12 +458,11 @@ std::vector<PetscScalar> collect_band_elem(const kmBasis<k_dim> &kmb, Mat S,
   assert(kmb.compose(std::make_tuple(Nk_m1, 0u)) == Nk_tot - 1);
 
   // Construct a vector to hold the result: one value for each k.
-  Vec S_mmp;
-  PetscErrorCode ierr = VecCreateMPI(PETSC_COMM_WORLD, PETSC_DECIDE,
-      kmb.end_ikm / kmb.Nbands, &S_mmp);CHKERRXX(ierr);
+  auto ks_per_band = kmb.end_ikm / kmb.Nbands;
+  auto S_mmp = make_Vec(ks_per_band);
 
   PetscInt begin, end;
-  ierr = MatGetOwnershipRange(S, &begin, &end);CHKERRXX(ierr);
+  PetscErrorCode ierr = MatGetOwnershipRange(S, &begin, &end);CHKERRXX(ierr);
 
   std::vector<PetscInt> local_rows;
   std::vector<PetscScalar> local_values;
@@ -493,13 +492,13 @@ std::vector<PetscScalar> collect_band_elem(const kmBasis<k_dim> &kmb, Mat S,
   }
 
   assert(local_rows.size() == local_values.size());
-  ierr = VecSetValues(S_mmp, local_rows.size(), local_rows.data(), local_values.data(),
+  ierr = VecSetValues(S_mmp.v, local_rows.size(), local_rows.data(), local_values.data(),
       INSERT_VALUES);CHKERRXX(ierr);
 
-  ierr = VecAssemblyBegin(S_mmp);CHKERRXX(ierr);
-  ierr = VecAssemblyEnd(S_mmp);CHKERRXX(ierr);
+  ierr = VecAssemblyBegin(S_mmp.v);CHKERRXX(ierr);
+  ierr = VecAssemblyEnd(S_mmp.v);CHKERRXX(ierr);
 
-  return collect_contents(S_mmp);
+  return collect_contents(S_mmp.v);
 }
 
 /** @brief Calculate the trace the product of the matrices given by xs, in the order of the

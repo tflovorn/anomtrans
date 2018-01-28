@@ -181,17 +181,16 @@ TEST( WsmContinuumHamiltonian, wsm_continuum_ahe ) {
     auto dm_rho0 = anomtrans::make_eq_node<anomtrans::StaticDMGraphNode>(Ekm.v, beta, mu);
     all_rho0.push_back(anomtrans::collect_Mat_diagonal(dm_rho0->rho.M).first);
 
-    Vec rho0_km;
-    ierr = VecDuplicate(Ekm.v, &rho0_km);CHKERRXX(ierr);
-    ierr = MatGetDiagonal(dm_rho0->rho.M, rho0_km);CHKERRXX(ierr);
+    auto rho0_km = anomtrans::make_Vec_with_structure(Ekm.v);
+    ierr = MatGetDiagonal(dm_rho0->rho.M, rho0_km.v);CHKERRXX(ierr);
 
     // Get normalized version of rho0 to use for nullspace.
     // TODO can we safely pass a nullptr instead of rho0_orig_norm?
-    Vec rho0_normalized;
+    auto rho0_normalized = anomtrans::make_Vec_with_structure(rho0_km.v);
+    ierr = VecCopy(rho0_km.v, rho0_normalized.v);CHKERRXX(ierr);
+
     PetscReal rho0_orig_norm;
-    ierr = VecDuplicate(rho0_km, &rho0_normalized);CHKERRXX(ierr);
-    ierr = VecCopy(rho0_km, rho0_normalized);CHKERRXX(ierr);
-    ierr = VecNormalize(rho0_normalized, &rho0_orig_norm);CHKERRXX(ierr);
+    ierr = VecNormalize(rho0_normalized.v, &rho0_orig_norm);CHKERRXX(ierr);
 
     // Set nullspace of K: K rho0_km = 0.
     // Note that this is true regardless of the value of mu
@@ -200,7 +199,7 @@ TEST( WsmContinuumHamiltonian, wsm_continuum_ahe ) {
     // function does not appear in K, only energy differences).
     // TODO does this mean that the nullspace has dimension larger than 1?
     MatNullSpace nullspace;
-    ierr = MatNullSpaceCreate(PETSC_COMM_WORLD, PETSC_FALSE, 1, &rho0_normalized, &nullspace);CHKERRXX(ierr);
+    ierr = MatNullSpaceCreate(PETSC_COMM_WORLD, PETSC_FALSE, 1, &(rho0_normalized.v), &nullspace);CHKERRXX(ierr);
     ierr = MatSetNullSpace(collision.M, nullspace);CHKERRXX(ierr);
     // NOTE rho0_normalized must not be modified after this call until we are done with nullspace.
 
@@ -232,8 +231,6 @@ TEST( WsmContinuumHamiltonian, wsm_continuum_ahe ) {
     all_sigma_xy_S_E_extrinsic_comp.push_back(sigma_xy_S_E_extrinsic_comp.first);
 
     ierr = MatNullSpaceDestroy(&nullspace);CHKERRXX(ierr);
-    ierr = VecDestroy(&rho0_normalized);CHKERRXX(ierr);
-    ierr = VecDestroy(&rho0_km);CHKERRXX(ierr);
   }
 
   auto collected_Ekm = anomtrans::split_scalars(anomtrans::collect_contents(Ekm.v)).first;
@@ -415,22 +412,21 @@ TEST( WsmContinuumNodeHamiltonian, wsm_continuum_cme_node ) {
   std::vector<PetscReal> all_current_xi_B;
   for (auto mu : mus) {
     auto dm_rho0 = anomtrans::make_eq_node<anomtrans::StaticDMGraphNode>(Ekm.v, beta, mu);
-    Vec rho0_km;
-    ierr = VecDuplicate(Ekm.v, &rho0_km);CHKERRXX(ierr);
-    ierr = MatGetDiagonal(dm_rho0->rho.M, rho0_km);CHKERRXX(ierr);
+    auto rho0_km = anomtrans::make_Vec_with_structure(Ekm.v);
+    ierr = MatGetDiagonal(dm_rho0->rho.M, rho0_km.v);CHKERRXX(ierr);
 
     anomtrans::add_linear_response_magnetic(dm_rho0, kmb, DH0_cross_Bhat, d_dk_Cart, R,
         Bhat_dot_Omega.v, H, berry_broadening);
 
     auto dm_S_B = dm_rho0->children[anomtrans::StaticDMDerivedBy::P_inv_DB];
     auto dm_xi_B = dm_rho0->children[anomtrans::StaticDMDerivedBy::B_dot_Omega];
-    Vec xi_B;
-    ierr = VecDuplicate(rho0_km, &xi_B);CHKERRXX(ierr);
-    ierr = MatGetDiagonal(dm_xi_B->rho.M, xi_B);CHKERRXX(ierr);
 
-    auto collected_rho0 = anomtrans::split_scalars(anomtrans::collect_contents(rho0_km)).first;
+    auto xi_B = anomtrans::make_Vec_with_structure(rho0_km.v);
+    ierr = MatGetDiagonal(dm_xi_B->rho.M, xi_B.v);CHKERRXX(ierr);
+
+    auto collected_rho0 = anomtrans::split_scalars(anomtrans::collect_contents(rho0_km.v)).first;
     all_rho0.push_back(collected_rho0);
-    auto collected_xi_B = anomtrans::split_scalars(anomtrans::collect_contents(xi_B)).first;
+    auto collected_xi_B = anomtrans::split_scalars(anomtrans::collect_contents(xi_B.v)).first;
     all_xi_B.push_back(collected_xi_B);
 
     // Have obtained linear response to magnetic field. Can calculate this
@@ -443,9 +439,6 @@ TEST( WsmContinuumNodeHamiltonian, wsm_continuum_cme_node ) {
     PetscScalar current_xi_B = anomtrans::calculate_current_ev(kmb, v_op, dm_xi_B->rho.M,
         ret_Mat).at(2).first;
     all_current_xi_B.push_back(current_xi_B.real());
-
-    ierr = VecDestroy(&xi_B);CHKERRXX(ierr);
-    ierr = VecDestroy(&rho0_km);CHKERRXX(ierr);
   }
 
   auto collected_Ekm = anomtrans::split_scalars(anomtrans::collect_contents(Ekm.v)).first;
@@ -623,22 +616,21 @@ TEST( WsmContinuumMu5Hamiltonian, wsm_continuum_cme_mu5 ) {
   std::vector<PetscReal> all_current_xi_B;
   for (auto mu : mus) {
     auto dm_rho0 = anomtrans::make_eq_node<anomtrans::StaticDMGraphNode>(Ekm.v, beta, mu);
-    Vec rho0_km;
-    ierr = VecDuplicate(Ekm.v, &rho0_km);CHKERRXX(ierr);
-    ierr = MatGetDiagonal(dm_rho0->rho.M, rho0_km);CHKERRXX(ierr);
+    auto rho0_km = anomtrans::make_Vec_with_structure(Ekm.v);
+    ierr = MatGetDiagonal(dm_rho0->rho.M, rho0_km.v);CHKERRXX(ierr);
 
     anomtrans::add_linear_response_magnetic(dm_rho0, kmb, DH0_cross_Bhat, d_dk_Cart, R,
         Bhat_dot_Omega.v, H, berry_broadening);
 
     auto dm_S_B = dm_rho0->children[anomtrans::StaticDMDerivedBy::P_inv_DB];
     auto dm_xi_B = dm_rho0->children[anomtrans::StaticDMDerivedBy::B_dot_Omega];
-    Vec xi_B;
-    ierr = VecDuplicate(rho0_km, &xi_B);CHKERRXX(ierr);
-    ierr = MatGetDiagonal(dm_xi_B->rho.M, xi_B);CHKERRXX(ierr);
 
-    auto collected_rho0 = anomtrans::split_scalars(anomtrans::collect_contents(rho0_km)).first;
+    auto xi_B = anomtrans::make_Vec_with_structure(rho0_km.v);
+    ierr = MatGetDiagonal(dm_xi_B->rho.M, xi_B.v);CHKERRXX(ierr);
+
+    auto collected_rho0 = anomtrans::split_scalars(anomtrans::collect_contents(rho0_km.v)).first;
     all_rho0.push_back(collected_rho0);
-    auto collected_xi_B = anomtrans::split_scalars(anomtrans::collect_contents(xi_B)).first;
+    auto collected_xi_B = anomtrans::split_scalars(anomtrans::collect_contents(xi_B.v)).first;
     all_xi_B.push_back(collected_xi_B);
 
     // Have obtained linear response to magnetic field. Can calculate this
@@ -651,9 +643,6 @@ TEST( WsmContinuumMu5Hamiltonian, wsm_continuum_cme_mu5 ) {
     PetscScalar current_xi_B = anomtrans::calculate_current_ev(kmb, v_op, dm_xi_B->rho.M,
         ret_Mat).at(2).first;
     all_current_xi_B.push_back(current_xi_B.real());
-
-    ierr = VecDestroy(&xi_B);CHKERRXX(ierr);
-    ierr = VecDestroy(&rho0_km);CHKERRXX(ierr);
   }
 
   auto collected_Ekm = anomtrans::split_scalars(anomtrans::collect_contents(Ekm.v)).first;
@@ -874,17 +863,16 @@ TEST( WsmContinuumHamiltonian, wsm_continuum_quadratic_magnetoconductivity ) {
   std::vector<PetscReal> all_sigma_S_ext_to_xi, all_sigma_S_ext_to_S_int, all_sigma_S_ext_to_S_ext;
   for (auto mu : mus) {
     auto dm_rho0 = anomtrans::make_eq_node<anomtrans::StaticDMGraphNode>(Ekm.v, beta, mu);
-    Vec rho0_km;
-    ierr = VecDuplicate(Ekm.v, &rho0_km);CHKERRXX(ierr);
-    ierr = MatGetDiagonal(dm_rho0->rho.M, rho0_km);CHKERRXX(ierr);
+    auto rho0_km = anomtrans::make_Vec_with_structure(Ekm.v);
+    ierr = MatGetDiagonal(dm_rho0->rho.M, rho0_km.v);CHKERRXX(ierr);
 
     // Get normalized version of rho0 to use for nullspace.
     // TODO can we safely pass a nullptr instead of rho0_orig_norm?
-    Vec rho0_normalized;
+    auto rho0_normalized = anomtrans::make_Vec_with_structure(rho0_km.v);
+    ierr = VecCopy(rho0_km.v, rho0_normalized.v);CHKERRXX(ierr);
+
     PetscReal rho0_orig_norm;
-    ierr = VecDuplicate(rho0_km, &rho0_normalized);CHKERRXX(ierr);
-    ierr = VecCopy(rho0_km, rho0_normalized);CHKERRXX(ierr);
-    ierr = VecNormalize(rho0_normalized, &rho0_orig_norm);CHKERRXX(ierr);
+    ierr = VecNormalize(rho0_normalized.v, &rho0_orig_norm);CHKERRXX(ierr);
 
     // Set nullspace of K: K rho0_km = 0.
     // Note that this is true regardless of the value of mu
@@ -893,7 +881,7 @@ TEST( WsmContinuumHamiltonian, wsm_continuum_quadratic_magnetoconductivity ) {
     // function does not appear in K, only energy differences).
     // TODO does this mean that the nullspace has dimension larger than 1?
     MatNullSpace nullspace;
-    ierr = MatNullSpaceCreate(PETSC_COMM_WORLD, PETSC_FALSE, 1, &rho0_normalized, &nullspace);CHKERRXX(ierr);
+    ierr = MatNullSpaceCreate(PETSC_COMM_WORLD, PETSC_FALSE, 1, &(rho0_normalized.v), &nullspace);CHKERRXX(ierr);
     ierr = MatSetNullSpace(collision.M, nullspace);CHKERRXX(ierr);
     // NOTE rho0_normalized must not be modified after this call until we are done with nullspace.
 
@@ -981,8 +969,6 @@ TEST( WsmContinuumHamiltonian, wsm_continuum_quadratic_magnetoconductivity ) {
     all_sigma_S_ext_to_S_ext.push_back(sigma_S_ext_to_S_ext.real());
 
     ierr = MatNullSpaceDestroy(&nullspace);CHKERRXX(ierr);
-    ierr = VecDestroy(&rho0_normalized);CHKERRXX(ierr);
-    ierr = VecDestroy(&rho0_km);CHKERRXX(ierr);
   }
 
   auto collected_Ekm = anomtrans::split_scalars(anomtrans::collect_contents(Ekm.v)).first;

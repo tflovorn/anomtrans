@@ -65,15 +65,11 @@ void add_dynamic_electric_n_nonzero(boost::optional<std::shared_ptr<DynDMGraphNo
 
   // Construct diagonal part of result.
   // TODO - construct n_Mat directly from Dtilde. Don't need intermediate vector Dtilde_diag.
-  Vec Dtilde_diag;
-  PetscErrorCode ierr = VecCreateMPI(PETSC_COMM_WORLD, PETSC_DECIDE, kmb.end_ikm,
-      &Dtilde_diag);CHKERRXX(ierr);
-  ierr = MatGetDiagonal(Dtilde.M, Dtilde_diag);CHKERRXX(ierr);
+  auto Dtilde_diag = make_Vec(kmb.end_ikm);
+  PetscErrorCode ierr = MatGetDiagonal(Dtilde.M, Dtilde_diag.v);CHKERRXX(ierr);
 
-  OwnedMat n_Mat = make_diag_Mat(Dtilde_diag);
+  OwnedMat n_Mat = make_diag_Mat(Dtilde_diag.v);
   ierr = MatScale(n_Mat.M, 1.0/std::complex<double>(0.0, omega * n));CHKERRXX(ierr);
-
-  ierr = VecDestroy(&Dtilde_diag);CHKERRXX(ierr);
 
   auto n_node_kind = DynDMKind::n;
   int n_impurity_order = *impurity_order;

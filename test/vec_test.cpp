@@ -37,21 +37,20 @@ TEST( Vector_Apply, Square ) {
     global_in_vals.push_back(i);
   }
 
-  Vec v_in;
-  PetscErrorCode ierr = VecCreateMPI(PETSC_COMM_WORLD, PETSC_DECIDE, v_in_size, &v_in);CHKERRXX(ierr);
-  ierr = VecSetValues(v_in, v_in_size, global_in_rows.data(), global_in_vals.data(), INSERT_VALUES);CHKERRXX(ierr);
-  ierr = VecAssemblyBegin(v_in);CHKERRXX(ierr);
-  ierr = VecAssemblyEnd(v_in);CHKERRXX(ierr);
+  auto v_in = anomtrans::make_Vec(v_in_size);
+  PetscErrorCode ierr = VecSetValues(v_in.v, v_in_size, global_in_rows.data(), global_in_vals.data(), INSERT_VALUES);CHKERRXX(ierr);
+  ierr = VecAssemblyBegin(v_in.v);CHKERRXX(ierr);
+  ierr = VecAssemblyEnd(v_in.v);CHKERRXX(ierr);
 
   auto f = [](PetscScalar x)->PetscScalar {
     return x*x;
   };
 
-  auto v_out = anomtrans::vector_elem_apply(v_in, f);
+  auto v_out = anomtrans::vector_elem_apply(v_in.v, f);
 
   std::vector<PetscInt> local_in_rows;
   std::vector<PetscScalar> local_in_vals;
-  std::tie(local_in_rows, local_in_vals) = anomtrans::get_local_contents(v_in);
+  std::tie(local_in_rows, local_in_vals) = anomtrans::get_local_contents(v_in.v);
 
   std::vector<PetscInt> local_out_rows;
   std::vector<PetscScalar> local_out_vals;
@@ -65,8 +64,6 @@ TEST( Vector_Apply, Square ) {
 
     ASSERT_EQ( local_out_vals.at(i), expected_out );
   }
-
-  ierr = VecDestroy(&v_in);CHKERRXX(ierr);
 }
 
 // Create vectors of values -n, -n + 1, -n + 2, ..., n - 1 and

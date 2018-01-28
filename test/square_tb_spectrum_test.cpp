@@ -169,17 +169,16 @@ TEST( square_TB_Hall, square_TB_Hall ) {
     auto dm_rho0 = anomtrans::make_eq_node<anomtrans::StaticDMGraphNode>(Ekm.v, beta, mu);
     all_rho0.push_back(anomtrans::collect_Mat_diagonal(dm_rho0->rho.M).first);
 
-    Vec rho0_km;
-    ierr = VecDuplicate(Ekm.v, &rho0_km);CHKERRXX(ierr);
-    ierr = MatGetDiagonal(dm_rho0->rho.M, rho0_km);CHKERRXX(ierr);
+    auto rho0_km = anomtrans::make_Vec_with_structure(Ekm.v);
+    ierr = MatGetDiagonal(dm_rho0->rho.M, rho0_km.v);CHKERRXX(ierr);
 
     // Get normalized version of rho0 to use for nullspace.
     // TODO can we safely pass a nullptr instead of rho0_orig_norm?
-    Vec rho0_normalized;
+    auto rho0_normalized = anomtrans::make_Vec_with_structure(rho0_km.v);
+    ierr = VecCopy(rho0_km.v, rho0_normalized.v);CHKERRXX(ierr);
+
     PetscReal rho0_orig_norm;
-    ierr = VecDuplicate(rho0_km, &rho0_normalized);CHKERRXX(ierr);
-    ierr = VecCopy(rho0_km, rho0_normalized);CHKERRXX(ierr);
-    ierr = VecNormalize(rho0_normalized, &rho0_orig_norm);CHKERRXX(ierr);
+    ierr = VecNormalize(rho0_normalized.v, &rho0_orig_norm);CHKERRXX(ierr);
 
     // Set nullspace of K: K rho0_km = 0.
     // Note that this is true regardless of the value of mu
@@ -188,7 +187,7 @@ TEST( square_TB_Hall, square_TB_Hall ) {
     // function does not appear in K, only energy differences).
     // TODO does this mean that the nullspace has dimension larger than 1?
     MatNullSpace nullspace;
-    ierr = MatNullSpaceCreate(PETSC_COMM_WORLD, PETSC_FALSE, 1, &rho0_normalized, &nullspace);CHKERRXX(ierr);
+    ierr = MatNullSpaceCreate(PETSC_COMM_WORLD, PETSC_FALSE, 1, &(rho0_normalized.v), &nullspace);CHKERRXX(ierr);
     ierr = MatSetNullSpace(collision.M, nullspace);CHKERRXX(ierr);
     // NOTE rho0_normalized must not be modified after this call until we are done with nullspace.
 
@@ -217,8 +216,6 @@ TEST( square_TB_Hall, square_TB_Hall ) {
     all_Hall_conductivities.push_back(sigma_Hall.real());
 
     ierr = MatNullSpaceDestroy(&nullspace);CHKERRXX(ierr);
-    ierr = VecDestroy(&rho0_normalized);CHKERRXX(ierr);
-    ierr = VecDestroy(&rho0_km);CHKERRXX(ierr);
   }
 
   auto collected_Ekm = anomtrans::split_scalars(anomtrans::collect_contents(Ekm.v)).first;
