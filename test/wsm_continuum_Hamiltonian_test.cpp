@@ -118,14 +118,14 @@ TEST( WsmContinuumHamiltonian, wsm_continuum_ahe ) {
 
   std::array<double, k_dim> Ehat = {0.0, 1.0, 0.0};
 
-  Vec Ekm = anomtrans::get_energies(kmb, H);
+  auto Ekm = anomtrans::get_energies(kmb, H);
 
   auto v_op = anomtrans::calculate_velocity(kmb, H);
 
   PetscInt Ekm_min_index, Ekm_max_index;
   PetscReal Ekm_min, Ekm_max;
-  PetscErrorCode ierr = VecMin(Ekm, &Ekm_min_index, &Ekm_min);CHKERRXX(ierr);
-  ierr = VecMax(Ekm, &Ekm_max_index, &Ekm_max);CHKERRXX(ierr);
+  PetscErrorCode ierr = VecMin(Ekm.v, &Ekm_min_index, &Ekm_min);CHKERRXX(ierr);
+  ierr = VecMax(Ekm.v, &Ekm_max_index, &Ekm_max);CHKERRXX(ierr);
 
   std::size_t Nk_tot = anomtrans::get_Nk_total(Nk);
   double U0_sq = U0*U0;
@@ -178,11 +178,11 @@ TEST( WsmContinuumHamiltonian, wsm_continuum_ahe ) {
   std::vector<std::vector<PetscReal>> all_sigma_xy_S_E_extrinsic_comp;
   // For each mu, construct <n_E^(-1)> and <S_E^(0)>.
   for (auto mu : mus) {
-    auto dm_rho0 = anomtrans::make_eq_node<anomtrans::StaticDMGraphNode>(Ekm, beta, mu);
+    auto dm_rho0 = anomtrans::make_eq_node<anomtrans::StaticDMGraphNode>(Ekm.v, beta, mu);
     all_rho0.push_back(anomtrans::collect_Mat_diagonal(dm_rho0->rho.M).first);
 
     Vec rho0_km;
-    ierr = VecDuplicate(Ekm, &rho0_km);CHKERRXX(ierr);
+    ierr = VecDuplicate(Ekm.v, &rho0_km);CHKERRXX(ierr);
     ierr = MatGetDiagonal(dm_rho0->rho.M, rho0_km);CHKERRXX(ierr);
 
     // Get normalized version of rho0 to use for nullspace.
@@ -236,11 +236,10 @@ TEST( WsmContinuumHamiltonian, wsm_continuum_ahe ) {
     ierr = VecDestroy(&rho0_km);CHKERRXX(ierr);
   }
 
-  auto collected_Ekm = anomtrans::split_scalars(anomtrans::collect_contents(Ekm)).first;
+  auto collected_Ekm = anomtrans::split_scalars(anomtrans::collect_contents(Ekm.v)).first;
 
   // Done with PETSc data.
   ierr = KSPDestroy(&ksp);CHKERRXX(ierr);
-  ierr = VecDestroy(&Ekm);CHKERRXX(ierr);
 
   if (rank == 0) {
     // Write out the collected data.
@@ -384,14 +383,14 @@ TEST( WsmContinuumNodeHamiltonian, wsm_continuum_cme_node ) {
 
   std::array<double, k_dim> Bhat = {0.0, 0.0, 1.0};
 
-  Vec Ekm = anomtrans::get_energies(kmb, H);
+  auto Ekm = anomtrans::get_energies(kmb, H);
 
   auto v_op = anomtrans::calculate_velocity(kmb, H);
 
   PetscInt Ekm_min_index, Ekm_max_index;
   PetscReal Ekm_min, Ekm_max;
-  PetscErrorCode ierr = VecMin(Ekm, &Ekm_min_index, &Ekm_min);CHKERRXX(ierr);
-  ierr = VecMax(Ekm, &Ekm_max_index, &Ekm_max);CHKERRXX(ierr);
+  PetscErrorCode ierr = VecMin(Ekm.v, &Ekm_min_index, &Ekm_min);CHKERRXX(ierr);
+  ierr = VecMax(Ekm.v, &Ekm_max_index, &Ekm_max);CHKERRXX(ierr);
 
   const unsigned int deriv_approx_order = 2;
   anomtrans::DerivStencil<1> stencil(anomtrans::DerivApproxType::central, deriv_approx_order);
@@ -415,13 +414,13 @@ TEST( WsmContinuumNodeHamiltonian, wsm_continuum_cme_node ) {
   std::vector<PetscReal> all_current_S_B;
   std::vector<PetscReal> all_current_xi_B;
   for (auto mu : mus) {
-    auto dm_rho0 = anomtrans::make_eq_node<anomtrans::StaticDMGraphNode>(Ekm, beta, mu);
+    auto dm_rho0 = anomtrans::make_eq_node<anomtrans::StaticDMGraphNode>(Ekm.v, beta, mu);
     Vec rho0_km;
-    ierr = VecDuplicate(Ekm, &rho0_km);CHKERRXX(ierr);
+    ierr = VecDuplicate(Ekm.v, &rho0_km);CHKERRXX(ierr);
     ierr = MatGetDiagonal(dm_rho0->rho.M, rho0_km);CHKERRXX(ierr);
 
     anomtrans::add_linear_response_magnetic(dm_rho0, kmb, DH0_cross_Bhat, d_dk_Cart, R,
-        Bhat_dot_Omega, H, berry_broadening);
+        Bhat_dot_Omega.v, H, berry_broadening);
 
     auto dm_S_B = dm_rho0->children[anomtrans::StaticDMDerivedBy::P_inv_DB];
     auto dm_xi_B = dm_rho0->children[anomtrans::StaticDMDerivedBy::B_dot_Omega];
@@ -449,15 +448,7 @@ TEST( WsmContinuumNodeHamiltonian, wsm_continuum_cme_node ) {
     ierr = VecDestroy(&rho0_km);CHKERRXX(ierr);
   }
 
-  auto collected_Ekm = anomtrans::split_scalars(anomtrans::collect_contents(Ekm)).first;
-
-  // Done with PETSc data.
-  for (std::size_t dc = 0; dc < k_dim; dc++) {
-    ierr = VecDestroy(&(Omega.at(dc)));CHKERRXX(ierr);
-  }
-
-  ierr = VecDestroy(&Bhat_dot_Omega);CHKERRXX(ierr);
-  ierr = VecDestroy(&Ekm);CHKERRXX(ierr);
+  auto collected_Ekm = anomtrans::split_scalars(anomtrans::collect_contents(Ekm.v)).first;
 
   if (rank == 0) {
     // Write out the collected data.
@@ -603,14 +594,14 @@ TEST( WsmContinuumMu5Hamiltonian, wsm_continuum_cme_mu5 ) {
 
   std::array<double, k_dim> Bhat = {0.0, 0.0, 1.0};
 
-  Vec Ekm = anomtrans::get_energies(kmb, H);
+  auto Ekm = anomtrans::get_energies(kmb, H);
 
   auto v_op = anomtrans::calculate_velocity(kmb, H);
 
   PetscInt Ekm_min_index, Ekm_max_index;
   PetscReal Ekm_min, Ekm_max;
-  PetscErrorCode ierr = VecMin(Ekm, &Ekm_min_index, &Ekm_min);CHKERRXX(ierr);
-  ierr = VecMax(Ekm, &Ekm_max_index, &Ekm_max);CHKERRXX(ierr);
+  PetscErrorCode ierr = VecMin(Ekm.v, &Ekm_min_index, &Ekm_min);CHKERRXX(ierr);
+  ierr = VecMax(Ekm.v, &Ekm_max_index, &Ekm_max);CHKERRXX(ierr);
 
   const unsigned int deriv_approx_order = 2;
   anomtrans::DerivStencil<1> stencil(anomtrans::DerivApproxType::central, deriv_approx_order);
@@ -631,13 +622,13 @@ TEST( WsmContinuumMu5Hamiltonian, wsm_continuum_cme_mu5 ) {
   std::vector<PetscReal> all_current_S_B;
   std::vector<PetscReal> all_current_xi_B;
   for (auto mu : mus) {
-    auto dm_rho0 = anomtrans::make_eq_node<anomtrans::StaticDMGraphNode>(Ekm, beta, mu);
+    auto dm_rho0 = anomtrans::make_eq_node<anomtrans::StaticDMGraphNode>(Ekm.v, beta, mu);
     Vec rho0_km;
-    ierr = VecDuplicate(Ekm, &rho0_km);CHKERRXX(ierr);
+    ierr = VecDuplicate(Ekm.v, &rho0_km);CHKERRXX(ierr);
     ierr = MatGetDiagonal(dm_rho0->rho.M, rho0_km);CHKERRXX(ierr);
 
     anomtrans::add_linear_response_magnetic(dm_rho0, kmb, DH0_cross_Bhat, d_dk_Cart, R,
-        Bhat_dot_Omega, H, berry_broadening);
+        Bhat_dot_Omega.v, H, berry_broadening);
 
     auto dm_S_B = dm_rho0->children[anomtrans::StaticDMDerivedBy::P_inv_DB];
     auto dm_xi_B = dm_rho0->children[anomtrans::StaticDMDerivedBy::B_dot_Omega];
@@ -665,15 +656,7 @@ TEST( WsmContinuumMu5Hamiltonian, wsm_continuum_cme_mu5 ) {
     ierr = VecDestroy(&rho0_km);CHKERRXX(ierr);
   }
 
-  auto collected_Ekm = anomtrans::split_scalars(anomtrans::collect_contents(Ekm)).first;
-
-  // Done with PETSc data.
-  for (std::size_t dc = 0; dc < k_dim; dc++) {
-    ierr = VecDestroy(&(Omega.at(dc)));CHKERRXX(ierr);
-  }
-
-  ierr = VecDestroy(&Bhat_dot_Omega);CHKERRXX(ierr);
-  ierr = VecDestroy(&Ekm);CHKERRXX(ierr);
+  auto collected_Ekm = anomtrans::split_scalars(anomtrans::collect_contents(Ekm.v)).first;
 
   if (rank == 0) {
     // Write out the collected data.
@@ -821,7 +804,7 @@ TEST( WsmContinuumHamiltonian, wsm_continuum_quadratic_magnetoconductivity ) {
   std::array<double, k_dim> Ehat = {0.0, 0.0, 1.0};
   std::array<double, k_dim> Bhat = {0.0, 0.0, 1.0};
 
-  Vec Ekm = anomtrans::get_energies(kmb, H);
+  auto Ekm = anomtrans::get_energies(kmb, H);
 
   auto v_op = anomtrans::calculate_velocity(kmb, H);
 
@@ -878,8 +861,8 @@ TEST( WsmContinuumHamiltonian, wsm_continuum_quadratic_magnetoconductivity ) {
 
   PetscInt Ekm_min_index, Ekm_max_index;
   PetscReal Ekm_min, Ekm_max;
-  ierr = VecMin(Ekm, &Ekm_min_index, &Ekm_min);CHKERRXX(ierr);
-  ierr = VecMax(Ekm, &Ekm_max_index, &Ekm_max);CHKERRXX(ierr);
+  ierr = VecMin(Ekm.v, &Ekm_min_index, &Ekm_min);CHKERRXX(ierr);
+  ierr = VecMax(Ekm.v, &Ekm_max_index, &Ekm_max);CHKERRXX(ierr);
 
   double mu_factor = 0.45;
   double mu_min = (1 - mu_factor) * Ekm_min + mu_factor * Ekm_max;
@@ -890,9 +873,9 @@ TEST( WsmContinuumHamiltonian, wsm_continuum_quadratic_magnetoconductivity ) {
   std::vector<PetscReal> all_sigma_S_int_to_xi, all_sigma_S_int_to_S_int, all_sigma_S_int_to_S_ext;
   std::vector<PetscReal> all_sigma_S_ext_to_xi, all_sigma_S_ext_to_S_int, all_sigma_S_ext_to_S_ext;
   for (auto mu : mus) {
-    auto dm_rho0 = anomtrans::make_eq_node<anomtrans::StaticDMGraphNode>(Ekm, beta, mu);
+    auto dm_rho0 = anomtrans::make_eq_node<anomtrans::StaticDMGraphNode>(Ekm.v, beta, mu);
     Vec rho0_km;
-    ierr = VecDuplicate(Ekm, &rho0_km);CHKERRXX(ierr);
+    ierr = VecDuplicate(Ekm.v, &rho0_km);CHKERRXX(ierr);
     ierr = MatGetDiagonal(dm_rho0->rho.M, rho0_km);CHKERRXX(ierr);
 
     // Get normalized version of rho0 to use for nullspace.
@@ -916,7 +899,7 @@ TEST( WsmContinuumHamiltonian, wsm_continuum_quadratic_magnetoconductivity ) {
 
     // <xi_B> branch: <rho_0> -> <xi_B> -> <n_{EB}> -> {<S_{EB^2}>, <xi_{EB^2}>}
     anomtrans::add_linear_response_magnetic(dm_rho0, kmb, DH0_cross_Bhat, d_dk_Cart, R,
-        Bhat_dot_Omega, H, berry_broadening);
+        Bhat_dot_Omega.v, H, berry_broadening);
     auto dm_xi_B = dm_rho0->children[anomtrans::StaticDMDerivedBy::B_dot_Omega];
 
     anomtrans::add_linear_response_electric(dm_xi_B, kmb, Ehat_dot_grad_k.M, Ehat_dot_R.M, ksp,
@@ -924,7 +907,7 @@ TEST( WsmContinuumHamiltonian, wsm_continuum_quadratic_magnetoconductivity ) {
     auto dm_xi_B_n_EB = dm_xi_B->children[anomtrans::StaticDMDerivedBy::Kdd_inv_DE];
 
     anomtrans::add_next_order_magnetic(dm_xi_B_n_EB, kmb, DH0_cross_Bhat, d_dk_Cart, R, ksp,
-        Bhat_dot_Omega, H, sigma, disorder_term_od, berry_broadening);
+        Bhat_dot_Omega.v, H, sigma, disorder_term_od, berry_broadening);
     auto dm_xi_to_xi = dm_xi_B_n_EB->children[anomtrans::StaticDMDerivedBy::B_dot_Omega];
     auto dm_xi_to_S_int = dm_xi_B_n_EB->children[anomtrans::StaticDMDerivedBy::P_inv_DB];
     auto dm_xi_to_S_ext = dm_xi_B_n_EB->children[anomtrans::StaticDMDerivedBy::Kdd_inv_DB]
@@ -951,11 +934,11 @@ TEST( WsmContinuumHamiltonian, wsm_continuum_quadratic_magnetoconductivity ) {
     auto dm_S_E_int = dm_rho0->children[anomtrans::StaticDMDerivedBy::P_inv_DE];
 
     anomtrans::add_next_order_magnetic(dm_S_E_int, kmb, DH0_cross_Bhat, d_dk_Cart, R, ksp,
-        Bhat_dot_Omega, H, sigma, disorder_term_od, berry_broadening);
+        Bhat_dot_Omega.v, H, sigma, disorder_term_od, berry_broadening);
     auto dm_S_E_int_n_EB = dm_S_E_int->children[anomtrans::StaticDMDerivedBy::Kdd_inv_DB];
 
     anomtrans::add_next_order_magnetic(dm_S_E_int_n_EB, kmb, DH0_cross_Bhat, d_dk_Cart, R, ksp,
-        Bhat_dot_Omega, H, sigma, disorder_term_od, berry_broadening);
+        Bhat_dot_Omega.v, H, sigma, disorder_term_od, berry_broadening);
     auto dm_S_int_to_xi = dm_S_E_int_n_EB->children[anomtrans::StaticDMDerivedBy::B_dot_Omega];
     auto dm_S_int_to_S_int = dm_S_E_int_n_EB->children[anomtrans::StaticDMDerivedBy::P_inv_DB];
     auto dm_S_int_to_S_ext = dm_S_E_int_n_EB->children[anomtrans::StaticDMDerivedBy::Kdd_inv_DB]
@@ -976,11 +959,11 @@ TEST( WsmContinuumHamiltonian, wsm_continuum_quadratic_magnetoconductivity ) {
     auto dm_S_E_ext = dm_n_E->children[anomtrans::StaticDMDerivedBy::P_inv_Kod];
 
     anomtrans::add_next_order_magnetic(dm_S_E_ext, kmb, DH0_cross_Bhat, d_dk_Cart, R, ksp,
-        Bhat_dot_Omega, H, sigma, disorder_term_od, berry_broadening);
+        Bhat_dot_Omega.v, H, sigma, disorder_term_od, berry_broadening);
     auto dm_S_E_ext_n_EB = dm_S_E_ext->children[anomtrans::StaticDMDerivedBy::Kdd_inv_DB];
 
     anomtrans::add_next_order_magnetic(dm_S_E_ext_n_EB, kmb, DH0_cross_Bhat, d_dk_Cart, R, ksp,
-        Bhat_dot_Omega, H, sigma, disorder_term_od, berry_broadening);
+        Bhat_dot_Omega.v, H, sigma, disorder_term_od, berry_broadening);
     auto dm_S_ext_to_xi = dm_S_E_ext_n_EB->children[anomtrans::StaticDMDerivedBy::B_dot_Omega];
     auto dm_S_ext_to_S_int = dm_S_E_ext_n_EB->children[anomtrans::StaticDMDerivedBy::P_inv_DB];
     auto dm_S_ext_to_S_ext = dm_S_E_ext_n_EB->children[anomtrans::StaticDMDerivedBy::Kdd_inv_DB]
@@ -1002,11 +985,10 @@ TEST( WsmContinuumHamiltonian, wsm_continuum_quadratic_magnetoconductivity ) {
     ierr = VecDestroy(&rho0_km);CHKERRXX(ierr);
   }
 
-  auto collected_Ekm = anomtrans::split_scalars(anomtrans::collect_contents(Ekm)).first;
+  auto collected_Ekm = anomtrans::split_scalars(anomtrans::collect_contents(Ekm.v)).first;
 
   // Done with PETSc data.
   ierr = KSPDestroy(&ksp);CHKERRXX(ierr);
-  ierr = VecDestroy(&Ekm);CHKERRXX(ierr);
 
   if (rank == 0) {
     // Write out the collected data.

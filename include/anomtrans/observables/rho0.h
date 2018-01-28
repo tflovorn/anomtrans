@@ -13,7 +13,7 @@ namespace anomtrans {
  *  @param beta Inverse temperature 1/(k_B T).
  *  @param mu Chemical potential.
  */
-Vec make_rho0(Vec energies, double beta, double mu);
+OwnedVec make_rho0(Vec energies, double beta, double mu);
 
 /** @brief Gives the maximum beta value that can be expected to allow an
  *         adequate sampling of the Fermi surface.

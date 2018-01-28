@@ -25,7 +25,7 @@ namespace anomtrans {
  *  @todo Make kmb a constant ref - avoid copy.
  */
 template <std::size_t k_dim, typename Hamiltonian>
-Vec get_energies(const kmBasis<k_dim> &kmb, const Hamiltonian &H) {
+OwnedVec get_energies(const kmBasis<k_dim> &kmb, const Hamiltonian &H) {
   // TODO may want to just pass ikm to H: look up precomputed v without
   // conversion to ikm_comps and back.
   auto E_elem = [kmb, H](PetscInt ikm)->PetscScalar {
@@ -42,29 +42,25 @@ Vec get_energies(const kmBasis<k_dim> &kmb, const Hamiltonian &H) {
  */
 template <std::size_t k_dim, typename Hamiltonian>
 PetscReal find_max_energy_difference(const kmBasis<k_dim> &kmb, const Hamiltonian &H) {
-  Vec Ekm = get_energies(kmb, H);
+  auto Ekm = get_energies(kmb, H);
 
   // First-order approximant for foward difference first derivative
   // = (E_{k+dk_i, m} - E_{k,m})/h_i.
   DerivStencil<1> stencil(DerivApproxType::forward, 1);
 
   auto d_dk = make_d_dk_recip(kmb, stencil);
-
-  Vec dE_dk;
-  PetscErrorCode ierr = VecDuplicate(Ekm, &dE_dk);CHKERRXX(ierr);
+  auto dE_dk = make_Vec_with_structure(Ekm.v);
 
   PetscReal ediff_max = 0.0;
   for (std::size_t d = 0; d < k_dim; d++) {
-    ierr = MatMult(d_dk.at(d).M, Ekm, dE_dk);CHKERRXX(ierr);
+    PetscErrorCode ierr = MatMult(d_dk.at(d).M, Ekm.v, dE_dk.v);CHKERRXX(ierr);
 
-    PetscReal ediff_d_max = get_Vec_MaxAbs(dE_dk) * kmb.k_step(d);
+    PetscReal ediff_d_max = get_Vec_MaxAbs(dE_dk.v) * kmb.k_step(d);
 
     if (ediff_d_max > ediff_max) {
       ediff_max = ediff_d_max;
     }
   }
-
-  ierr = VecDestroy(&dE_dk);CHKERRXX(ierr);
 
   return ediff_max;
 }

@@ -15,10 +15,6 @@ OwnedMat::~OwnedMat() {
   // Release the `Mat` that we own. If the release operation fails,
   // suppress the error. (Could be nice to report the error, but maybe if
   // deallocation fails, PetscPrintf would also fail...).
-  //
-  // Examining the implementation of `MatDestroy` (as of PETSC 3.8),
-  // it appears that this function will suppress any errors it encounters,
-  // so we should never encounter an exception here.
   try {
     PetscErrorCode ierr = MatDestroy(&M);CHKERRXX(ierr);
   } catch (...) {}

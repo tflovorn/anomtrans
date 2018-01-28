@@ -97,14 +97,14 @@ TEST( Rashba_magnetized_electric, Rashba_magnetized_electric ) {
 
   std::array<double, k_dim> Ehat = {1.0, 0.0};
 
-  Vec Ekm = anomtrans::get_energies(kmb, H);
+  auto Ekm = anomtrans::get_energies(kmb, H);
 
   auto v_op = anomtrans::calculate_velocity(kmb, H);
 
   PetscInt Ekm_min_index, Ekm_max_index;
   PetscReal Ekm_min, Ekm_max;
-  PetscErrorCode ierr = VecMin(Ekm, &Ekm_min_index, &Ekm_min);CHKERRXX(ierr);
-  ierr = VecMax(Ekm, &Ekm_max_index, &Ekm_max);CHKERRXX(ierr);
+  PetscErrorCode ierr = VecMin(Ekm.v, &Ekm_min_index, &Ekm_min);CHKERRXX(ierr);
+  ierr = VecMax(Ekm.v, &Ekm_max_index, &Ekm_max);CHKERRXX(ierr);
 
   std::size_t Nk_tot = anomtrans::get_Nk_total(Nk);
   double U0_sq = U0*U0;
@@ -171,11 +171,11 @@ TEST( Rashba_magnetized_electric, Rashba_magnetized_electric ) {
   std::vector<PetscReal> all_sigma_xy_anom_extrinsics;
   // For each mu, construct <n_E^(-1)> and <S_E^(0)>.
   for (auto mu : mus) {
-    auto dm_rho0 = anomtrans::make_eq_node<anomtrans::StaticDMGraphNode>(Ekm, beta, mu);
+    auto dm_rho0 = anomtrans::make_eq_node<anomtrans::StaticDMGraphNode>(Ekm.v, beta, mu);
     all_rho0.push_back(anomtrans::collect_Mat_diagonal(dm_rho0->rho.M).first);
 
     Vec rho0_km;
-    ierr = VecDuplicate(Ekm, &rho0_km);CHKERRXX(ierr);
+    ierr = VecDuplicate(Ekm.v, &rho0_km);CHKERRXX(ierr);
     ierr = MatGetDiagonal(dm_rho0->rho.M, rho0_km);CHKERRXX(ierr);
 
     // Get normalized version of rho0 to use for nullspace.
@@ -245,15 +245,10 @@ TEST( Rashba_magnetized_electric, Rashba_magnetized_electric ) {
     ierr = VecDestroy(&rho0_km);CHKERRXX(ierr);
   }
 
-  auto collected_Ekm = anomtrans::split_scalars(anomtrans::collect_contents(Ekm)).first;
+  auto collected_Ekm = anomtrans::split_scalars(anomtrans::collect_contents(Ekm.v)).first;
 
   // Done with PETSc data.
-  for (std::size_t dc = 0; dc < k_dim; dc++) {
-    ierr = VecDestroy(&(Omega.at(dc)));CHKERRXX(ierr);
-  }
-
   ierr = KSPDestroy(&ksp);CHKERRXX(ierr);
-  ierr = VecDestroy(&Ekm);CHKERRXX(ierr);
 
   if (rank == 0) {
     // Write out the collected data.

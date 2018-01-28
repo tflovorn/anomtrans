@@ -49,19 +49,17 @@ std::array<OwnedMat, k_dim> make_berry_connection(const kmBasis<k_dim> &kmb, con
  *        1 / ((E_{km'} - E_{km})^2 + broadening^2).
  */
 template <std::size_t k_dim, typename Hamiltonian>
-std::array<Vec, 3> make_berry_curvature(const kmBasis<k_dim> &kmb, const Hamiltonian &H,
+std::array<OwnedVec, 3> make_berry_curvature(const kmBasis<k_dim> &kmb, const Hamiltonian &H,
     double broadening) {
   static_assert(k_dim > 0, "must have number of spatial dimensions > 0");
 
-  std::array<Vec, 3> result;
-
+  std::array<OwnedVec, 3> result;
   for (std::size_t dc = 0; dc < 3; dc++) {
-    PetscErrorCode ierr = VecCreateMPI(PETSC_COMM_WORLD, PETSC_DECIDE, kmb.end_ikm,
-        &(result.at(dc)));CHKERRXX(ierr);
+    result.at(dc) = make_Vec(kmb.end_ikm);
   }
 
   PetscInt begin, end;
-  PetscErrorCode ierr = VecGetOwnershipRange(result.at(0), &begin, &end);CHKERRXX(ierr);
+  PetscErrorCode ierr = VecGetOwnershipRange(result.at(0).v, &begin, &end);CHKERRXX(ierr);
 
   std::vector<PetscInt> local_rows;
   std::array<std::vector<PetscScalar>, 3> local_vals;
@@ -113,11 +111,11 @@ std::array<Vec, 3> make_berry_curvature(const kmBasis<k_dim> &kmb, const Hamilto
   for (std::size_t dc = 0; dc < 3; dc++) {
     assert(local_rows.size() == local_vals.at(dc).size());
 
-    ierr = VecSetValues(result.at(dc), local_rows.size(), local_rows.data(),
+    ierr = VecSetValues(result.at(dc).v, local_rows.size(), local_rows.data(),
         local_vals.at(dc).data(), INSERT_VALUES);CHKERRXX(ierr);
 
-    ierr = VecAssemblyBegin(result.at(dc));CHKERRXX(ierr);
-    ierr = VecAssemblyEnd(result.at(dc));CHKERRXX(ierr);
+    ierr = VecAssemblyBegin(result.at(dc).v);CHKERRXX(ierr);
+    ierr = VecAssemblyEnd(result.at(dc).v);CHKERRXX(ierr);
   }
 
   return result;

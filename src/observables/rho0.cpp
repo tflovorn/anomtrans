@@ -2,12 +2,12 @@
 
 namespace anomtrans {
 
-Vec make_rho0(Vec energies, double beta, double mu) {
+OwnedVec make_rho0(Vec energies, double beta, double mu) {
   auto fd = [beta, mu](std::complex<double> E)->std::complex<double> {
     return std::complex<double>(fermi_dirac(beta, E.real() - mu), 0.0);
   };
 
-  Vec rho0 = vector_elem_apply(energies, fd);
+  auto rho0 = vector_elem_apply(energies, fd);
   return rho0;
 }
 

@@ -83,8 +83,8 @@ using StaticDMGraphNode = DMGraphNode<StaticDMKind, StaticDMDerivedBy>;
  */
 template <typename DMNodeType>
 std::shared_ptr<DMNodeType> make_eq_node(Vec Ekm, double beta, double mu) {
-    Vec rho0_km = make_rho0(Ekm, beta, mu);
-    OwnedMat rho0_km_Mat = make_diag_Mat(rho0_km);
+    auto rho0_km = make_rho0(Ekm, beta, mu);
+    OwnedMat rho0_km_Mat = make_diag_Mat(rho0_km.v);
 
     auto node_kind = DMNodeType::MatKindType::n;
     int impurity_order = 0;
@@ -93,8 +93,6 @@ std::shared_ptr<DMNodeType> make_eq_node(Vec Ekm, double beta, double mu) {
 
     auto rho0_node = std::make_shared<DMNodeType>(std::move(rho0_km_Mat), node_kind,
         impurity_order, name, parents);
-
-    PetscErrorCode ierr = VecDestroy(&rho0_km);CHKERRXX(ierr);
 
     return rho0_node;
 }
@@ -131,15 +129,14 @@ std::map<StaticDMDerivedBy, OwnedMat> get_response_electric(Mat D_E_rho,
   OwnedMat S_E_intrinsic = apply_precession_term(kmb, H, D_E_rho, berry_broadening);
 
   // Extrinsic part of S:
-  Vec n_E_all = scatter_to_all(n_E);
-  auto n_E_all_std = std::get<1>(get_local_contents(n_E_all));
+  auto n_E_all = scatter_to_all(n_E);
+  auto n_E_all_std = std::get<1>(get_local_contents(n_E_all.v));
   OwnedMat K_od_n_E = apply_collision_od(kmb, H, sigma, disorder_term_od, n_E_all_std);
   ierr = MatScale(K_od_n_E.M, -1.0);CHKERRXX(ierr);
 
   OwnedMat S_E_extrinsic = apply_precession_term(kmb, H, K_od_n_E.M, berry_broadening);
 
   ierr = VecDestroy(&n_E);CHKERRXX(ierr);
-  ierr = VecDestroy(&n_E_all);CHKERRXX(ierr);
   ierr = VecDestroy(&D_E_rho_diag);CHKERRXX(ierr);
 
   std::map<StaticDMDerivedBy, OwnedMat> result;
@@ -333,8 +330,8 @@ void add_next_order_magnetic(std::shared_ptr<StaticDMGraphNode> parent_node,
   parent_node->children[StaticDMDerivedBy::P_inv_DB] = child_S_B_intrinsic_node;
 
   // Extrinsic part of S:
-  Vec child_n_B_all = scatter_to_all(child_n_B);
-  auto child_n_B_all_std = std::get<1>(get_local_contents(child_n_B_all));
+  auto child_n_B_all = scatter_to_all(child_n_B);
+  auto child_n_B_all_std = std::get<1>(get_local_contents(child_n_B_all.v));
   OwnedMat K_od_child_n_B = apply_collision_od(kmb, H, sigma, disorder_term_od, child_n_B_all_std);
   ierr = MatScale(K_od_child_n_B.M, -1.0);CHKERRXX(ierr);
 
@@ -380,7 +377,6 @@ void add_next_order_magnetic(std::shared_ptr<StaticDMGraphNode> parent_node,
   }
 
   ierr = VecDestroy(&child_n_B);CHKERRXX(ierr);
-  ierr = VecDestroy(&child_n_B_all);CHKERRXX(ierr);
   ierr = VecDestroy(&D_B_rho_diag);CHKERRXX(ierr);
 }
 

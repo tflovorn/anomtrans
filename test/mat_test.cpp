@@ -101,9 +101,9 @@ TEST( mat, make_diag_Mat ) {
     return 2.0 * i * i;
   };
 
-  Vec v = anomtrans::vector_index_apply(vec_len, index_fn);
+  auto v = anomtrans::vector_index_apply(vec_len, index_fn);
 
-  anomtrans::OwnedMat m = anomtrans::make_diag_Mat(v);
+  anomtrans::OwnedMat m = anomtrans::make_diag_Mat(v.v);
 
   PetscInt begin, end;
   PetscErrorCode ierr = MatGetOwnershipRange(m.M, &begin, &end);CHKERRXX(ierr);
@@ -121,8 +121,6 @@ TEST( mat, make_diag_Mat ) {
 
     ierr = MatRestoreRow(m.M, local_row, &ncols, &cols, &vals);CHKERRXX(ierr);
   }
-
-  ierr = VecDestroy(&v);CHKERRXX(ierr);
 }
 
 /** @brief Use mat_from_sum_fn to construct a matrix and verify that it has

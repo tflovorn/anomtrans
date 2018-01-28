@@ -65,16 +65,16 @@ TEST( derivative, linear ) {
     return result;
   };
 
-  Vec f_vals = anomtrans::vector_index_apply(kmb.end_ikm, f_linear);
+  auto f_vals = anomtrans::vector_index_apply(kmb.end_ikm, f_linear);
 
-  auto check_deriv = [&kmb, &coeffs, f_vals](anomtrans::DerivStencil<1> stencil) {
+  auto check_deriv = [&kmb, &coeffs, &f_vals](anomtrans::DerivStencil<1> stencil) {
     auto d_dk = anomtrans::make_d_dk_recip(kmb, stencil);
 
     Vec df_dk;
-    PetscErrorCode ierr = VecDuplicate(f_vals, &df_dk);CHKERRXX(ierr);
+    PetscErrorCode ierr = VecDuplicate(f_vals.v, &df_dk);CHKERRXX(ierr);
 
     for (std::size_t d = 0; d < k_dim; d++) {
-      ierr = MatMult(d_dk.at(d).M, f_vals, df_dk);CHKERRXX(ierr);
+      ierr = MatMult(d_dk.at(d).M, f_vals.v, df_dk);CHKERRXX(ierr);
 
       std::vector<PetscInt> df_dk_ikms;
       std::vector<PetscScalar> df_dk_vals;
@@ -109,8 +109,6 @@ TEST( derivative, linear ) {
 
   check_deriv(stencil_forward);
   check_deriv(stencil_central);
-
-  PetscErrorCode ierr = VecDestroy(&f_vals);CHKERRXX(ierr);
 }
 
 TEST( derivative, quadratic ) {
@@ -134,16 +132,16 @@ TEST( derivative, quadratic ) {
     return result;
   };
 
-  Vec f_vals = anomtrans::vector_index_apply(kmb.end_ikm, f_quad);
+  auto f_vals = anomtrans::vector_index_apply(kmb.end_ikm, f_quad);
 
-  auto check_deriv = [&kmb, &coeffs, f_vals](anomtrans::DerivStencil<1> stencil) {
+  auto check_deriv = [&kmb, &coeffs, &f_vals](anomtrans::DerivStencil<1> stencil) {
     auto d_dk = anomtrans::make_d_dk_recip(kmb, stencil);
 
     Vec df_dk;
-    PetscErrorCode ierr = VecDuplicate(f_vals, &df_dk);CHKERRXX(ierr);
+    PetscErrorCode ierr = VecDuplicate(f_vals.v, &df_dk);CHKERRXX(ierr);
 
     for (std::size_t d = 0; d < k_dim; d++) {
-      ierr = MatMult(d_dk.at(d).M, f_vals, df_dk);CHKERRXX(ierr);
+      ierr = MatMult(d_dk.at(d).M, f_vals.v, df_dk);CHKERRXX(ierr);
 
       std::vector<PetscInt> df_dk_ikms;
       std::vector<PetscScalar> df_dk_vals;
@@ -177,8 +175,6 @@ TEST( derivative, quadratic ) {
   anomtrans::DerivStencil<1> stencil_central(anomtrans::DerivApproxType::central, 2);
 
   check_deriv(stencil_central);
-
-  PetscErrorCode ierr = VecDestroy(&f_vals);CHKERRXX(ierr);
 }
 
 TEST( derivative, square_TB_fermi_surface ) {
@@ -203,14 +199,14 @@ TEST( derivative, square_TB_fermi_surface ) {
 
   double beta = 10.0/t;
 
-  Vec Ekm = anomtrans::get_energies(kmb, H);
+  auto Ekm = anomtrans::get_energies(kmb, H);
 
   PetscInt Ekm_min_index, Ekm_max_index;
   PetscReal Ekm_min, Ekm_max;
-  PetscErrorCode ierr = VecMin(Ekm, &Ekm_min_index, &Ekm_min);CHKERRXX(ierr);
-  ierr = VecMax(Ekm, &Ekm_max_index, &Ekm_max);CHKERRXX(ierr);
+  PetscErrorCode ierr = VecMin(Ekm.v, &Ekm_min_index, &Ekm_min);CHKERRXX(ierr);
+  ierr = VecMax(Ekm.v, &Ekm_max_index, &Ekm_max);CHKERRXX(ierr);
 
-  std::vector<PetscInt> local_rows = std::get<0>(anomtrans::get_local_contents(Ekm));
+  std::vector<PetscInt> local_rows = std::get<0>(anomtrans::get_local_contents(Ekm.v));
 
   const unsigned int deriv_approx_order = 2;
   anomtrans::DerivStencil<1> stencil(anomtrans::DerivApproxType::central, deriv_approx_order);
@@ -241,14 +237,14 @@ TEST( derivative, square_TB_fermi_surface ) {
   std::vector<std::vector<PetscReal>> all_rho0;
   std::vector<std::vector<PetscReal>> all_norm_d_rho0_dk;
   for (auto mu : mus) {
-    Vec rho0_km = anomtrans::make_rho0(Ekm, beta, mu);
+    auto rho0_km = anomtrans::make_rho0(Ekm.v, beta, mu);
 
     std::array<Vec, k_dim> d_rho0_dk;
     for (std::size_t d = 0; d < k_dim; d++) {
       Vec d_rho0_dk_d;
       PetscErrorCode ierr = VecCreateMPI(PETSC_COMM_WORLD, PETSC_DECIDE, kmb.end_ikm, &d_rho0_dk_d);CHKERRXX(ierr);
       // d_rho0_dk(d) = [d_dk]_{d} * rho0
-      ierr = MatMult(d_dk.at(d).M, rho0_km, d_rho0_dk_d);CHKERRXX(ierr);
+      ierr = MatMult(d_dk.at(d).M, rho0_km.v, d_rho0_dk_d);CHKERRXX(ierr);
       
       ierr = VecAssemblyBegin(d_rho0_dk_d);CHKERRXX(ierr);
       ierr = VecAssemblyEnd(d_rho0_dk_d);CHKERRXX(ierr);
@@ -293,23 +289,19 @@ TEST( derivative, square_TB_fermi_surface ) {
     ierr = VecAssemblyBegin(norm_d_rho0_dk);CHKERRXX(ierr);
     ierr = VecAssemblyEnd(norm_d_rho0_dk);CHKERRXX(ierr);
 
-    auto collected_rho0 = anomtrans::split_scalars(anomtrans::collect_contents(rho0_km));
+    auto collected_rho0 = anomtrans::split_scalars(anomtrans::collect_contents(rho0_km.v));
     auto collected_norm_d_rho0_dk = anomtrans::split_scalars(anomtrans::collect_contents(norm_d_rho0_dk));
 
     all_rho0.push_back(collected_rho0.first);
     all_norm_d_rho0_dk.push_back(collected_norm_d_rho0_dk.first);
 
     ierr = VecDestroy(&norm_d_rho0_dk);CHKERRXX(ierr);
-    ierr = VecDestroy(&rho0_km);CHKERRXX(ierr);
     for (std::size_t d = 0; d < k_dim; d++) {
       ierr = VecDestroy(&(d_rho0_dk.at(d)));CHKERRXX(ierr);
     }
   }
 
-  auto collected_Ekm = anomtrans::split_scalars(anomtrans::collect_contents(Ekm)).first;
-
-  // Done with PETSc data.
-  ierr = VecDestroy(&Ekm);CHKERRXX(ierr);
+  auto collected_Ekm = anomtrans::split_scalars(anomtrans::collect_contents(Ekm.v)).first;
 
   if (rank == 0) {
     // Write out the collected data.

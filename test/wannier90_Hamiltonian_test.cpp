@@ -149,7 +149,7 @@ TEST( Wannier90_WSe2_dynamic, DISABLED_Wannier90_WSe2_dynamic ) {
   // U0 = how far can bands be driven from their average energy?
   double U0 = 1e-3; // eV
 
-  Vec Ekm = anomtrans::get_energies(kmb, H);
+  auto Ekm = anomtrans::get_energies(kmb, H);
 
   auto v_op = anomtrans::calculate_velocity(kmb, H);
   auto spin_op = anomtrans::calculate_spin_operator(kmb, H);
@@ -217,10 +217,10 @@ TEST( Wannier90_WSe2_dynamic, DISABLED_Wannier90_WSe2_dynamic ) {
 
   // Equilibrium density matrix <rho_{0,0}>. Make two since we will have two DM graphs,
   // one for E ~ \hat{x} cos(\omega t) and one for E ~ \hat{y} sin(\omega t).
-  auto dm_rho0_Ex_cos = anomtrans::make_eq_node<anomtrans::DynDMGraphNode>(Ekm, beta, mu);
-  auto dm_rho0_Ey_sin = anomtrans::make_eq_node<anomtrans::DynDMGraphNode>(Ekm, beta, mu);
+  auto dm_rho0_Ex_cos = anomtrans::make_eq_node<anomtrans::DynDMGraphNode>(Ekm.v, beta, mu);
+  auto dm_rho0_Ey_sin = anomtrans::make_eq_node<anomtrans::DynDMGraphNode>(Ekm.v, beta, mu);
   Vec rho0_km;
-  ierr = VecDuplicate(Ekm, &rho0_km);CHKERRXX(ierr);
+  ierr = VecDuplicate(Ekm.v, &rho0_km);CHKERRXX(ierr);
   ierr = MatGetDiagonal(dm_rho0_Ex_cos->rho.M, rho0_km);CHKERRXX(ierr);
 
   // Get normalized version of rho0 to use for nullspace.
@@ -329,7 +329,6 @@ TEST( Wannier90_WSe2_dynamic, DISABLED_Wannier90_WSe2_dynamic ) {
   ierr = VecDestroy(&rho0_km);CHKERRXX(ierr);
 
   ierr = KSPDestroy(&ksp);CHKERRXX(ierr);
-  ierr = VecDestroy(&Ekm);CHKERRXX(ierr);
 
   json j_out = {
     {"sigma_n_0_2_xx_plus", sigma_n_0_2_xx_plus},

@@ -94,14 +94,14 @@ TEST( square_TB_Hall, square_TB_Hall ) {
   std::array<double, k_dim> Ehat = {0.0, 1.0};
   std::array<double, 3> Bhat = {0.0, 0.0, -1.0};
 
-  Vec Ekm = anomtrans::get_energies(kmb, H);
+  auto Ekm = anomtrans::get_energies(kmb, H);
 
   auto v_op = anomtrans::calculate_velocity(kmb, H);
 
   PetscInt Ekm_min_index, Ekm_max_index;
   PetscReal Ekm_min, Ekm_max;
-  PetscErrorCode ierr = VecMin(Ekm, &Ekm_min_index, &Ekm_min);CHKERRXX(ierr);
-  ierr = VecMax(Ekm, &Ekm_max_index, &Ekm_max);CHKERRXX(ierr);
+  PetscErrorCode ierr = VecMin(Ekm.v, &Ekm_min_index, &Ekm_min);CHKERRXX(ierr);
+  ierr = VecMax(Ekm.v, &Ekm_max_index, &Ekm_max);CHKERRXX(ierr);
 
   std::size_t Nk_tot = anomtrans::get_Nk_total(kmb.Nk);
   double U0_sq = U0*U0;
@@ -166,11 +166,11 @@ TEST( square_TB_Hall, square_TB_Hall ) {
   // K rho1_B0 = Dbar_E(rho0)
   // K rho1_Bfinite = -Dbar_B rho1_B0
   for (auto mu : mus) {
-    auto dm_rho0 = anomtrans::make_eq_node<anomtrans::StaticDMGraphNode>(Ekm, beta, mu);
+    auto dm_rho0 = anomtrans::make_eq_node<anomtrans::StaticDMGraphNode>(Ekm.v, beta, mu);
     all_rho0.push_back(anomtrans::collect_Mat_diagonal(dm_rho0->rho.M).first);
 
     Vec rho0_km;
-    ierr = VecDuplicate(Ekm, &rho0_km);CHKERRXX(ierr);
+    ierr = VecDuplicate(Ekm.v, &rho0_km);CHKERRXX(ierr);
     ierr = MatGetDiagonal(dm_rho0->rho.M, rho0_km);CHKERRXX(ierr);
 
     // Get normalized version of rho0 to use for nullspace.
@@ -203,7 +203,7 @@ TEST( square_TB_Hall, square_TB_Hall ) {
     bool ret_Mat = false;
     PetscScalar sigma_yy = anomtrans::calculate_current_ev(kmb, v_op, dm_n_E->rho.M, ret_Mat).at(1).first;
 
-    anomtrans::add_next_order_magnetic(dm_n_E, kmb, DH0_cross_Bhat, d_dk_Cart, R, ksp, Bhat_dot_Omega,
+    anomtrans::add_next_order_magnetic(dm_n_E, kmb, DH0_cross_Bhat, d_dk_Cart, R, ksp, Bhat_dot_Omega.v,
         H, sigma, disorder_term_od, berry_broadening);
     auto dm_n_EB = dm_n_E->children[anomtrans::StaticDMDerivedBy::Kdd_inv_DB];
     all_rho1_Bfinite.push_back(anomtrans::collect_Mat_diagonal(dm_n_EB->rho.M).first);
@@ -221,16 +221,10 @@ TEST( square_TB_Hall, square_TB_Hall ) {
     ierr = VecDestroy(&rho0_km);CHKERRXX(ierr);
   }
 
-  auto collected_Ekm = anomtrans::split_scalars(anomtrans::collect_contents(Ekm)).first;
+  auto collected_Ekm = anomtrans::split_scalars(anomtrans::collect_contents(Ekm.v)).first;
 
   // Done with PETSc data.
-  for (std::size_t dc = 0; dc < k_dim; dc++) {
-    ierr = VecDestroy(&(Omega.at(dc)));CHKERRXX(ierr);
-  }
-
-  ierr = VecDestroy(&Bhat_dot_Omega);CHKERRXX(ierr);
   ierr = KSPDestroy(&ksp);CHKERRXX(ierr);
-  ierr = VecDestroy(&Ekm);CHKERRXX(ierr);
 
   if (rank == 0) {
     // Write out the collected data.

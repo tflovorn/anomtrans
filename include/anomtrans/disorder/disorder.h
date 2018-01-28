@@ -120,13 +120,13 @@ class SpatialDisorderCorrelation {
       return get_one_ULambda_val(D, Lambda, L_lats, L_Carts_norm2, dk);
     };
 
-    Vec ULambda_vals_dist = vector_index_apply(kb_diff.end_ikm, ULambda_elem);
+    auto ULambda_vals_dist = vector_index_apply(kb_diff.end_ikm, ULambda_elem);
 
     VecScatter ctx;
     Vec ULambda_vals_all;
-    PetscErrorCode ierr = VecScatterCreateToAll(ULambda_vals_dist, &ctx, &ULambda_vals_all);CHKERRXX(ierr);
-    ierr = VecScatterBegin(ctx, ULambda_vals_dist, ULambda_vals_all, INSERT_VALUES, SCATTER_FORWARD);CHKERRXX(ierr);
-    ierr = VecScatterEnd(ctx, ULambda_vals_dist, ULambda_vals_all, INSERT_VALUES, SCATTER_FORWARD);CHKERRXX(ierr);
+    PetscErrorCode ierr = VecScatterCreateToAll(ULambda_vals_dist.v, &ctx, &ULambda_vals_all);CHKERRXX(ierr);
+    ierr = VecScatterBegin(ctx, ULambda_vals_dist.v, ULambda_vals_all, INSERT_VALUES, SCATTER_FORWARD);CHKERRXX(ierr);
+    ierr = VecScatterEnd(ctx, ULambda_vals_dist.v, ULambda_vals_all, INSERT_VALUES, SCATTER_FORWARD);CHKERRXX(ierr);
 
     std::vector<PetscInt> all_rows;
     std::vector<PetscScalar> ULambda_vals_stdvec;

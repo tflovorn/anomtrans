@@ -47,7 +47,7 @@ TEST( Vector_Apply, Square ) {
     return x*x;
   };
 
-  Vec v_out = anomtrans::vector_elem_apply(v_in, f);
+  auto v_out = anomtrans::vector_elem_apply(v_in, f);
 
   std::vector<PetscInt> local_in_rows;
   std::vector<PetscScalar> local_in_vals;
@@ -55,7 +55,7 @@ TEST( Vector_Apply, Square ) {
 
   std::vector<PetscInt> local_out_rows;
   std::vector<PetscScalar> local_out_vals;
-  std::tie(local_out_rows, local_out_vals) = anomtrans::get_local_contents(v_out);
+  std::tie(local_out_rows, local_out_vals) = anomtrans::get_local_contents(v_out.v);
 
   ASSERT_EQ(local_in_rows, local_out_rows);
 
@@ -67,7 +67,6 @@ TEST( Vector_Apply, Square ) {
   }
 
   ierr = VecDestroy(&v_in);CHKERRXX(ierr);
-  ierr = VecDestroy(&v_out);CHKERRXX(ierr);
 }
 
 // Create vectors of values -n, -n + 1, -n + 2, ..., n - 1 and
@@ -82,27 +81,24 @@ TEST( Vector_Index_Apply_Get_MaxAbs, IntSequence ) {
   auto f2 = [n](PetscInt i)->PetscScalar {
     return -n + i + 1;
   };
-  Vec v1 = anomtrans::vector_index_apply(num_rows, f1);
-  Vec v2 = anomtrans::vector_index_apply(num_rows, f2);
+  auto v1 = anomtrans::vector_index_apply(num_rows, f1);
+  auto v2 = anomtrans::vector_index_apply(num_rows, f2);
 
   PetscReal tol = 1e-12;
-  ASSERT_NEAR( anomtrans::get_Vec_MaxAbs(v1), n, tol );
-  ASSERT_NEAR( anomtrans::get_Vec_MaxAbs(v2), n, tol );
+  ASSERT_NEAR( anomtrans::get_Vec_MaxAbs(v1.v), n, tol );
+  ASSERT_NEAR( anomtrans::get_Vec_MaxAbs(v2.v), n, tol );
 
-  auto rv1 = anomtrans::get_local_contents(v1);
+  auto rv1 = anomtrans::get_local_contents(v1.v);
   for (std::size_t i = 0; i < std::get<0>(rv1).size(); i++) {
     PetscInt global_index = std::get<0>(rv1).at(i);
     ASSERT_NEAR( std::get<1>(rv1).at(i).real(), f1(global_index).real(), tol );
     ASSERT_NEAR( std::get<1>(rv1).at(i).imag(), f1(global_index).imag(), tol );
   }
 
-  auto rv2 = anomtrans::get_local_contents(v2);
+  auto rv2 = anomtrans::get_local_contents(v2.v);
   for (std::size_t i = 0; i < std::get<0>(rv2).size(); i++) {
     PetscInt global_index = std::get<0>(rv2).at(i);
     ASSERT_NEAR( std::get<1>(rv2).at(i).real(), f2(global_index).real(), tol );
     ASSERT_NEAR( std::get<1>(rv2).at(i).imag(), f2(global_index).imag(), tol );
   }
-
-  PetscErrorCode ierr = VecDestroy(&v1);CHKERRXX(ierr);
-  ierr = VecDestroy(&v2);CHKERRXX(ierr);
 }

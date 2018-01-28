@@ -2,16 +2,57 @@
 
 namespace anomtrans {
 
+OwnedVec::OwnedVec() {}
+
+OwnedVec::OwnedVec(Vec _v) : v(_v) {}
+
+OwnedVec::~OwnedVec() {
+  // If we don't own a `Vec`, do nothing.
+  if (v == nullptr) {
+    return;
+  }
+
+  // Release the `Vec` that we own. If the release operation fails,
+  // suppress the error. (Could be nice to report the error, but maybe if
+  // deallocation fails, PetscPrintf would also fail...).
+  try {
+    PetscErrorCode ierr = VecDestroy(&v);CHKERRXX(ierr);
+  } catch (...) {}
+}
+
+OwnedVec::OwnedVec(OwnedVec&& other) : v(other.v) {
+  other.v = nullptr;
+}
+
+OwnedVec& OwnedVec::operator=(OwnedVec&& other) {
+  if (this != &other) {
+    v = other.v;
+    other.v = nullptr;
+  }
+  return *this;
+}
+
+OwnedVec make_Vec(PetscInt m) {
+  Vec v;
+  PetscErrorCode ierr = VecCreateMPI(PETSC_COMM_WORLD, PETSC_DECIDE, m, &v);CHKERRXX(ierr);
+
+  return OwnedVec(v);
+}
+
+OwnedVec make_Vec_with_structure(Vec other) {
+  Vec v;
+  PetscErrorCode ierr = VecDuplicate(other, &v);CHKERRXX(ierr);
+
+  return OwnedVec(v);
+}
+
 PetscReal get_Vec_MaxAbs(Vec v) {
-  Vec v_abs;
-  PetscErrorCode ierr = VecDuplicate(v, &v_abs);CHKERRXX(ierr);
-  ierr = VecCopy(v, v_abs);CHKERRXX(ierr);
-  ierr = VecAbs(v_abs);CHKERRXX(ierr);
+  auto v_abs = make_Vec_with_structure(v);
+  PetscErrorCode ierr = VecCopy(v, v_abs.v);CHKERRXX(ierr);
+  ierr = VecAbs(v_abs.v);CHKERRXX(ierr);
 
   PetscReal v_abs_max;
-  ierr = VecMax(v_abs, nullptr, &v_abs_max);CHKERRXX(ierr);
-
-  ierr = VecDestroy(&v_abs);CHKERRXX(ierr);
+  ierr = VecMax(v_abs.v, nullptr, &v_abs_max);CHKERRXX(ierr);
 
   return v_abs_max;
 }
@@ -54,7 +95,7 @@ std::vector<PetscScalar> collect_contents(Vec v) {
   return std::get<1>(local_collected);
 }
 
-Vec scatter_to_all(Vec v) {
+OwnedVec scatter_to_all(Vec v) {
   VecScatter ctx;
   Vec v_all;
   PetscErrorCode ierr = VecScatterCreateToAll(v, &ctx, &v_all);CHKERRXX(ierr);
@@ -63,7 +104,7 @@ Vec scatter_to_all(Vec v) {
 
   ierr = VecScatterDestroy(&ctx);CHKERRXX(ierr);
 
-  return v_all;
+  return OwnedVec(v_all);
 }
 
 } // namespace anomtrans

@@ -70,17 +70,17 @@ template <std::size_t k_dim, typename Hamiltonian, typename UU>
 OwnedMat make_collision(const kmBasis<k_dim> &kmb, const Hamiltonian &H, const double sigma,
     const UU &disorder_term) {
   // TODO could make this an argument to avoid recomputing.
-  Vec Ekm = get_energies(kmb, H);
+  auto Ekm = get_energies(kmb, H);
   // We need the full contents of Ekm to construct each row of K.
   // Bring them to each process.
   // TODO could add parameter to get_energies to just construct Ekm as local vector.
-  Vec Ekm_all = scatter_to_all(Ekm);
+  auto Ekm_all = scatter_to_all(Ekm.v);
 
   // Need to sort energies and get their permutation index to avoid considering
   // all columns of K when building a row.
   SortResult sorted_Ekm;
   std::vector<PetscInt> ikm_to_sorted;
-  std::tie(sorted_Ekm, ikm_to_sorted) = sort_energies(kmb, Ekm_all);
+  std::tie(sorted_Ekm, ikm_to_sorted) = sort_energies(kmb, Ekm_all.v);
 
   // We need to know what values to regard as 'effectively 0' in K.
   // Choose those which are multiplied by a negligible delta function factor.
@@ -91,7 +91,7 @@ OwnedMat make_collision(const kmBasis<k_dim> &kmb, const Hamiltonian &H, const d
   // are determined with PETSC_DECIDE.
   // TODO is there a better way to do this?
   PetscInt begin, end;
-  PetscErrorCode ierr = VecGetOwnershipRange(Ekm, &begin, &end);CHKERRXX(ierr);
+  PetscErrorCode ierr = VecGetOwnershipRange(Ekm.v, &begin, &end);CHKERRXX(ierr);
 
   // Count how many nonzeros are in each local row on the diagonal portion
   // (i.e. those elements (ikm1, ikm2) with begin <= ikm2 < end) and the
@@ -123,8 +123,6 @@ OwnedMat make_collision(const kmBasis<k_dim> &kmb, const Hamiltonian &H, const d
   ierr = MatGetOwnershipRange(K, &begin_K, &end_K);CHKERRXX(ierr);
   if (begin_K != begin or end_K != end) {
     ierr = MatDestroy(&K);CHKERRXX(ierr);
-    ierr = VecDestroy(&Ekm_all);CHKERRXX(ierr);
-    ierr = VecDestroy(&Ekm);CHKERRXX(ierr);
 
     throw std::runtime_error("Did not get expected row distribution in K");
   }
@@ -144,9 +142,6 @@ OwnedMat make_collision(const kmBasis<k_dim> &kmb, const Hamiltonian &H, const d
 
   ierr = MatAssemblyBegin(K, MAT_FINAL_ASSEMBLY);CHKERRXX(ierr);
   ierr = MatAssemblyEnd(K, MAT_FINAL_ASSEMBLY);CHKERRXX(ierr);
-
-  ierr = VecDestroy(&Ekm_all);CHKERRXX(ierr);
-  ierr = VecDestroy(&Ekm);CHKERRXX(ierr);
 
   return OwnedMat(K);
 }

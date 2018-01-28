@@ -34,19 +34,19 @@ template <std::size_t k_dim, typename Hamiltonian, typename UU_OD>
 OwnedMat apply_collision_od(const kmBasis<k_dim> &kmb, const Hamiltonian &H, const double sigma,
     const UU_OD &disorder_term, const std::vector<PetscScalar> &n_all) {
   // TODO could make this an argument to avoid recomputing.
-  Vec Ekm = get_energies(kmb, H);
+  auto Ekm = get_energies(kmb, H);
   // We need the full contents of Ekm to construct each row of K.
   // Bring them to each process.
   // TODO could add parameter to get_energies to just construct Ekm as local vector.
-  Vec Ekm_all = scatter_to_all(Ekm);
+  auto Ekm_all = scatter_to_all(Ekm.v);
   // TODO consolidate Ekm_all and Ekm_all_std - replace Ekm_all with std::vector?
-  auto Ekm_all_std = split_scalars(std::get<1>(get_local_contents(Ekm_all))).first;
+  auto Ekm_all_std = split_scalars(std::get<1>(get_local_contents(Ekm_all.v))).first;
 
   // Need to sort energies and get their permutation index to avoid considering
   // all columns of K when building a row.
   SortResult sorted_Ekm;
   std::vector<PetscInt> ikm_to_sorted;
-  std::tie(sorted_Ekm, ikm_to_sorted) = sort_energies(kmb, Ekm_all);
+  std::tie(sorted_Ekm, ikm_to_sorted) = sort_energies(kmb, Ekm_all.v);
 
   PetscReal threshold = get_fermi_surface_threshold(sigma);
 
@@ -119,9 +119,6 @@ OwnedMat apply_collision_od(const kmBasis<k_dim> &kmb, const Hamiltonian &H, con
 
   ierr = MatAssemblyBegin(Jn.M, MAT_FINAL_ASSEMBLY);CHKERRXX(ierr);
   ierr = MatAssemblyEnd(Jn.M, MAT_FINAL_ASSEMBLY);CHKERRXX(ierr);
-
-  ierr = VecDestroy(&Ekm_all);CHKERRXX(ierr);
-  ierr = VecDestroy(&Ekm);CHKERRXX(ierr);
 
   return Jn;
 }

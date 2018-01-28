@@ -9,6 +9,58 @@
 
 namespace anomtrans {
 
+/** @brief Container which owns a PETSc `Vec`. When an `OwnedVec` is destroyed,
+ *         the corresponding destruction operation for the contained `Vec` is called.
+ *         An `OwnedVec` has the same semantics as a `unique_ptr`: it cannot be copied,
+ *         but it may be moved from.
+ *  @invariant The owned `Vec` is exposed as a public non-const field to allow this field
+ *             to be used in PETSc interfaces without wrapping all PETSc functions.
+ *             This `Vec` must not be destroyed or reassigned.
+ *  @note The note about `Vec` versus `OwnedVec` arguments to functions in the documentation
+ *        of `OwnedMat` applies here also.
+ */
+class OwnedVec {
+public:
+  Vec v;
+
+  OwnedVec();
+
+  OwnedVec(Vec _v);
+
+  ~OwnedVec();
+
+  OwnedVec(const OwnedVec& other) = delete;
+
+  OwnedVec& operator=(const OwnedVec& other) = delete;
+
+  OwnedVec(OwnedVec&& other);
+
+  OwnedVec& operator=(OwnedVec&& other);
+};
+
+/** @brief Create an `OwnedVec` of length `m` distributed over all ranks.
+ */
+OwnedVec make_Vec(PetscInt m);
+
+/** @brief Create an `OwnedVec` with the same structure (length, distribution over ranks)
+ *         as `other`. Values are not copied.
+ */
+OwnedVec make_Vec_with_structure(Vec other);
+
+/** @brief Convert an array `vs` of `OwnedVec`s to the corresponding array of `Vec`s.
+ *         `vs` still maintains ownership.
+ */
+template <std::size_t len>
+std::array<Vec, len> as_Vec_array(std::array<OwnedVec, len>& vs) {
+  std::array<Vec, len> raw_vs;
+
+  for (std::size_t i = 0; i < len; i++) {
+    raw_vs.at(i) = vs.at(i).v;
+  }
+
+  return raw_vs;
+}
+
 /** @brief Pair of indices and corresponding vector values.
  *  @todo Would this be better as std::vector<std::pair<PetscInt, PetscScalar>>?
  *        This alternate type is required by collision.
@@ -35,21 +87,20 @@ std::vector<PetscScalar> collect_contents(Vec v);
 /** @brief Create and return a Vec which has the contents of `v` scattered to
  *         all ranks.
  */
-Vec scatter_to_all(Vec v);
+OwnedVec scatter_to_all(Vec v);
 
 /** @brief Construct a vector u = \sum_d coeffs(d) * vs(d).
  *  @pre The length of coeffs and vs should be at least 1.
  *  @pre All vectors in vs should have the same length.
  */
 template <std::size_t len>
-Vec Vec_from_sum_const(std::array<PetscScalar, len> coeffs, std::array<Vec, len> vs) {
+OwnedVec Vec_from_sum_const(std::array<PetscScalar, len> coeffs, std::array<OwnedVec, len>& vs) {
   static_assert(len > 0, "must have at least 1 Vec for Vec_from_sum_const");
 
-  Vec u;
-  PetscErrorCode ierr = VecDuplicate(vs.at(0), &u);CHKERRXX(ierr);
-  ierr = VecSet(u, 0.0);CHKERRXX(ierr);
+  auto u = make_Vec_with_structure(vs.at(0).v);
+  PetscErrorCode ierr = VecSet(u.v, 0.0);CHKERRXX(ierr);
 
-  ierr = VecMAXPY(u, len, coeffs.data(), vs.data());CHKERRXX(ierr);
+  ierr = VecMAXPY(u.v, len, coeffs.data(), as_Vec_array(vs).data());CHKERRXX(ierr);
 
   return u;
 }
@@ -66,19 +117,18 @@ Vec Vec_from_sum_const(std::array<PetscScalar, len> coeffs, std::array<Vec, len>
  *  @todo Should v_in be const here? This is certainly the intended behavior.
  */ 
 template <typename F>
-Vec vector_elem_apply(Vec v_in, F f) {
+OwnedVec vector_elem_apply(Vec v_in, F f) {
   PetscInt v_in_size;
   PetscErrorCode ierr = VecGetSize(v_in, &v_in_size);CHKERRXX(ierr);
 
-  Vec v_out;
-  ierr = VecCreateMPI(PETSC_COMM_WORLD, PETSC_DECIDE, v_in_size, &v_out);CHKERRXX(ierr);
+  auto v_out = make_Vec(v_in_size);
 
   // This node is assigned elements in the range begin <= i < end.
   PetscInt begin_in, end_in;
   ierr = VecGetOwnershipRange(v_in, &begin_in, &end_in);CHKERRXX(ierr);
 
   PetscInt begin_out, end_out;
-  ierr = VecGetOwnershipRange(v_out, &begin_out, &end_out);CHKERRXX(ierr);
+  ierr = VecGetOwnershipRange(v_out.v, &begin_out, &end_out);CHKERRXX(ierr);
 
   if (begin_in != begin_out or end_in != end_out) {
     throw std::runtime_error("got different local element ranges for input and output vectors in vector_apply");
@@ -101,10 +151,10 @@ Vec vector_elem_apply(Vec v_in, F f) {
   // TODO would we be better off adding these elements one at a time (contrary to
   // the PETSc manual's advice), since we don't have them precomputed?
   // Doing it this way uses extra memory inside this scope.
-  ierr = VecSetValues(v_out, local_in_rows.size(), local_in_rows.data(), local_out_vals.data(), INSERT_VALUES);CHKERRXX(ierr);
+  ierr = VecSetValues(v_out.v, local_in_rows.size(), local_in_rows.data(), local_out_vals.data(), INSERT_VALUES);CHKERRXX(ierr);
 
-  ierr = VecAssemblyBegin(v_out);CHKERRXX(ierr);
-  ierr = VecAssemblyEnd(v_out);CHKERRXX(ierr);
+  ierr = VecAssemblyBegin(v_out.v);CHKERRXX(ierr);
+  ierr = VecAssemblyEnd(v_out.v);CHKERRXX(ierr);
 
   return v_out;
 }
@@ -119,18 +169,16 @@ Vec vector_elem_apply(Vec v_in, F f) {
  *  @invariant f(i) will only be called for rows i belonging to the current rank.
  */
 template <std::size_t out_dim, typename F>
-std::array<Vec, out_dim> vector_index_apply_multiple(PetscInt N, const F &f) {
+std::array<OwnedVec, out_dim> vector_index_apply_multiple(PetscInt N, const F &f) {
   static_assert(out_dim > 0, "Must have at least one output of f");
 
-  std::array<Vec, out_dim> vs;
-
+  std::array<OwnedVec, out_dim> vs;
   for (std::size_t oi = 0; oi < out_dim; oi++) {
-    PetscErrorCode ierr = VecCreateMPI(PETSC_COMM_WORLD, PETSC_DECIDE,
-        N, &(vs.at(oi)));CHKERRXX(ierr);
+    vs.at(oi) = make_Vec(N);
   }
 
   PetscInt begin, end;
-  PetscErrorCode ierr = VecGetOwnershipRange(vs.at(0), &begin, &end);CHKERRXX(ierr);
+  PetscErrorCode ierr = VecGetOwnershipRange(vs.at(0).v, &begin, &end);CHKERRXX(ierr);
 
   std::vector<PetscInt> rows;
   std::array<std::vector<PetscScalar>, out_dim> vals;
@@ -154,11 +202,11 @@ std::array<Vec, out_dim> vector_index_apply_multiple(PetscInt N, const F &f) {
   for (std::size_t oi = 0; oi < out_dim; oi++) {
     assert(rows.size() == vals.at(oi).size());
 
-    ierr = VecSetValues(vs.at(oi), rows.size(), rows.data(), vals.at(oi).data(),
+    ierr = VecSetValues(vs.at(oi).v, rows.size(), rows.data(), vals.at(oi).data(),
         INSERT_VALUES);CHKERRXX(ierr);
 
-    ierr = VecAssemblyBegin(vs.at(oi));CHKERRXX(ierr);
-    ierr = VecAssemblyEnd(vs.at(oi));CHKERRXX(ierr);
+    ierr = VecAssemblyBegin(vs.at(oi).v);CHKERRXX(ierr);
+    ierr = VecAssemblyEnd(vs.at(oi).v);CHKERRXX(ierr);
   }
 
   return vs;
@@ -172,13 +220,15 @@ std::array<Vec, out_dim> vector_index_apply_multiple(PetscInt N, const F &f) {
  *  @invariant f(i) will only be called for rows i belonging to the current rank.
  */
 template <typename F>
-Vec vector_index_apply(PetscInt N, const F &f) {
+OwnedVec vector_index_apply(PetscInt N, const F &f) {
   // This function is a special case of vector_index_apply_multiple where out_dim = 1.
   auto f_multiple = [&f](PetscInt i)->std::array<PetscScalar, 1> {
     return { f(i) };
   };
 
-  return vector_index_apply_multiple<1>(N, f_multiple).at(0);
+  OwnedVec v = std::move(vector_index_apply_multiple<1>(N, f_multiple).at(0));
+
+  return v;
 }
 
 } // namespace anomtrans

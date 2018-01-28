@@ -42,11 +42,11 @@ TEST( Energy, Square_TB_Energy ) {
   double tp = -0.3;
   anomtrans::square_tb_Hamiltonian H(t, tp, kmb);
 
-  Vec Ekm = anomtrans::get_energies(kmb, H);
+  auto Ekm = anomtrans::get_energies(kmb, H);
 
   std::vector<PetscInt> local_rows;
   std::vector<PetscScalar> local_vals;
-  std::tie(local_rows, local_vals) = anomtrans::get_local_contents(Ekm);
+  std::tie(local_rows, local_vals) = anomtrans::get_local_contents(Ekm.v);
 
   for (anomtrans::stdvec_size i = 0; i < local_rows.size(); i++) {
     auto ikm_comps = kmb.decompose(local_rows.at(i));
@@ -54,6 +54,4 @@ TEST( Energy, Square_TB_Energy ) {
 
     ASSERT_EQ( local_vals.at(i), energy );
   }
-
-  PetscErrorCode ierr = VecDestroy(&Ekm);CHKERRXX(ierr);
 }
