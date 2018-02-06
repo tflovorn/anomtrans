@@ -138,7 +138,7 @@ void add_dynamic_electric_n_zero(boost::optional<std::shared_ptr<DynDMGraphNode>
   OwnedMat Dtilde = construct_driving_sum(lower_parent, upper_parent, kmb, Ehat_dot_grad_k,
       Ehat_dot_R, Evar);
 
-  auto child_Mats = internal::get_response_electric(Dtilde.M, kmb, Kdd_ksp,
+  auto child_Mats = internal::get_response_electric(std::move(Dtilde), kmb, Kdd_ksp,
       H, sigma, disorder_term_od, berry_broadening);
 
   auto n_node_kind = DynDMKind::n;

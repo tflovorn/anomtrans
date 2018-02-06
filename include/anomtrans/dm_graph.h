@@ -100,13 +100,13 @@ std::shared_ptr<DMNodeType> make_eq_node(Vec Ekm, double beta, double mu) {
 namespace internal {
 
 template <std::size_t k_dim, typename Hamiltonian, typename UU_OD>
-std::map<StaticDMDerivedBy, OwnedMat> get_response_electric(Mat D_E_rho,
+std::map<StaticDMDerivedBy, OwnedMat> get_response_electric(OwnedMat&& D_E_rho,
     const kmBasis<k_dim> &kmb, KSP Kdd_ksp,
     const Hamiltonian &H, const double sigma, const UU_OD &disorder_term_od,
     double berry_broadening) {
   // Construct <n_E^(-1)> = Kdd^{-1} D_E (<rho>).
   auto D_E_rho_diag = make_Vec(kmb.end_ikm);
-  PetscErrorCode ierr = MatGetDiagonal(D_E_rho, D_E_rho_diag.v);CHKERRXX(ierr);
+  PetscErrorCode ierr = MatGetDiagonal(D_E_rho.M, D_E_rho_diag.v);CHKERRXX(ierr);
 
   auto n_E = make_Vec_with_structure(D_E_rho_diag.v);
   ierr = KSPSolve(Kdd_ksp, D_E_rho_diag.v, n_E.v);CHKERRXX(ierr);
@@ -122,8 +122,8 @@ std::map<StaticDMDerivedBy, OwnedMat> get_response_electric(Mat D_E_rho,
   // Keep the intrinsic P^{-1} D_E(<rho_0>) and extrinsic P^{-1} K^{od}(<n_E^(-1)>)
   // parts separate.
   // Intrinsic part of S:
-  set_Mat_diagonal(D_E_rho, 0.0);
-  OwnedMat S_E_intrinsic = apply_precession_term(kmb, H, D_E_rho, berry_broadening);
+  auto D_E_rho_od = set_Mat_diagonal(std::move(D_E_rho), 0.0);
+  OwnedMat S_E_intrinsic = apply_precession_term(kmb, H, D_E_rho_od.M, berry_broadening);
 
   // Extrinsic part of S:
   auto n_E_all = scatter_to_all(n_E.v);
@@ -162,7 +162,7 @@ void add_linear_response_electric(std::shared_ptr<StaticDMGraphNode> parent_node
     double berry_broadening) {
   OwnedMat D_E_rho = apply_driving_electric(kmb, Ehat_dot_grad_k, Ehat_dot_R, parent_node->rho.M);
 
-  auto child_Mats = internal::get_response_electric(D_E_rho.M, kmb, Kdd_ksp,
+  auto child_Mats = internal::get_response_electric(std::move(D_E_rho), kmb, Kdd_ksp,
       H, sigma, disorder_term_od, berry_broadening);
 
   auto n_E_node_kind = StaticDMKind::n;
@@ -218,8 +218,8 @@ void add_linear_response_magnetic(std::shared_ptr<StaticDMGraphNode> eq_node,
   // Construct off-diagonal response, <S_B^{(0)}> = [P^{-1} D_B(<rho_0>)]_{m, m' \neq m}.
   OwnedMat D_B_rho = apply_driving_magnetic(kmb, DH0_cross_Bhat, d_dk_Cart, R, eq_node->rho.M);
 
-  set_Mat_diagonal(D_B_rho.M, 0.0);
-  OwnedMat child_S_B_intrinsic = apply_precession_term(kmb, H, D_B_rho.M, berry_broadening);
+  auto D_B_rho_od = set_Mat_diagonal(std::move(D_B_rho), 0.0);
+  OwnedMat child_S_B_intrinsic = apply_precession_term(kmb, H, D_B_rho_od.M, berry_broadening);
 
   auto child_S_B_intrinsic_node_kind = StaticDMKind::S;
   int child_S_B_intrinsic_impurity_order = 0;
@@ -300,8 +300,8 @@ void add_next_order_magnetic(std::shared_ptr<StaticDMGraphNode> parent_node,
   // Keep the intrinsic P^{-1} D_B(<rho_EB^(N-1)> and extrinsic P^{-1} K^{od}(<n_EB^(N)>)
   // parts separate.
   // Intrinsic part of S:
-  set_Mat_diagonal(D_B_rho.M, 0.0);
-  OwnedMat child_S_B_intrinsic = apply_precession_term(kmb, H, D_B_rho.M, berry_broadening);
+  auto D_B_rho_od = set_Mat_diagonal(std::move(D_B_rho), 0.0);
+  OwnedMat child_S_B_intrinsic = apply_precession_term(kmb, H, D_B_rho_od.M, berry_broadening);
 
   auto child_S_B_intrinsic_node_kind = StaticDMKind::S;
   int child_S_B_intrinsic_impurity_order = parent_node->impurity_order;

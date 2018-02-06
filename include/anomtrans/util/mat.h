@@ -79,14 +79,11 @@ std::array<Mat, len> unowned(std::array<OwnedMat, len>& Bs) {
   return Bs_unowned;
 }
 
-/** @brief Set all diagonal entries of `M` to `alpha`.
+/** @brief Consume the matrix `M`, returning a new matrix which is identical except that
+ *         all diagonal entries are present and set to `alpha`.
  *  @pre `M` must be a square matrix.
- *  @todo MatDiagonalSet warns that it is slow if diagonal entries of `M` do not already have
- *        a value. What is a general way to avoid this?
- *  @todo Check that diagonal entries have values.
- *  @todo Possible to implement this function without allocating a Vec?
  */
-void set_Mat_diagonal(Mat M, PetscScalar alpha);
+OwnedMat set_Mat_diagonal(OwnedMat&& M, PetscScalar alpha);
 
 /** @brief Scatter the contents of the diagonal of `M` onto rank 0 and return
  *         a pair of `std::vector` with the local contents (which on rank 0 will

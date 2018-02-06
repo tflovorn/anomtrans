@@ -97,18 +97,109 @@ OwnedMat make_diag_Mat(Vec v) {
   return result;
 }
 
-void set_Mat_diagonal(Mat M, PetscScalar alpha) {
+OwnedMat set_Mat_diagonal(OwnedMat&& M, PetscScalar alpha) {
   PetscInt num_rows, num_cols;
-  PetscErrorCode ierr = MatGetSize(M, &num_rows, &num_cols);CHKERRXX(ierr);
+  PetscErrorCode ierr = MatGetSize(M.M, &num_rows, &num_cols);CHKERRXX(ierr);
 
   if (num_rows != num_cols) {
     throw std::invalid_argument("matrix input to set_Mat_diagonal must be square");
   }
 
-  auto diag = make_Vec(num_rows);
-  ierr = VecSet(diag.v, alpha);CHKERRXX(ierr);
+  PetscInt begin, end;
+  ierr = MatGetOwnershipRange(M.M, &begin, &end);CHKERRXX(ierr);
 
-  ierr = MatDiagonalSet(M, diag.v, INSERT_VALUES);CHKERRXX(ierr);
+  Mat alphaM;
+  ierr = MatCreate(PETSC_COMM_WORLD, &alphaM);CHKERRXX(ierr);
+  ierr = MatSetSizes(alphaM, PETSC_DECIDE, PETSC_DECIDE, num_rows, num_cols);CHKERRXX(ierr);
+  ierr = MatSetType(alphaM, MATMPIAIJ);CHKERRXX(ierr);
+
+  std::vector<PetscInt> elems_diag, elems_off_diag;
+  elems_diag.reserve(end - begin);
+  elems_off_diag.reserve(end - begin);
+
+  // Count number of nonzeros on each row of M. If diagonal element is not present,
+  // add it to the total.
+  for (PetscInt row = begin; row < end; row++) {
+    PetscInt ncols;
+    const PetscInt *cols;
+    const PetscScalar *vals;
+
+    ierr = MatGetRow(M.M, row, &ncols, &cols, &vals);CHKERRXX(ierr);
+
+    PetscInt diag = 0;
+    PetscInt off_diag = 0;
+
+    bool diag_elem_set = false;
+
+    for (PetscInt col_index = 0; col_index < ncols; col_index++) {
+      PetscInt col = cols[col_index];
+
+      if (col == row) {
+        diag_elem_set = true;
+      }
+
+      if (col >= begin and col < end) {
+        diag++;
+      } else {
+        off_diag++;
+      }
+    }
+
+    if (not diag_elem_set) {
+      diag++;
+    }
+
+    ierr = MatRestoreRow(M.M, row, &ncols, &cols, &vals);CHKERRXX(ierr);
+
+    elems_diag.push_back(diag);
+    elems_off_diag.push_back(off_diag);
+  }
+
+  ierr = MatMPIAIJSetPreallocation(alphaM, 0, elems_diag.data(), 0,
+      elems_off_diag.data());CHKERRXX(ierr);
+
+  // Construct alphaM, copying the elements of M, but replacing or adding diagonal elements
+  // equal to alpha.
+  for (PetscInt row = begin; row < end; row++) {
+    PetscInt ncols;
+    const PetscInt *cols;
+    const PetscScalar *vals;
+
+    ierr = MatGetRow(M.M, row, &ncols, &cols, &vals);CHKERRXX(ierr);
+
+    std::vector<PetscInt> new_cols;
+    std::vector<PetscScalar> new_vals;
+
+    bool diag_elem_set = false;
+
+    for (PetscInt col_index = 0; col_index < ncols; col_index++) {
+      PetscInt col = cols[col_index];
+
+      new_cols.push_back(col);
+
+      if (col == row) {
+        diag_elem_set = true;
+        new_vals.push_back(alpha);
+      } else {
+        new_vals.push_back(vals[col_index]);
+      }
+    }
+
+    if (not diag_elem_set) {
+      new_cols.push_back(row);
+      new_vals.push_back(alpha);
+    }
+
+    ierr = MatRestoreRow(M.M, row, &ncols, &cols, &vals);CHKERRXX(ierr);
+
+    ierr = MatSetValues(alphaM, 1, &row, new_cols.size(), new_cols.data(), new_vals.data(),
+        INSERT_VALUES);CHKERRXX(ierr);
+  }
+
+  ierr = MatAssemblyBegin(alphaM, MAT_FINAL_ASSEMBLY);CHKERRXX(ierr);
+  ierr = MatAssemblyEnd(alphaM, MAT_FINAL_ASSEMBLY);CHKERRXX(ierr);
+
+  return OwnedMat(alphaM);
 }
 
 std::pair<std::vector<PetscReal>, std::vector<PetscReal>> collect_Mat_diagonal(Mat M) {
