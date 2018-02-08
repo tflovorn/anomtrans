@@ -46,6 +46,14 @@ OwnedVec make_Vec_with_structure(Vec other) {
   return OwnedVec(v);
 }
 
+OwnedVec make_Vec_copy(Vec other) {
+  Vec v;
+  PetscErrorCode ierr = VecDuplicate(other, &v);CHKERRXX(ierr);
+  ierr = VecCopy(other, v);CHKERRXX(ierr);
+
+  return OwnedVec(v);
+}
+
 PetscReal get_Vec_MaxAbs(Vec v) {
   auto v_abs = make_Vec_with_structure(v);
   PetscErrorCode ierr = VecCopy(v, v_abs.v);CHKERRXX(ierr);

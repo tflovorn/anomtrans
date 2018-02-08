@@ -124,11 +124,11 @@ void add_dynamic_electric_n_nonzero(boost::optional<std::shared_ptr<DynDMGraphNo
  *         The parents are assumed to be at the same level in the expansion in powers of disorder.
  *         At least one parent must be present, but both are not required.
  */
-template <std::size_t k_dim, typename Hamiltonian, typename UU_OD>
+template <std::size_t k_dim, typename Hamiltonian, typename UU_OD, typename Delta>
 void add_dynamic_electric_n_zero(boost::optional<std::shared_ptr<DynDMGraphNode>> lower_parent,
     boost::optional<std::shared_ptr<DynDMGraphNode>> upper_parent, double omega,
-    const kmBasis<k_dim> &kmb, Mat Ehat_dot_grad_k, Mat Ehat_dot_R, KSP Kdd_ksp,
-    const Hamiltonian &H, const double sigma, const UU_OD &disorder_term_od,
+    const kmBasis<k_dim>& kmb, Mat Ehat_dot_grad_k, Mat Ehat_dot_R, KSP Kdd_ksp,
+    const Hamiltonian& H, const UU_OD& disorder_term_od, const Delta& delta,
     double berry_broadening, DynVariation Evar) {
   auto impurity_order = get_impurity_order(lower_parent, upper_parent);
   if (not impurity_order) {
@@ -139,7 +139,7 @@ void add_dynamic_electric_n_zero(boost::optional<std::shared_ptr<DynDMGraphNode>
       Ehat_dot_R, Evar);
 
   auto child_Mats = internal::get_response_electric(std::move(Dtilde), kmb, Kdd_ksp,
-      H, sigma, disorder_term_od, berry_broadening);
+      H, disorder_term_od, delta, berry_broadening);
 
   auto n_node_kind = DynDMKind::n;
   int n_impurity_order = *impurity_order - 1;

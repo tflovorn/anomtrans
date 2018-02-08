@@ -21,6 +21,7 @@
 #include "driving.h"
 #include "observables/current.h"
 #include "berry.h"
+#include "fermi_surface.h"
 #include "dm_graph.h"
 
 using json = nlohmann::json;
@@ -71,6 +72,7 @@ TEST( WsmContinuumHamiltonian, wsm_continuum_ahe ) {
   unsigned int num_mus = 1;
   double beta = 1.0;
   double sigma = 0.4;
+  anomtrans::DeltaGaussian delta(sigma);
   double berry_broadening = 1e-4;
   */
   // Parameters for regression test.
@@ -81,6 +83,7 @@ TEST( WsmContinuumHamiltonian, wsm_continuum_ahe ) {
   unsigned int num_mus = 1;
   double beta = 1.0;
   double sigma = 0.4;
+  anomtrans::DeltaGaussian delta(sigma);
   double berry_broadening = 1e-4;
 
   unsigned int Nbands = 4;
@@ -110,12 +113,6 @@ TEST( WsmContinuumHamiltonian, wsm_continuum_ahe ) {
   // (TODO - sure this is correct?)
   double U0 = 1.0;
 
-  double sigma_min = anomtrans::get_sigma_min(max_energy_difference);
-
-  if (sigma < sigma_min) {
-    PetscPrintf(PETSC_COMM_WORLD, "Warning: sigma < sigma_min: sigma = %e ; sigma_min = %e\n", sigma, sigma_min);
-  }
-
   std::array<double, k_dim> Ehat = {0.0, 1.0, 0.0};
 
   auto Ekm = anomtrans::get_energies(kmb, H);
@@ -140,14 +137,14 @@ TEST( WsmContinuumHamiltonian, wsm_continuum_ahe ) {
         H, ikm1, ikm2, ikm3);
   };
 
-  auto collision = anomtrans::make_collision(kmb, H, sigma, disorder_term);
+  auto collision = anomtrans::make_collision(kmb, H, disorder_term, delta);
 
   // Create the linear solver context.
   KSP ksp;
   ierr = KSPCreate(PETSC_COMM_WORLD, &ksp);CHKERRXX(ierr);
   // This uses collision again as the preconditioning matrix.
   // TODO - is there a better choice?
-  ierr = KSPSetOperators(ksp, collision.M, collision.M);CHKERRXX(ierr);
+  ierr = KSPSetOperators(ksp, collision.first.M, collision.first.M);CHKERRXX(ierr);
   // Could use KSPSetFromOptions here. In this case, prefer to keep options
   // hard-coded to have identical output from each test run.
 
@@ -200,11 +197,11 @@ TEST( WsmContinuumHamiltonian, wsm_continuum_ahe ) {
     // TODO does this mean that the nullspace has dimension larger than 1?
     MatNullSpace nullspace;
     ierr = MatNullSpaceCreate(PETSC_COMM_WORLD, PETSC_FALSE, 1, &(rho0_normalized.v), &nullspace);CHKERRXX(ierr);
-    ierr = MatSetNullSpace(collision.M, nullspace);CHKERRXX(ierr);
+    ierr = MatSetNullSpace(collision.first.M, nullspace);CHKERRXX(ierr);
     // NOTE rho0_normalized must not be modified after this call until we are done with nullspace.
 
     anomtrans::add_linear_response_electric(dm_rho0, kmb, Ehat_dot_grad_k.M, Ehat_dot_R.M, ksp,
-        H, sigma, disorder_term_od, berry_broadening);
+        H, disorder_term_od, delta, berry_broadening);
     auto dm_n_E = dm_rho0->children[anomtrans::StaticDMDerivedBy::Kdd_inv_DE];
     all_n_E.push_back(anomtrans::collect_Mat_diagonal(dm_n_E->rho.M).first);
 
@@ -347,7 +344,7 @@ TEST( WsmContinuumNodeHamiltonian, wsm_continuum_cme_node ) {
   anomtrans::kVals<k_dim> k_max = {0.5, 0.5, 0.5};
   double mu_factor = 0.45;
   unsigned int num_mus = 2;
-  double beta = 32.0;
+  double beta = 256.0;
   */
   // Parameters for regression test.
   std::array<unsigned int, k_dim> Nk = {4, 4, 4};
@@ -551,7 +548,7 @@ TEST( WsmContinuumMu5Hamiltonian, wsm_continuum_cme_mu5 ) {
   double mu5 = 0.05;
   double mu_factor = 0.49;
   unsigned int num_mus = 2;
-  double beta = 1.0;
+  double beta = 8.0;
   double berry_broadening = 1e-4;
   */
   // Parameters for regression test.
@@ -754,6 +751,7 @@ TEST( WsmContinuumHamiltonian, wsm_continuum_quadratic_magnetoconductivity ) {
   unsigned int num_mus = 2;
   double beta = 1.0;
   double sigma = 0.4;
+  anomtrans::DeltaGaussian delta(sigma);
   */
   // Parameters for regression test.
   std::array<unsigned int, k_dim> Nk = {4, 4, 4};
@@ -762,6 +760,7 @@ TEST( WsmContinuumHamiltonian, wsm_continuum_quadratic_magnetoconductivity ) {
   unsigned int num_mus = 1;
   double beta = 1.0;
   double sigma = 0.4;
+  anomtrans::DeltaGaussian delta(sigma);
 
   unsigned int Nbands = 4;
   anomtrans::kmBasis<k_dim> kmb(Nk, Nbands, k_min, k_max);
@@ -782,12 +781,6 @@ TEST( WsmContinuumHamiltonian, wsm_continuum_quadratic_magnetoconductivity ) {
 
   if (beta > beta_max) {
     PetscPrintf(PETSC_COMM_WORLD, "Warning: beta > beta_max: beta = %e ; beta_max = %e\n", beta, beta_max);
-  }
-
-  double sigma_min = anomtrans::get_sigma_min(max_energy_difference);
-
-  if (sigma < sigma_min) {
-    PetscPrintf(PETSC_COMM_WORLD, "Warning: sigma < sigma_min: sigma = %e ; sigma_min = %e\n", sigma, sigma_min);
   }
 
   std::array<double, k_dim> Ehat = {0.0, 0.0, 1.0};
@@ -816,14 +809,14 @@ TEST( WsmContinuumHamiltonian, wsm_continuum_quadratic_magnetoconductivity ) {
         H, ikm1, ikm2, ikm3);
   };
 
-  auto collision = anomtrans::make_collision(kmb, H, sigma, disorder_term);
+  auto collision = anomtrans::make_collision(kmb, H, disorder_term, delta);
 
   // Create the linear solver context.
   KSP ksp;
   PetscErrorCode ierr = KSPCreate(PETSC_COMM_WORLD, &ksp);CHKERRXX(ierr);
   // This uses collision again as the preconditioning matrix.
   // TODO - is there a better choice?
-  ierr = KSPSetOperators(ksp, collision.M, collision.M);CHKERRXX(ierr);
+  ierr = KSPSetOperators(ksp, collision.first.M, collision.first.M);CHKERRXX(ierr);
   // Could use KSPSetFromOptions here. In this case, prefer to keep options
   // hard-coded to have identical output from each test run.
 
@@ -882,7 +875,7 @@ TEST( WsmContinuumHamiltonian, wsm_continuum_quadratic_magnetoconductivity ) {
     // TODO does this mean that the nullspace has dimension larger than 1?
     MatNullSpace nullspace;
     ierr = MatNullSpaceCreate(PETSC_COMM_WORLD, PETSC_FALSE, 1, &(rho0_normalized.v), &nullspace);CHKERRXX(ierr);
-    ierr = MatSetNullSpace(collision.M, nullspace);CHKERRXX(ierr);
+    ierr = MatSetNullSpace(collision.first.M, nullspace);CHKERRXX(ierr);
     // NOTE rho0_normalized must not be modified after this call until we are done with nullspace.
 
     // <xi_B> branch: <rho_0> -> <xi_B> -> <n_{EB}> -> {<S_{EB^2}>, <xi_{EB^2}>}
@@ -891,11 +884,11 @@ TEST( WsmContinuumHamiltonian, wsm_continuum_quadratic_magnetoconductivity ) {
     auto dm_xi_B = dm_rho0->children[anomtrans::StaticDMDerivedBy::B_dot_Omega];
 
     anomtrans::add_linear_response_electric(dm_xi_B, kmb, Ehat_dot_grad_k.M, Ehat_dot_R.M, ksp,
-        H, sigma, disorder_term_od, berry_broadening);
+        H, disorder_term_od, delta, berry_broadening);
     auto dm_xi_B_n_EB = dm_xi_B->children[anomtrans::StaticDMDerivedBy::Kdd_inv_DE];
 
     anomtrans::add_next_order_magnetic(dm_xi_B_n_EB, kmb, DH0_cross_Bhat, d_dk_Cart, R, ksp,
-        Bhat_dot_Omega.v, H, sigma, disorder_term_od, berry_broadening);
+        Bhat_dot_Omega.v, H, disorder_term_od, delta, berry_broadening);
     auto dm_xi_to_xi = dm_xi_B_n_EB->children[anomtrans::StaticDMDerivedBy::B_dot_Omega];
     auto dm_xi_to_S_int = dm_xi_B_n_EB->children[anomtrans::StaticDMDerivedBy::P_inv_DB];
     auto dm_xi_to_S_ext = dm_xi_B_n_EB->children[anomtrans::StaticDMDerivedBy::Kdd_inv_DB]
@@ -915,18 +908,18 @@ TEST( WsmContinuumHamiltonian, wsm_continuum_quadratic_magnetoconductivity ) {
 
     // <S_E> branches
     anomtrans::add_linear_response_electric(dm_rho0, kmb, Ehat_dot_grad_k.M, Ehat_dot_R.M, ksp,
-        H, sigma, disorder_term_od, berry_broadening);
+        H, disorder_term_od, delta, berry_broadening);
     auto dm_n_E = dm_rho0->children[anomtrans::StaticDMDerivedBy::Kdd_inv_DE];
 
     // <S_E> intrinsic branch:
     auto dm_S_E_int = dm_rho0->children[anomtrans::StaticDMDerivedBy::P_inv_DE];
 
     anomtrans::add_next_order_magnetic(dm_S_E_int, kmb, DH0_cross_Bhat, d_dk_Cart, R, ksp,
-        Bhat_dot_Omega.v, H, sigma, disorder_term_od, berry_broadening);
+        Bhat_dot_Omega.v, H, disorder_term_od, delta, berry_broadening);
     auto dm_S_E_int_n_EB = dm_S_E_int->children[anomtrans::StaticDMDerivedBy::Kdd_inv_DB];
 
     anomtrans::add_next_order_magnetic(dm_S_E_int_n_EB, kmb, DH0_cross_Bhat, d_dk_Cart, R, ksp,
-        Bhat_dot_Omega.v, H, sigma, disorder_term_od, berry_broadening);
+        Bhat_dot_Omega.v, H, disorder_term_od, delta, berry_broadening);
     auto dm_S_int_to_xi = dm_S_E_int_n_EB->children[anomtrans::StaticDMDerivedBy::B_dot_Omega];
     auto dm_S_int_to_S_int = dm_S_E_int_n_EB->children[anomtrans::StaticDMDerivedBy::P_inv_DB];
     auto dm_S_int_to_S_ext = dm_S_E_int_n_EB->children[anomtrans::StaticDMDerivedBy::Kdd_inv_DB]
@@ -947,11 +940,11 @@ TEST( WsmContinuumHamiltonian, wsm_continuum_quadratic_magnetoconductivity ) {
     auto dm_S_E_ext = dm_n_E->children[anomtrans::StaticDMDerivedBy::P_inv_Kod];
 
     anomtrans::add_next_order_magnetic(dm_S_E_ext, kmb, DH0_cross_Bhat, d_dk_Cart, R, ksp,
-        Bhat_dot_Omega.v, H, sigma, disorder_term_od, berry_broadening);
+        Bhat_dot_Omega.v, H, disorder_term_od, delta, berry_broadening);
     auto dm_S_E_ext_n_EB = dm_S_E_ext->children[anomtrans::StaticDMDerivedBy::Kdd_inv_DB];
 
     anomtrans::add_next_order_magnetic(dm_S_E_ext_n_EB, kmb, DH0_cross_Bhat, d_dk_Cart, R, ksp,
-        Bhat_dot_Omega.v, H, sigma, disorder_term_od, berry_broadening);
+        Bhat_dot_Omega.v, H, disorder_term_od, delta, berry_broadening);
     auto dm_S_ext_to_xi = dm_S_E_ext_n_EB->children[anomtrans::StaticDMDerivedBy::B_dot_Omega];
     auto dm_S_ext_to_S_int = dm_S_E_ext_n_EB->children[anomtrans::StaticDMDerivedBy::P_inv_DB];
     auto dm_S_ext_to_S_ext = dm_S_E_ext_n_EB->children[anomtrans::StaticDMDerivedBy::Kdd_inv_DB]

@@ -47,6 +47,10 @@ OwnedVec make_Vec(PetscInt m);
  */
 OwnedVec make_Vec_with_structure(Vec other);
 
+/** @brief Create an `OwnedVec` with the same structure and values as `other`.
+ */
+OwnedVec make_Vec_copy(Vec other);
+
 /** @brief Convert an array `vs` of `OwnedVec`s to the corresponding array of `Vec`s.
  *         `vs` still maintains ownership.
  */

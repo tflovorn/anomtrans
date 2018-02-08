@@ -11,10 +11,12 @@ list(APPEND SOURCES
   models/wsm_continuum_Hamiltonian.cpp
   models/wsm_continuum_node_Hamiltonian.cpp
   models/wsm_continuum_mu5_Hamiltonian.cpp
+  observables/energy.cpp
   observables/spin.cpp
   observables/rho0.cpp
   disorder/collision.cpp
   dyn_dm_graph.cpp
+  fermi_surface.cpp
 )
 
 add_library(anomtrans STATIC ${SOURCES})

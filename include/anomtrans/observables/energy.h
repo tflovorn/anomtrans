@@ -2,8 +2,11 @@
 #define ANOMTRANS_OBSERVABLES_ENERGY_H
 
 #include <cstddef>
+#include <cmath>
+#include <exception>
 #include <vector>
 #include <algorithm>
+#include <boost/math/special_functions/erf.hpp>
 #include <petscksp.h>
 #include "util/vec.h"
 #include "util/util.h"
@@ -90,6 +93,73 @@ std::pair<SortResult, std::vector<PetscInt>> sort_energies(const kmBasis<k_dim> 
 
   return std::make_pair(sorted_Ekm, ikm_to_sorted);
 }
+
+using FsMapPair = std::pair<std::vector<size_t>, std::vector<std::vector<PetscInt>>>;
+
+class FermiSurfaceMap {
+  static PetscReal get_width(const SortResult &sorted_Ekm, unsigned int num_fs);
+
+  static PetscReal get_gaussian_sigma_factor(PetscReal width, PetscReal gaussian_width_fraction);
+
+  static PetscReal gaussian_norm_correction(PetscReal gaussian_width_fraction);
+
+  static PetscReal get_gaussian_coeff(PetscReal width, PetscReal gaussian_width_fraction);
+
+  static FsMapPair make_fs_map(const SortResult &sorted_Ekm, unsigned int num_fs);
+
+public:
+  /** @brief The number of Fermi surface bins.
+   */
+  const std::size_t num_fs;
+
+  /** @brief The width in energy of each Fermi surface bin.
+   */
+  const PetscReal width;
+
+  /** @brief Within each Fermi surface bin, the delta function is represented as a Gaussian
+   *         with standard deviation `sigma = width * gaussian_width_fraction`.
+   *         Due to the restriction to the bin, this Gaussian would integrate to 1 within the bin;
+   *         the normalization is corrected for this. This correction is very minor for
+   *         `gaussian_width_fraction` < ~1/8.
+   */
+  const PetscReal gaussian_width_fraction;
+
+  /** @brief Create a mapping from each point `ikm` to its Fermi surface partners.
+   *         Points are divided based on energy into `num_fs` equally-sized Fermi surfaces.
+   */
+  FermiSurfaceMap(const SortResult &sorted_Ekm, unsigned int _num_fs,
+      PetscReal _gaussian_width_fraction)
+      : num_fs(_num_fs), width(get_width(sorted_Ekm, _num_fs)),
+        gaussian_width_fraction(_gaussian_width_fraction),
+        fs_map(make_fs_map(sorted_Ekm, _num_fs)),
+        gaussian_sigma_factor(get_gaussian_sigma_factor(width, gaussian_width_fraction)),
+        gaussian_coeff(get_gaussian_coeff(width, gaussian_width_fraction)) {}
+
+  /** @brief Return the index of the Fermi surface associated with the representative
+   *         point `ikm`.
+   */
+  std::size_t fs_index(PetscInt ikm) const;
+
+  /** @brief Return the members of the Fermi surface associated with the representative
+   *         point `ikm`.
+   */
+  const std::vector<PetscInt>& fs_partners(PetscInt ikm) const;
+
+  /** @brief Gaussian delta function representation, with standard deviation
+   *         `sigma = width * gaussian_width_fraction`.
+   */
+  PetscReal gaussian(PetscReal x) const;
+
+private:
+  /** @brief Each (k, m) index `ikm` is assiged a Fermi surface, with index
+   *         `fs_map.first[ikm]`. Each Fermi surface `i` has members `ikm`
+   *         given by `fs_map.second[i]`.
+   */
+  const FsMapPair fs_map;
+
+  const PetscReal gaussian_sigma_factor;
+  const PetscReal gaussian_coeff;
+};
 
 /** @brief Apply the precession term P^{-1} to the density matrix `rho` and return
  *         the resulting value

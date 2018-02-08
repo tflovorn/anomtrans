@@ -17,6 +17,7 @@
 #include "driving.h"
 #include "observables/current.h"
 #include "berry.h"
+#include "fermi_surface.h"
 #include "dm_graph.h"
 
 using json = nlohmann::json;
@@ -56,12 +57,14 @@ TEST( square_TB_Hall, square_TB_Hall ) {
   unsigned int num_mus = 40;
   double beta = 10.0/t;
   double sigma = 0.01*t;
+  anomtrans::DeltaGaussian delta(sigma);
   */
   // Parameters for regression test.
   std::array<unsigned int, k_dim> Nk = {8, 8};
   unsigned int num_mus = 5;
   double beta = 0.2/t;
   double sigma = 0.5*t;
+  anomtrans::DeltaGaussian delta(sigma);
 
   unsigned int Nbands = 1;
   anomtrans::kmBasis<k_dim> kmb(Nk, Nbands);
@@ -84,12 +87,6 @@ TEST( square_TB_Hall, square_TB_Hall ) {
   // of rho^(1) over k's has no dependence on it; is acts as an overall scale.
   // (TODO - sure this is correct?)
   double U0 = 1.0*t;
-
-  double sigma_min = anomtrans::get_sigma_min(max_energy_difference);
-
-  if (sigma < sigma_min) {
-    PetscPrintf(PETSC_COMM_WORLD, "Warning: sigma < sigma_min: sigma = %e ; sigma_min = %e\n", sigma, sigma_min);
-  }
 
   std::array<double, k_dim> Ehat = {0.0, 1.0};
   std::array<double, 3> Bhat = {0.0, 0.0, -1.0};
@@ -124,14 +121,14 @@ TEST( square_TB_Hall, square_TB_Hall ) {
         H, ULambda, ikm1, ikm2, ikm3);
   };
 
-  anomtrans::OwnedMat collision = anomtrans::make_collision(kmb, H, sigma, disorder_term);
+  auto collision = anomtrans::make_collision(kmb, H, disorder_term, delta);
 
   // Create the linear solver context.
   KSP ksp;
   ierr = KSPCreate(PETSC_COMM_WORLD, &ksp);CHKERRXX(ierr);
   // This uses collision again as the preconditioning matrix.
   // TODO - is there a better choice?
-  ierr = KSPSetOperators(ksp, collision.M, collision.M);CHKERRXX(ierr);
+  ierr = KSPSetOperators(ksp, collision.first.M, collision.first.M);CHKERRXX(ierr);
   // Could use KSPSetFromOptions here. In this case, prefer to keep options
   // hard-coded to have identical output from each test run.
 
@@ -188,11 +185,12 @@ TEST( square_TB_Hall, square_TB_Hall ) {
     // TODO does this mean that the nullspace has dimension larger than 1?
     MatNullSpace nullspace;
     ierr = MatNullSpaceCreate(PETSC_COMM_WORLD, PETSC_FALSE, 1, &(rho0_normalized.v), &nullspace);CHKERRXX(ierr);
-    ierr = MatSetNullSpace(collision.M, nullspace);CHKERRXX(ierr);
+    ierr = MatSetNullSpace(collision.first.M, nullspace);CHKERRXX(ierr);
     // NOTE rho0_normalized must not be modified after this call until we are done with nullspace.
 
     anomtrans::add_linear_response_electric(dm_rho0, kmb, Ehat_dot_grad_k.M, Ehat_dot_R.M, ksp,
-        H, sigma, disorder_term_od, berry_broadening);
+        H, disorder_term_od, delta, berry_broadening);
+
     auto dm_n_E = dm_rho0->children[anomtrans::StaticDMDerivedBy::Kdd_inv_DE];
     all_rho1_B0.push_back(anomtrans::collect_Mat_diagonal(dm_n_E->rho.M).first);
 
@@ -203,7 +201,7 @@ TEST( square_TB_Hall, square_TB_Hall ) {
     PetscScalar sigma_yy = anomtrans::calculate_current_ev(kmb, v_op, dm_n_E->rho.M, ret_Mat).at(1).first;
 
     anomtrans::add_next_order_magnetic(dm_n_E, kmb, DH0_cross_Bhat, d_dk_Cart, R, ksp, Bhat_dot_Omega.v,
-        H, sigma, disorder_term_od, berry_broadening);
+        H, disorder_term_od, delta, berry_broadening);
     auto dm_n_EB = dm_n_E->children[anomtrans::StaticDMDerivedBy::Kdd_inv_DB];
     all_rho1_Bfinite.push_back(anomtrans::collect_Mat_diagonal(dm_n_EB->rho.M).first);
 

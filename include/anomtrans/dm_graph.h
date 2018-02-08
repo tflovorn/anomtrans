@@ -99,16 +99,16 @@ std::shared_ptr<DMNodeType> make_eq_node(Vec Ekm, double beta, double mu) {
 
 namespace internal {
 
-template <std::size_t k_dim, typename Hamiltonian, typename UU_OD>
+template <std::size_t k_dim, typename Hamiltonian, typename UU_OD, typename Delta>
 std::map<StaticDMDerivedBy, OwnedMat> get_response_electric(OwnedMat&& D_E_rho,
-    const kmBasis<k_dim> &kmb, KSP Kdd_ksp,
-    const Hamiltonian &H, const double sigma, const UU_OD &disorder_term_od,
-    double berry_broadening) {
+    const kmBasis<k_dim>& kmb, KSP Kdd_ksp, const Hamiltonian& H,
+    const UU_OD& disorder_term_od, const Delta& delta, double berry_broadening) {
   // Construct <n_E^(-1)> = Kdd^{-1} D_E (<rho>).
   auto D_E_rho_diag = make_Vec(kmb.end_ikm);
   PetscErrorCode ierr = MatGetDiagonal(D_E_rho.M, D_E_rho_diag.v);CHKERRXX(ierr);
 
-  auto n_E = make_Vec_with_structure(D_E_rho_diag.v);
+  auto n_E = make_Vec_copy(D_E_rho_diag.v);
+  ierr = KSPSetInitialGuessNonzero(Kdd_ksp, PETSC_TRUE);CHKERRXX(ierr);
   ierr = KSPSolve(Kdd_ksp, D_E_rho_diag.v, n_E.v);CHKERRXX(ierr);
 
   OwnedMat n_E_Mat = make_diag_Mat(n_E.v);
@@ -128,7 +128,7 @@ std::map<StaticDMDerivedBy, OwnedMat> get_response_electric(OwnedMat&& D_E_rho,
   // Extrinsic part of S:
   auto n_E_all = scatter_to_all(n_E.v);
   auto n_E_all_std = std::get<1>(get_local_contents(n_E_all.v));
-  OwnedMat K_od_n_E = apply_collision_od(kmb, H, sigma, disorder_term_od, n_E_all_std);
+  OwnedMat K_od_n_E = apply_collision_od(kmb, H, disorder_term_od, delta, n_E_all_std);
   ierr = MatScale(K_od_n_E.M, -1.0);CHKERRXX(ierr);
 
   OwnedMat S_E_extrinsic = apply_precession_term(kmb, H, K_od_n_E.M, berry_broadening);
@@ -155,15 +155,15 @@ std::map<StaticDMDerivedBy, OwnedMat> get_response_electric(OwnedMat&& D_E_rho,
  *  @todo Verify that parent_node is appropriate. <rho_0> or <xi_B> are allowed.
  *        Should <S_B> be allowed?
  */
-template <std::size_t k_dim, typename Hamiltonian, typename UU_OD>
+template <std::size_t k_dim, typename Hamiltonian, typename UU_OD, typename Delta>
 void add_linear_response_electric(std::shared_ptr<StaticDMGraphNode> parent_node,
-    const kmBasis<k_dim> &kmb, Mat Ehat_dot_grad_k, Mat Ehat_dot_R, KSP Kdd_ksp,
-    const Hamiltonian &H, const double sigma, const UU_OD &disorder_term_od,
+    const kmBasis<k_dim>& kmb, Mat Ehat_dot_grad_k, Mat Ehat_dot_R, KSP Kdd_ksp,
+    const Hamiltonian& H, const UU_OD& disorder_term_od, const Delta& delta,
     double berry_broadening) {
   OwnedMat D_E_rho = apply_driving_electric(kmb, Ehat_dot_grad_k, Ehat_dot_R, parent_node->rho.M);
 
   auto child_Mats = internal::get_response_electric(std::move(D_E_rho), kmb, Kdd_ksp,
-      H, sigma, disorder_term_od, berry_broadening);
+      H, disorder_term_od, delta, berry_broadening);
 
   auto n_E_node_kind = StaticDMKind::n;
   int n_E_impurity_order = parent_node->impurity_order - 1;
@@ -261,11 +261,11 @@ void add_linear_response_magnetic(std::shared_ptr<StaticDMGraphNode> eq_node,
  *  @precondition Kdd_ksp should have its nullspace set appropriately before this function is
  *                called (the nullspace of Kdd is the <rho_0> vector).
  */
-template <std::size_t k_dim, typename Hamiltonian, typename UU_OD>
+template <std::size_t k_dim, typename Hamiltonian, typename UU_OD, typename Delta>
 void add_next_order_magnetic(std::shared_ptr<StaticDMGraphNode> parent_node,
-    const kmBasis<k_dim> &kmb, std::array<OwnedMat, k_dim>& DH0_cross_Bhat,
+    const kmBasis<k_dim>& kmb, std::array<OwnedMat, k_dim>& DH0_cross_Bhat,
     std::array<OwnedMat, k_dim>& d_dk_Cart, std::array<OwnedMat, k_dim>& R, KSP Kdd_ksp,
-    Vec Bhat_dot_Omega, const Hamiltonian &H, const double sigma, const UU_OD &disorder_term_od,
+    Vec Bhat_dot_Omega, const Hamiltonian& H, const UU_OD& disorder_term_od, const Delta& delta,
     double berry_broadening) {
   // TODO check that parent_node has the appropriate structure
   // (it should be <rho>_{E, B^{N-1}}).
@@ -276,7 +276,8 @@ void add_next_order_magnetic(std::shared_ptr<StaticDMGraphNode> parent_node,
   auto D_B_rho_diag = make_Vec(kmb.end_ikm);
   PetscErrorCode ierr = MatGetDiagonal(D_B_rho.M, D_B_rho_diag.v);CHKERRXX(ierr);
 
-  auto child_n_B = make_Vec_with_structure(D_B_rho_diag.v);
+  auto child_n_B = make_Vec_copy(D_B_rho_diag.v);
+  ierr = KSPSetInitialGuessNonzero(Kdd_ksp, PETSC_TRUE);CHKERRXX(ierr);
   ierr = KSPSolve(Kdd_ksp, D_B_rho_diag.v, child_n_B.v);CHKERRXX(ierr);
 
   OwnedMat child_n_B_Mat = make_diag_Mat(child_n_B.v);
@@ -318,7 +319,7 @@ void add_next_order_magnetic(std::shared_ptr<StaticDMGraphNode> parent_node,
   // Extrinsic part of S:
   auto child_n_B_all = scatter_to_all(child_n_B.v);
   auto child_n_B_all_std = std::get<1>(get_local_contents(child_n_B_all.v));
-  OwnedMat K_od_child_n_B = apply_collision_od(kmb, H, sigma, disorder_term_od, child_n_B_all_std);
+  OwnedMat K_od_child_n_B = apply_collision_od(kmb, H, disorder_term_od, delta, child_n_B_all_std);
   ierr = MatScale(K_od_child_n_B.M, -1.0);CHKERRXX(ierr);
 
   OwnedMat child_S_B_extrinsic = apply_precession_term(kmb, H, K_od_child_n_B.M, berry_broadening);

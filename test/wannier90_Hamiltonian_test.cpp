@@ -15,6 +15,7 @@
 #include "util/util.h"
 #include "util/lattice.h"
 #include "grid_basis.h"
+#include "fermi_surface.h"
 #include "dyn_dm_graph.h"
 #include "berry.h"
 #include "driving.h"
@@ -120,6 +121,7 @@ TEST( Wannier90_WSe2_dynamic, DISABLED_Wannier90_WSe2_dynamic ) {
 
   const std::size_t k_dim = 2;
   anomtrans::kComps<k_dim> Nk = {4, 4};
+
   anomtrans::DimMatrix<k_dim> D = {{{1.659521, 1.659521}, // Angstrom
                                    {-2.874374, 2.874374}}};
 
@@ -139,12 +141,14 @@ TEST( Wannier90_WSe2_dynamic, DISABLED_Wannier90_WSe2_dynamic ) {
     PetscPrintf(PETSC_COMM_WORLD, "Warning: beta > beta_max: beta = %e ; beta_max = %e\n", beta, beta_max);
   }
 
-  double sigma_min = anomtrans::get_sigma_min(max_energy_difference);
+  double sigma_min = anomtrans::DeltaGaussian::get_sigma_min(max_energy_difference);
   double sigma = 2.0 * sigma_min;
 
   if (sigma < sigma_min) {
     PetscPrintf(PETSC_COMM_WORLD, "Warning: sigma < sigma_min: sigma = %e ; sigma_min = %e\n", sigma, sigma_min);
   }
+
+  anomtrans::DeltaGaussian delta(sigma);
 
   // U0 = how far can bands be driven from their average energy?
   double U0 = 1e-3; // eV
@@ -170,14 +174,14 @@ TEST( Wannier90_WSe2_dynamic, DISABLED_Wannier90_WSe2_dynamic ) {
     return disorder_coeff*anomtrans::on_site_diagonal_disorder(Nbands, H, ikm1, ikm2, ikm3);
   };
 
-  auto collision = anomtrans::make_collision(kmb, H, sigma, disorder_term);
+  auto collision = anomtrans::make_collision(kmb, H, disorder_term, delta);
 
   // Create the linear solver context.
   KSP ksp;
   PetscErrorCode ierr = KSPCreate(PETSC_COMM_WORLD, &ksp);CHKERRXX(ierr);
   // This uses collision again as the preconditioning matrix.
   // TODO - is there a better choice?
-  ierr = KSPSetOperators(ksp, collision.M, collision.M);CHKERRXX(ierr);
+  ierr = KSPSetOperators(ksp, collision.first.M, collision.first.M);CHKERRXX(ierr);
   // Could use KSPSetFromOptions here. In this case, prefer to keep options
   // hard-coded to have identical output from each test run.
 
@@ -239,7 +243,7 @@ TEST( Wannier90_WSe2_dynamic, DISABLED_Wannier90_WSe2_dynamic ) {
   // TODO does this mean that the nullspace has dimension larger than 1?
   MatNullSpace nullspace;
   ierr = MatNullSpaceCreate(PETSC_COMM_WORLD, PETSC_FALSE, 1, &(rho0_normalized.v), &nullspace);CHKERRXX(ierr);
-  ierr = MatSetNullSpace(collision.M, nullspace);CHKERRXX(ierr);
+  ierr = MatSetNullSpace(collision.first.M, nullspace);CHKERRXX(ierr);
   // NOTE rho0_normalized must not be modified after this call until we are done with nullspace.
 
   // Add <rho_{1,1}> and <rho_{-1,1}> for (Ex, cos) and (Ey, sin) cases.
@@ -258,10 +262,12 @@ TEST( Wannier90_WSe2_dynamic, DISABLED_Wannier90_WSe2_dynamic ) {
   auto dm_rho_m1_1_Ey_sin = dm_rho0_Ey_sin->children[anomtrans::DynDMDerivedBy::omega_inv_DE_down];
 
   // Add <rho_{0, 2}> for (Ex, cos) and (Ey, sin) cases.
-  anomtrans::add_dynamic_electric_n_zero(dm_rho_m1_1_Ex_cos, dm_rho_1_1_Ex_cos, omega, kmb, Ex_dot_grad_k.M,
-      Ex_dot_R.M, ksp, H, sigma, disorder_term_od, berry_broadening, anomtrans::DynVariation::cos);
-  anomtrans::add_dynamic_electric_n_zero(dm_rho_m1_1_Ey_sin, dm_rho_1_1_Ey_sin, omega, kmb, Ey_dot_grad_k.M,
-      Ey_dot_R.M, ksp, H, sigma, disorder_term_od, berry_broadening, anomtrans::DynVariation::sin);
+  anomtrans::add_dynamic_electric_n_zero(dm_rho_m1_1_Ex_cos, dm_rho_1_1_Ex_cos, omega, kmb,
+      Ex_dot_grad_k.M, Ex_dot_R.M, ksp, H, disorder_term_od, delta,
+      berry_broadening, anomtrans::DynVariation::cos);
+  anomtrans::add_dynamic_electric_n_zero(dm_rho_m1_1_Ey_sin, dm_rho_1_1_Ey_sin, omega, kmb,
+      Ey_dot_grad_k.M, Ey_dot_R.M, ksp, H, disorder_term_od, delta,
+      berry_broadening, anomtrans::DynVariation::sin);
 
   // Valley (anomalous) hall effect at second order in electric field
   // from <rho_{0, 2}>. Intrinsic contribution. Current in y, electric field in x.
