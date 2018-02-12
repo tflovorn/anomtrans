@@ -43,6 +43,18 @@ if(DEFINED ENV{ANOMTRANS_TEST_LINK_SAN})
   set(ANOMTRANS_TEST_LIBS ${ANOMTRANS_TEST_LIBS} ubsan)
 endif()
 
+# Enable OpenMP. Need to disable some warnings due to FindOpenMP:
+# https://gitlab.kitware.com/cmake/cmake/issues/17476
+# https://github.com/Microsoft/CMake/commit/dd5324ab1e68d745e0e83e0d0fe75fd5c9774bfa
+cmake_policy(SET CMP0012 NEW)
+cmake_policy(SET CMP0054 NEW)
+find_package(OpenMP)
+if (OPENMP_FOUND)
+  set (ANOMTRANS_OpenMP_CXX_FLAGS "${OpenMP_CXX_FLAGS}")
+else()
+  set (ANOMTRANS_OpenMP_CXX_FLAGS "")
+endif()
+
 enable_testing()
 
 # Unit testing with MPI programs, following the approach at:
@@ -55,13 +67,16 @@ function(add_mpi_test name)
   # -Wall -pedantic -std=c++11"
   # (or -std=c++14, but would want to keep compatibility with icpc 16)
   set_target_properties(${name} PROPERTIES
-    COMPILE_FLAGS "${CMAKE_CXX_FLAGS} $ENV{ANOMTRANS_TEST_COMPILE_FLAGS}"
+    COMPILE_FLAGS "${CMAKE_CXX_FLAGS} ${ANOMTRANS_OpenMP_CXX_FLAGS} $ENV{ANOMTRANS_TEST_COMPILE_FLAGS}"
+    LINK_FLAGS "${ANOMTRANS_OpenMP_CXX_FLAGS}"
   )
   target_link_libraries(${name} ${ANOMTRANS_TEST_LIBS})
   set(test_parameters $ENV{ANOMTRANS_TEST_MPI_NUMPROCS_PREFIX} $ENV{ANOMTRANS_TEST_MPI_NUMPROCS} $ENV{ANOMTRANS_TEST_AFFINITY} "./${name}")
   add_test(NAME ${name} COMMAND $ENV{ANOMTRANS_TEST_MPI_CMD} ${test_parameters})
   set_property(TEST ${name} PROPERTY
     ENVIRONMENT "ANOMTRANS_TEST_DATA_DIR=$ENV{ANOMTRANS_TEST_DATA_DIR}")
+  set_property(TEST ${name} APPEND PROPERTY
+    ENVIRONMENT "OMP_NUM_THREADS=$ENV{ANOMTRANS_TEST_OMP_NUM_THREADS}")
 endfunction(add_mpi_test)
 
 add_subdirectory(src)

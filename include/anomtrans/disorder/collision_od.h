@@ -56,59 +56,79 @@ OwnedMat apply_collision_od(const kmBasis<k_dim>& kmb, const Hamiltonian& H,
   PetscInt begin, end;
   PetscErrorCode ierr = MatGetOwnershipRange(Jn.M, &begin, &end);CHKERRXX(ierr);
 
-  for (PetscInt ikm = begin; ikm < end; ikm++) {
-    kmComps<k_dim> km = kmb.decompose(ikm);
-    kComps<k_dim> k = std::get<0>(km);
-    unsigned int m = std::get<1>(km);
+  #pragma omp parallel
+  {
+    std::vector<PetscInt> all_row_ikms;
+    std::vector<std::vector<PetscInt>> all_column_ikms;
+    std::vector<std::vector<PetscScalar>> all_column_vals;
 
-    std::vector<PetscInt> column_ikms;
-    std::vector<PetscScalar> column_vals;
+    #pragma omp for schedule(dynamic)
+    for (PetscInt ikm = begin; ikm < end; ikm++) {
+      kmComps<k_dim> km = kmb.decompose(ikm);
+      kComps<k_dim> k = std::get<0>(km);
+      unsigned int m = std::get<1>(km);
 
-    for (unsigned int mpp = 0; mpp < kmb.Nbands; mpp++) {
-      if (mpp == m) {
-        // Jn includes only off-diagonal terms.
-        continue;
+      std::vector<PetscInt> column_ikms;
+      std::vector<PetscScalar> column_vals;
+
+      for (unsigned int mpp = 0; mpp < kmb.Nbands; mpp++) {
+        if (mpp == m) {
+          // Jn includes only off-diagonal terms.
+          continue;
+        }
+
+        kmComps<k_dim> kmpp = std::make_tuple(k, mpp);
+        PetscInt ikmpp = kmb.compose(kmpp);
+
+        PetscScalar total = std::complex<double>(0.0, 0.0);
+
+        if (nonzero_fs.at(ikm)) {
+          auto update_total_ikm = [ikm, ikmpp, &total, &disorder_term, &delta, &Ekm_all_std, &n_all](PetscInt ikpmp) {
+            std::complex<double> U_part = disorder_term(ikm, ikpmp, ikmpp);
+            PetscReal ndiff = n_all.at(ikm).real() - n_all.at(ikpmp).real(); // TODO remove real(), keep im part?
+            PetscReal delta_factor = delta(Ekm_all_std.at(ikm), Ekm_all_std.at(ikpmp));
+
+            // TODO - use Kahan sum.
+            total += pi * U_part * ndiff * delta_factor;
+          };
+
+          apply_on_fermi_surface(delta, sorted_Ekm, ikm_to_sorted, ikm, update_total_ikm);
+        }
+
+        if (nonzero_fs.at(ikmpp)) {
+          auto update_total_ikmpp = [ikm, ikmpp, &total, &disorder_term, &delta, &Ekm_all_std, &n_all](PetscInt ikpmp) {
+            std::complex<double> U_part = disorder_term(ikm, ikpmp, ikmpp);
+            PetscReal ndiff = n_all.at(ikmpp).real() - n_all.at(ikpmp).real(); // TODO remove real(), keep im part?
+            PetscReal delta_factor = delta(Ekm_all_std.at(ikmpp), Ekm_all_std.at(ikpmp));
+
+            // TODO - use Kahan sum.
+            total += pi * U_part * ndiff * delta_factor;
+          };
+
+          apply_on_fermi_surface(delta, sorted_Ekm, ikm_to_sorted, ikmpp, update_total_ikmpp);
+        }
+
+        if (nonzero_fs.at(ikm) or nonzero_fs.at(ikmpp)) {
+          column_ikms.push_back(ikmpp);
+          column_vals.push_back(total);
+        }
       }
 
-      kmComps<k_dim> kmpp = std::make_tuple(k, mpp);
-      PetscInt ikmpp = kmb.compose(kmpp);
-
-      PetscScalar total = std::complex<double>(0.0, 0.0);
-
-      if (nonzero_fs.at(ikm)) {
-        auto update_total_ikm = [ikm, ikmpp, &total, &disorder_term, &delta, &Ekm_all_std, &n_all](PetscInt ikpmp) {
-          std::complex<double> U_part = disorder_term(ikm, ikpmp, ikmpp);
-          PetscReal ndiff = n_all.at(ikm).real() - n_all.at(ikpmp).real(); // TODO remove real(), keep im part?
-          PetscReal delta_factor = delta(Ekm_all_std.at(ikm), Ekm_all_std.at(ikpmp));
-
-          // TODO - use Kahan sum.
-          total += pi * U_part * ndiff * delta_factor;
-        };
-
-        apply_on_fermi_surface(delta, sorted_Ekm, ikm_to_sorted, ikm, update_total_ikm);
-      }
-
-      if (nonzero_fs.at(ikmpp)) {
-        auto update_total_ikmpp = [ikm, ikmpp, &total, &disorder_term, &delta, &Ekm_all_std, &n_all](PetscInt ikpmp) {
-          std::complex<double> U_part = disorder_term(ikm, ikpmp, ikmpp);
-          PetscReal ndiff = n_all.at(ikmpp).real() - n_all.at(ikpmp).real(); // TODO remove real(), keep im part?
-          PetscReal delta_factor = delta(Ekm_all_std.at(ikmpp), Ekm_all_std.at(ikpmp));
-
-          // TODO - use Kahan sum.
-          total += pi * U_part * ndiff * delta_factor;
-        };
-
-        apply_on_fermi_surface(delta, sorted_Ekm, ikm_to_sorted, ikmpp, update_total_ikmpp);
-      }
-
-      if (nonzero_fs.at(ikm) or nonzero_fs.at(ikmpp)) {
-        column_ikms.push_back(ikmpp);
-        column_vals.push_back(total);
+      if (column_ikms.size() > 0) {
+        all_row_ikms.push_back(ikm);
+        all_column_ikms.push_back(column_ikms);
+        all_column_vals.push_back(column_vals);
       }
     }
 
-    ierr = MatSetValues(Jn.M, 1, &ikm, column_ikms.size(), column_ikms.data(), column_vals.data(),
-        INSERT_VALUES);CHKERRXX(ierr);
+    #pragma omp critical
+    {
+      for (std::size_t i = 0; i < all_row_ikms.size(); i++) {
+        ierr = MatSetValues(Jn.M, 1, &all_row_ikms.at(i), all_column_ikms.at(i).size(),
+            all_column_ikms.at(i).data(), all_column_vals.at(i).data(),
+            INSERT_VALUES);CHKERRXX(ierr);
+      }
+    }
   }
 
   ierr = MatAssemblyBegin(Jn.M, MAT_FINAL_ASSEMBLY);CHKERRXX(ierr);

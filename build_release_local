@@ -7,6 +7,7 @@
 # Discussion of accessing paths relative to a script is found at:
 # http://mywiki.wooledge.org/BashFAQ/028
 export ANOMTRANS_TEST_DATA_DIR="${PWD}/test_regression_data"
+export ANOMTRANS_TEST_OMP_NUM_THREADS="1"
 
 export ANOMTRANS_TEST_MPI_CMD="mpiexec"
 export ANOMTRANS_TEST_MPI_NUMPROCS_PREFIX="-np"

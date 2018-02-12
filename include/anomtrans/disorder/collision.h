@@ -53,18 +53,27 @@ PetscErrorCode apply_collision_shell(Mat K, Vec n, Vec result) {
 
   ierr = VecSet(result, 0.0);CHKERRXX(ierr);
 
-  std::vector<PetscInt> local_rows;
-  std::vector<PetscScalar> local_vals;
-  for (PetscInt ikm = begin; ikm < end; ikm++) {
-    if (nonzero_fs.at(ikm)) {
-      local_rows.push_back(ikm);
-      local_vals.push_back(collision_prod_elem(K_ctx->disorder_term, K_ctx->delta, K_ctx->Ekm,
-            K_ctx->sorted_Ekm, K_ctx->ikm_to_sorted, n_all, ikm));
+  #pragma omp parallel
+  {
+    std::vector<PetscInt> local_rows;
+    std::vector<PetscScalar> local_vals;
+
+    #pragma omp for schedule(dynamic)
+    for (PetscInt ikm = begin; ikm < end; ikm++) {
+      if (nonzero_fs.at(ikm)) {
+        local_rows.push_back(ikm);
+        local_vals.push_back(collision_prod_elem(K_ctx->disorder_term, K_ctx->delta, K_ctx->Ekm,
+              K_ctx->sorted_Ekm, K_ctx->ikm_to_sorted, n_all, ikm));
+      }
+    }
+
+    #pragma omp critical
+    {
+      ierr = VecSetValues(result, local_rows.size(), local_rows.data(), local_vals.data(),
+          INSERT_VALUES);CHKERRXX(ierr);
     }
   }
 
-  ierr = VecSetValues(result, local_rows.size(), local_rows.data(), local_vals.data(),
-      INSERT_VALUES);CHKERRXX(ierr);
   ierr = VecAssemblyBegin(result);CHKERRXX(ierr);
   ierr = VecAssemblyEnd(result);CHKERRXX(ierr);
 
