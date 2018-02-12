@@ -85,7 +85,7 @@ OwnedMat apply_collision_od(const kmBasis<k_dim>& kmb, const Hamiltonian& H,
         if (nonzero_fs.at(ikm)) {
           auto update_total_ikm = [ikm, ikmpp, &total, &disorder_term, &delta, &Ekm_all_std, &n_all](PetscInt ikpmp) {
             std::complex<double> U_part = disorder_term(ikm, ikpmp, ikmpp);
-            PetscReal ndiff = n_all.at(ikm).real() - n_all.at(ikpmp).real(); // TODO remove real(), keep im part?
+            PetscScalar ndiff = n_all.at(ikm) - n_all.at(ikpmp);
             PetscReal delta_factor = delta(Ekm_all_std.at(ikm), Ekm_all_std.at(ikpmp));
 
             // TODO - use Kahan sum.
@@ -98,7 +98,7 @@ OwnedMat apply_collision_od(const kmBasis<k_dim>& kmb, const Hamiltonian& H,
         if (nonzero_fs.at(ikmpp)) {
           auto update_total_ikmpp = [ikm, ikmpp, &total, &disorder_term, &delta, &Ekm_all_std, &n_all](PetscInt ikpmp) {
             std::complex<double> U_part = disorder_term(ikm, ikpmp, ikmpp);
-            PetscReal ndiff = n_all.at(ikmpp).real() - n_all.at(ikpmp).real(); // TODO remove real(), keep im part?
+            PetscScalar ndiff = n_all.at(ikmpp) - n_all.at(ikpmp);
             PetscReal delta_factor = delta(Ekm_all_std.at(ikmpp), Ekm_all_std.at(ikpmp));
 
             // TODO - use Kahan sum.
