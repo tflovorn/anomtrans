@@ -179,10 +179,13 @@ def extract_at_k2(kmb, sorted_data, target_k2):
 
     return sorted_data_k2
 
-def extract_sorted_data(fdata):
+def extract_sorted_data(only, fdata):
     all_data = {}
     for key, val in fdata.items():
         if _ignore_key(key):
+            continue
+
+        if (key not in ('k_comps', 'ms')) and (only is not None and key != only):
             continue
 
         # Assume all values are lists or lists of lists
@@ -222,6 +225,66 @@ def extract_sorted_data(fdata):
 
     return kmb, sorted_data
 
+def avg_k2(kmb, only, sum_bands, all_sorted_data):
+    def process_list_val(summed, key, val, subval, subval_index):
+        if key not in summed:
+            summed[key] = []
+
+        if len(summed[key]) < len(val):
+            summed[key].append(subval)
+        else:
+            for ikm, point in enumerate(subval):
+                summed[key][subval_index][ikm] += point
+
+    def process_single_val(summed, key, val):
+        if key not in summed:
+            summed[key] = val
+        else:
+            for ikm, point in enumerate(val):
+                summed[key][ikm] += point
+
+    summed = {'k_comps': all_sorted_data[0]['k_comps'], 'ms': all_sorted_data[0]['ms']}
+    for data_k2 in all_sorted_data:
+        for key, val in data_k2.items():
+            if key in ('k_comps', 'ms'):
+                continue
+
+            if only is not None and key != only:
+                continue
+
+            if _is_list(val[0]):
+                # val is a list of lists
+                for subval_index, subval_all_bands in enumerate(val):
+                    if sum_bands:
+                        subval_split = split_bands(subval_all_bands, kmb.Nbands)
+                        for subval_band in subval_split:
+                            process_list_val(summed, key, val, subval_band, subval_index)
+                    else:
+                        process_list_val(summed, key, val, subval_all_bands, subval_index)
+
+            else:
+                if sum_bands:
+                    val_split = split_bands(val, kmb.Nbands)
+                    for val_band in val_split:
+                        process_single_val(summed, key, val_band)
+                else:
+                    process_single_val(summed, key, val)
+
+    for key, val in summed.items():
+        if key in ('k_comps', 'ms'):
+            continue
+
+        if _is_list(val[0]):
+            # val is a list of lists
+            for subval_index, subval_all_bands in enumerate(val):
+                for ikm in range(len(summed[key][subval_index])):
+                    summed[key][subval_index][ikm] /= kmb.Nk[2]
+        else:
+            for ikm in range(len(summed[key])):
+                summed[key][ikm] /= kmb.Nk[2]
+
+    return summed
+
 def _main():
     parser = argparse.ArgumentParser("Plot data on the 2D Brillouin zone, or slices of the 3D zone",
             formatter_class=argparse.ArgumentDefaultsHelpFormatter)
@@ -231,13 +294,17 @@ def _main():
             help="Directory containing file giving plot data")
     parser.add_argument("--only", type=str, default=None,
             help="If specified, plot only the series with the specified name")
+    parser.add_argument("--avg_k2", action='store_true',
+            help="For 3D system, average values over k2")
+    parser.add_argument("--sum_bands", action='store_true',
+            help="Sum values over bands")
     args = parser.parse_args()
 
     fpath = os.path.join(args.in_dir, "{}.json".format(args.prefix))
     with open(fpath, 'r') as fp:
         fdata = json.load(fp)
 
-    kmb, sorted_data = extract_sorted_data(fdata)
+    kmb, sorted_data = extract_sorted_data(args.only, fdata)
     Nk, Nbands = kmb.Nk, kmb.Nbands
 
     if len(Nk) == 1:
@@ -245,11 +312,28 @@ def _main():
     elif len(Nk) == 2:
         process_data(args.prefix, args.only, kmb, sorted_data)
     elif len(Nk) == 3:
+        all_sorted_data = []
         for k2 in range(Nk[2]):
             sorted_data_k2 = extract_at_k2(kmb, sorted_data, k2)
-            kmb_k2 = kmBasis([Nk[0], Nk[1]], Nbands)
-            prefix = "{}_k2_{}".format(args.prefix, k2)
-            process_data(prefix, args.only, kmb_k2, sorted_data_k2)
+
+            if args.avg_k2:
+                all_sorted_data.append(sorted_data_k2)
+            else:
+                kmb_k2 = kmBasis([Nk[0], Nk[1]], Nbands)
+                prefix = "{}_k2_{}".format(args.prefix, k2)
+                process_data(prefix, args.only, kmb_k2, sorted_data_k2)
+
+        if args.avg_k2:
+            summed_data = avg_k2(kmb, args.only, args.sum_bands, all_sorted_data)
+            if args.sum_bands:
+                kmb_k2 = kmBasis([Nk[0], Nk[1]], 1)
+                prefix = "{}_avg_k2_sum_bands".format(args.prefix)
+            else:
+                kmb_k2 = kmBasis([Nk[0], Nk[1]], Nbands)
+                prefix = "{}_avg_k2".format(args.prefix)
+
+            process_data(prefix, args.only, kmb_k2, summed_data)
+
     elif len(Nk) > 3:
         raise ValueError("d > 3 unsupported")
 
