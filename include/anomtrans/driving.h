@@ -89,6 +89,7 @@ OwnedMat apply_driving_magnetic(const kmBasis<k_dim> &kmb, std::array<OwnedMat, 
     } else {
       // TODO - possible that there is same nonzero pattern for each term?
       PetscErrorCode ierr = MatAXPY(result, 1.0, prod, DIFFERENT_NONZERO_PATTERN);CHKERRXX(ierr);
+      ierr = MatDestroy(&prod);CHKERRXX(ierr);
     }
   }
 
@@ -98,6 +99,7 @@ OwnedMat apply_driving_magnetic(const kmBasis<k_dim> &kmb, std::array<OwnedMat, 
     PetscErrorCode ierr = MatMatMult(rho_part.at(dc).M, DH0_cross_Bhat.at(dc).M, MAT_INITIAL_MATRIX,
         PETSC_DEFAULT, &prod);CHKERRXX(ierr);
     ierr = MatAXPY(result, 1.0, prod, DIFFERENT_NONZERO_PATTERN);CHKERRXX(ierr);
+    ierr = MatDestroy(&prod);CHKERRXX(ierr);
   }
 
   PetscErrorCode ierr = MatScale(result, 0.5);CHKERRXX(ierr);
