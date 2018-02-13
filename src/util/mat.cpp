@@ -98,15 +98,17 @@ OwnedMat make_diag_Mat(Vec v) {
 }
 
 OwnedMat set_Mat_diagonal(OwnedMat&& M, PetscScalar alpha) {
+  OwnedMat ownedM(std::move(M));
+
   PetscInt num_rows, num_cols;
-  PetscErrorCode ierr = MatGetSize(M.M, &num_rows, &num_cols);CHKERRXX(ierr);
+  PetscErrorCode ierr = MatGetSize(ownedM.M, &num_rows, &num_cols);CHKERRXX(ierr);
 
   if (num_rows != num_cols) {
     throw std::invalid_argument("matrix input to set_Mat_diagonal must be square");
   }
 
   PetscInt begin, end;
-  ierr = MatGetOwnershipRange(M.M, &begin, &end);CHKERRXX(ierr);
+  ierr = MatGetOwnershipRange(ownedM.M, &begin, &end);CHKERRXX(ierr);
 
   Mat alphaM;
   ierr = MatCreate(PETSC_COMM_WORLD, &alphaM);CHKERRXX(ierr);
@@ -124,7 +126,7 @@ OwnedMat set_Mat_diagonal(OwnedMat&& M, PetscScalar alpha) {
     const PetscInt *cols;
     const PetscScalar *vals;
 
-    ierr = MatGetRow(M.M, row, &ncols, &cols, &vals);CHKERRXX(ierr);
+    ierr = MatGetRow(ownedM.M, row, &ncols, &cols, &vals);CHKERRXX(ierr);
 
     PetscInt diag = 0;
     PetscInt off_diag = 0;
@@ -149,7 +151,7 @@ OwnedMat set_Mat_diagonal(OwnedMat&& M, PetscScalar alpha) {
       diag++;
     }
 
-    ierr = MatRestoreRow(M.M, row, &ncols, &cols, &vals);CHKERRXX(ierr);
+    ierr = MatRestoreRow(ownedM.M, row, &ncols, &cols, &vals);CHKERRXX(ierr);
 
     elems_diag.push_back(diag);
     elems_off_diag.push_back(off_diag);
@@ -165,7 +167,7 @@ OwnedMat set_Mat_diagonal(OwnedMat&& M, PetscScalar alpha) {
     const PetscInt *cols;
     const PetscScalar *vals;
 
-    ierr = MatGetRow(M.M, row, &ncols, &cols, &vals);CHKERRXX(ierr);
+    ierr = MatGetRow(ownedM.M, row, &ncols, &cols, &vals);CHKERRXX(ierr);
 
     std::vector<PetscInt> new_cols;
     std::vector<PetscScalar> new_vals;
@@ -190,7 +192,7 @@ OwnedMat set_Mat_diagonal(OwnedMat&& M, PetscScalar alpha) {
       new_vals.push_back(alpha);
     }
 
-    ierr = MatRestoreRow(M.M, row, &ncols, &cols, &vals);CHKERRXX(ierr);
+    ierr = MatRestoreRow(ownedM.M, row, &ncols, &cols, &vals);CHKERRXX(ierr);
 
     ierr = MatSetValues(alphaM, 1, &row, new_cols.size(), new_cols.data(), new_vals.data(),
         INSERT_VALUES);CHKERRXX(ierr);
