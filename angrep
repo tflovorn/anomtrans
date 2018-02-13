@@ -1,4 +1,4 @@
 #!/bin/bash
-find include/anomtrans -name "*.h" | xargs grep "$1"
-find src -name "*.cpp" | xargs grep "$1"
-find test -name "*.cpp" | xargs grep "$1"
+find include/anomtrans -name "*.h" | xargs grep -n "$1"
+find src -name "*.cpp" | xargs grep -n "$1"
+find test -name "*.cpp" | xargs grep -n "$1"
