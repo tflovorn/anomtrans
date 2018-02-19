@@ -1,5 +1,5 @@
 from math import sqrt
-from grid_basis import kmBasis, km_at
+from grid_basis import kmBasis
 from square_tb_Hamiltonian import SquareTBHamiltonian
 from energy import get_energies
 from rho0 import make_rho0
@@ -47,7 +47,7 @@ def _main():
     for ikm in range(kmb.end_ikm):
         # TODO handle Nbands > 1
         # (add contributions at same k from different m?)
-        k, m = km_at(kmb.Nk, kmb.decompose(ikm))
+        k, m = kmb.km_at(kmb.decompose(ikm))
         all_k0s.append(k[0])
         all_k1s.append(k[1])
 

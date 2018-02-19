@@ -66,11 +66,21 @@ def _corresponding_GridBasis(Nk, Nbands):
     return GridBasis(sizes)
 
 class kmBasis:
-    def __init__(self, Nk, Nbands):
+    def __init__(self, Nk, Nbands, k_min=None, k_max=None):
         self.Nk = Nk
         self.Nbands = Nbands
         self.gb = _corresponding_GridBasis(Nk, Nbands)
         self.end_ikm = self.gb.end_iall
+
+        if k_min is not None and k_max is not None:
+            self.periodic = False
+            self.k_min = k_min
+            self.k_max = k_max
+            assert(self.k_sample_point_volume() != 0.0)
+        else:
+            self.periodic = True
+            self.k_min = [0.0] * len(Nk)
+            self.k_max = [1.0] * len(Nk)
 
     def k_dim(self):
         return len(self.Nk)
@@ -92,19 +102,35 @@ class kmBasis:
         all_comps.append(ikm_comps[1])
         return self.gb.compose(all_comps)
 
+    def k_step(self, d):
+        if self.periodic:
+            return (self.k_max[d] - self.k_min[d]) / self.Nk[d]
+        else:
+            return (self.k_max[d] - self.k_min[d]) / (self.Nk[d] - 1)
+
+    def k_sample_point_volume(self):
+        fac = 1.0
+        for d in range(len(self.Nk)):
+            fac *= self.k_step(d)
+
+        return fac
+
+    def km_at(self, ikm_comps):
+        ks = []
+        for d in range(len(self.Nk)):
+            kd = self.k_min[d] + ikm_comps[0][d] * self.k_step(d)
+            ks.append(kd)
+
+        km = (ks, ikm_comps[1])
+        return km
+
     def add(self, ikm, Delta_k):
+        if not self.periodic:
+            raise ValueError("add unimplemented for non-periodic kmBasis")
+
         Delta_km = []
         for d in range(self.k_dim()):
             Delta_km.append(Delta_k[d])
 
         Delta_km.append(0)
         return self.gb.add(ikm, Delta_km)
-
-def km_at(Nk, ikm_comps):
-    ks = []
-    for d in range(len(Nk)):
-        kd = ikm_comps[0][d] / Nk[d]
-        ks.append(kd)
-
-    km = (ks, ikm_comps[1])
-    return km

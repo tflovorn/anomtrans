@@ -4,7 +4,7 @@ import json
 import numpy as np
 import matplotlib.cm as cm
 import matplotlib.pyplot as plt
-from pyanomtrans.grid_basis import kmBasis, km_at
+from pyanomtrans.grid_basis import kmBasis
 
 VERBOSE = False
 
@@ -79,7 +79,7 @@ def sorted_by_km(kmb, k_comps, ms, vals):
     return val_sorted
 
 def _ignore_key(key):
-    ignore_key_prefix = ["_series", "mus"]
+    ignore_key_prefix = ["_series", "mus", "k_min", "k_max"]
     for key_prefix in ignore_key_prefix:
         if key.startswith(key_prefix):
             return True
@@ -107,7 +107,7 @@ def split_bands(val, Nbands):
 def make_k_list(kmb, k_comps):
     all_k0s, all_k1s = [], []
     for iks in split_bands(k_comps, kmb.Nbands)[0]:
-        k, _ = km_at(kmb.Nk, (iks, 0))
+        k, _ = kmb.km_at((iks, 0))
         all_k0s.append(k[0])
         all_k1s.append(k[1])
 
@@ -213,8 +213,10 @@ def extract_sorted_data(only, fdata, only_list=None):
     # Assume that a key 'ms' is present.
     Nk = get_Nk(all_data['k_comps'])
     Nbands = get_Nbands(all_data['ms'])
-
-    kmb = kmBasis(Nk, Nbands)
+    if 'k_min' in fdata and 'k_max' in fdata:
+        kmb = kmBasis(Nk, Nbands, fdata['k_min'], fdata['k_max'])
+    else:
+        kmb = kmBasis(Nk, Nbands)
 
     sorted_data = {}
     for key, val in all_data.items():

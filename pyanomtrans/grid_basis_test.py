@@ -1,5 +1,5 @@
 import unittest
-from pyanomtrans.grid_basis import GridBasis, kmBasis, km_at
+from pyanomtrans.grid_basis import GridBasis, kmBasis
 
 class TestGridBasis(unittest.TestCase):
     def test_GridBasis(self):
@@ -45,7 +45,7 @@ class TestkmBasis(unittest.TestCase):
 
                     self.assertEqual(kmb.decompose(iall), ikm_comps)
                     self.assertEqual(kmb.compose(ikm_comps), iall)
-                    self.assertEqual(km_at(Nk, ikm_comps), km_at_comps)
+                    self.assertEqual(kmb.km_at(ikm_comps), km_at_comps)
 
                     for p1 in range(-Nk[1], Nk[1]+1):
                         for p0 in range(-Nk[0], Nk[0]+1):

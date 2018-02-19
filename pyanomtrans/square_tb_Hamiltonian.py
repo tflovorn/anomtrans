@@ -1,14 +1,14 @@
 from math import pi, cos
-from pyanomtrans.grid_basis import km_at
+from pyanomtrans.grid_basis import kmBasis
 
 class SquareTBHamiltonian:
     def __init__(self, t, tp, Nk):
         self.t = t
         self.tp = tp
-        self.Nk = Nk
+        self.kmb = kmBasis(Nk, 1)
 
     def energy(self, ikm_comps):
-        k, m = km_at(self.Nk, ikm_comps)
+        k, m = self.kmb.km_at(ikm_comps)
         
         if m != 0:
             raise ValueError("SquareTBHamiltonian is not defined for Nbands > 1")

@@ -4,7 +4,7 @@ import json
 import math
 import numpy as np
 import matplotlib.pyplot as plt
-from pyanomtrans.grid_basis import kmBasis, km_at
+from pyanomtrans.grid_basis import kmBasis
 from pyanomtrans.plot_2d_bz import extract_sorted_data, make_k_list, plot_2d_bz_slice
 
 def list_to_array(kmb, vals):
@@ -64,7 +64,13 @@ def plot_bz(prefix, fdata):
     for key, title, title_units in zip(keys, titles, titles_units):
         for mu_index, val_list in enumerate(sorted_data[key]):
             val_arr = list_to_array(kmb, val_list)
-            val_band_sum = np.sum(val_arr, axis=2)
+
+            # We want to display (kx, ky) points with the proper metric such
+            # that if we integrated (instead of summed), we get the right
+            # answer. We need to divide by kmb.k_step(0) * kmb.k_step(1)
+            # to remove the area factor which has been included already.
+            kxy_area = kmb.k_step(0) * kmb.k_step(1)
+            val_band_sum = np.sum(val_arr, axis=2) / kxy_area
 
             min_val, max_val = np.amin(val_band_sum), np.amax(val_band_sum)
             max_abs = max([abs(min_val), abs(max_val)])
@@ -81,8 +87,12 @@ def plot_bz(prefix, fdata):
             val_band_sum_list = array_to_list(kmb_oneband, val_band_sum, band_index=False)
 
             plot_prefix = "{}_{}_band_sum_mu_{}".format(prefix, key, str(mu_index))
-            plot_2d_bz_slice(plot_prefix, full_title, all_k0s, all_k1s, val_band_sum_list)
+
+            # TODO: kx, ky labels. Units [2pi/a]. Include in title units
+            # (have divided out this factor kxy_area). Consider recentering
+            # on (0, 0) taking periodic image.
             # TODO: increase font size on titles.
+            plot_2d_bz_slice(plot_prefix, full_title, all_k0s, all_k1s, val_band_sum_list)
 
 def _main():
     parser = argparse.ArgumentParser("Plot data on the 2D Brillouin zone, or slices of the 3D zone",
