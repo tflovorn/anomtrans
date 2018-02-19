@@ -104,12 +104,17 @@ def split_bands(val, Nbands):
 
     return split_val
 
-def process_data(prefix, only, kmb, sorted_data):
+def make_k_list(kmb, k_comps):
     all_k0s, all_k1s = [], []
-    for iks in split_bands(sorted_data['k_comps'], kmb.Nbands)[0]:
+    for iks in split_bands(k_comps, kmb.Nbands)[0]:
         k, _ = km_at(kmb.Nk, (iks, 0))
         all_k0s.append(k[0])
         all_k1s.append(k[1])
+
+    return all_k0s, all_k1s
+
+def process_data(prefix, only, kmb, sorted_data):
+    all_k0s, all_k1s = make_k_list(kmb, sorted_data['k_comps'])
 
     for key, val in sorted_data.items():
         # Don't plot the keys containing indices (these aren't values to plot)
@@ -179,14 +184,15 @@ def extract_at_k2(kmb, sorted_data, target_k2):
 
     return sorted_data_k2
 
-def extract_sorted_data(only, fdata):
+def extract_sorted_data(only, fdata, only_list=None):
     all_data = {}
     for key, val in fdata.items():
         if _ignore_key(key):
             continue
 
-        if (key not in ('k_comps', 'ms')) and (only is not None and key != only):
-            continue
+        if key not in ('k_comps', 'ms'):
+            if (only is not None and key != only) or (only_list is not None and key not in only_list):
+                continue
 
         # Assume all values are lists or lists of lists
         if key not in all_data:

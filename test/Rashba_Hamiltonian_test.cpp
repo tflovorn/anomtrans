@@ -183,7 +183,7 @@ TEST( Rashba_electric, Rashba_electric ) {
   /*
   std::array<unsigned int, k_dim> Nk = {256, 256};
   unsigned int num_mus = 40;
-  double beta = 10.0/t;
+  double beta = 30.0/t;
   double sigma = 0.01*t;
   anomtrans::DeltaGaussian delta(sigma);
   */
@@ -204,10 +204,15 @@ TEST( Rashba_electric, Rashba_electric ) {
   anomtrans::DimMatrix<k_dim> D = {a1, a2};
 
   PetscReal max_energy_difference = anomtrans::find_max_energy_difference(kmb, H);
-  double beta_max = anomtrans::get_beta_max(max_energy_difference);
 
+  double beta_max = anomtrans::get_beta_max(max_energy_difference);
   if (beta > beta_max) {
     PetscPrintf(PETSC_COMM_WORLD, "Warning: beta > beta_max: beta = %e ; beta_max = %e\n", beta, beta_max);
+  }
+
+  double sigma_min = anomtrans::DeltaGaussian::get_sigma_min(max_energy_difference);
+  if (sigma < sigma_min) {
+    PetscPrintf(PETSC_COMM_WORLD, "Warning: sigma < sigma_min: sigma = %e ; sigma_min = %e\n", sigma, sigma_min);
   }
 
   // U0 = how far can bands be driven from their average energy?
@@ -231,12 +236,16 @@ TEST( Rashba_electric, Rashba_electric ) {
   std::size_t Nk_tot = anomtrans::get_Nk_total(Nk);
   double U0_sq = U0*U0;
   double disorder_coeff = U0_sq / Nk_tot;
-  /*
   auto disorder_term = [Nbands, H, disorder_coeff](PetscInt ikm1, PetscInt ikm2)->double {
     return disorder_coeff*anomtrans::on_site_diagonal_disorder_band_preserved(Nbands, H,
         ikm1, ikm2);
   };
-  */
+  auto disorder_term_od = [Nbands, H, disorder_coeff](PetscInt ikm1, PetscInt ikm2,
+      PetscInt ikm3)->std::complex<double> {
+    return disorder_coeff*anomtrans::on_site_diagonal_disorder(Nbands,
+        H, ikm1, ikm2, ikm3);
+  };
+  /*
   double Lambda = 1e-12;
   anomtrans::SpatialDisorderCorrelation<k_dim> ULambda(kmb, D, Lambda);
   auto disorder_term = [Nbands, H, ULambda, disorder_coeff](PetscInt ikm1, PetscInt ikm2)->double {
@@ -248,6 +257,7 @@ TEST( Rashba_electric, Rashba_electric ) {
     return disorder_coeff*anomtrans::spatially_correlated_diagonal_disorder(Nbands,
         H, ULambda, ikm1, ikm2, ikm3);
   };
+  */
 
   auto collision = anomtrans::make_collision(kmb, H, disorder_term, delta);
 
@@ -282,6 +292,21 @@ TEST( Rashba_electric, Rashba_electric ) {
 
   std::vector<std::vector<PetscReal>> all_rho0;
   std::vector<std::vector<PetscReal>> all_n_E;
+  std::vector<std::vector<PetscReal>> all_sxs_comp;
+  std::vector<std::vector<PetscReal>> all_sys_comp;
+  std::vector<std::vector<PetscReal>> all_szs_comp;
+  std::vector<std::vector<PetscReal>> all_js_sx_vxs_intrinsic_comp;
+  std::vector<std::vector<PetscReal>> all_js_sx_vys_intrinsic_comp;
+  std::vector<std::vector<PetscReal>> all_js_sy_vxs_intrinsic_comp;
+  std::vector<std::vector<PetscReal>> all_js_sy_vys_intrinsic_comp;
+  std::vector<std::vector<PetscReal>> all_js_sz_vxs_intrinsic_comp;
+  std::vector<std::vector<PetscReal>> all_js_sz_vys_intrinsic_comp;
+  std::vector<std::vector<PetscReal>> all_js_sx_vxs_extrinsic_comp;
+  std::vector<std::vector<PetscReal>> all_js_sx_vys_extrinsic_comp;
+  std::vector<std::vector<PetscReal>> all_js_sy_vxs_extrinsic_comp;
+  std::vector<std::vector<PetscReal>> all_js_sy_vys_extrinsic_comp;
+  std::vector<std::vector<PetscReal>> all_js_sz_vxs_extrinsic_comp;
+  std::vector<std::vector<PetscReal>> all_js_sz_vys_extrinsic_comp;
   std::vector<std::vector<PetscReal>> all_S_E_pm_real;
   std::vector<std::vector<PetscReal>> all_S_E_pm_imag;
   std::vector<std::vector<PetscReal>> all_S_E_pm_int_real;
@@ -289,8 +314,20 @@ TEST( Rashba_electric, Rashba_electric ) {
   std::vector<std::vector<PetscReal>> all_S_E_pm_ext_real;
   std::vector<std::vector<PetscReal>> all_S_E_pm_ext_imag;
   std::vector<PetscReal> all_sigma_xxs;
+  std::vector<PetscReal> all_sxs;
   std::vector<PetscReal> all_sys;
+  std::vector<PetscReal> all_szs;
+  std::vector<PetscReal> all_js_sx_vxs_intrinsic;
+  std::vector<PetscReal> all_js_sx_vys_intrinsic;
+  std::vector<PetscReal> all_js_sy_vxs_intrinsic;
+  std::vector<PetscReal> all_js_sy_vys_intrinsic;
+  std::vector<PetscReal> all_js_sz_vxs_intrinsic;
   std::vector<PetscReal> all_js_sz_vys_intrinsic;
+  std::vector<PetscReal> all_js_sx_vxs_extrinsic;
+  std::vector<PetscReal> all_js_sx_vys_extrinsic;
+  std::vector<PetscReal> all_js_sy_vxs_extrinsic;
+  std::vector<PetscReal> all_js_sy_vys_extrinsic;
+  std::vector<PetscReal> all_js_sz_vxs_extrinsic;
   std::vector<PetscReal> all_js_sz_vys_extrinsic;
   // For each mu, construct <n_E^(-1)> and <S_E^(0)>.
   for (auto mu : mus) {
@@ -327,23 +364,64 @@ TEST( Rashba_electric, Rashba_electric ) {
     // Have obtained linear response to electric field. Can calculate this
     // part of the longitudinal conductivity.
     // sigma_xx = -e Tr[v_x <rho_{E_x}>] / E_y
-    bool ret_Mat = false;
-    PetscScalar sigma_xx = anomtrans::calculate_current_ev(kmb, v_op, dm_n_E->rho.M, ret_Mat).at(0).first;
+    PetscScalar sigma_xx = anomtrans::calculate_current_ev(kmb, v_op, dm_n_E->rho.M, false).at(0).first;
     all_sigma_xxs.push_back(sigma_xx.real());
 
-    PetscScalar sy = anomtrans::calculate_spin_ev(kmb, spin_op, dm_n_E->rho.M, ret_Mat).at(1).first;
-    all_sys.push_back(sy.real());
+    auto spin_accumulation = anomtrans::calculate_spin_ev(kmb, spin_op, dm_n_E->rho.M, true);
+    auto& sx = spin_accumulation.at(0);
+    auto& sy = spin_accumulation.at(1);
+    auto& sz = spin_accumulation.at(2);
+    all_sxs.push_back(sx.first.real());
+    all_sxs_comp.push_back(anomtrans::collect_Mat_diagonal((*sx.second).M).first);
+    all_sys.push_back(sy.first.real());
+    all_sys_comp.push_back(anomtrans::collect_Mat_diagonal((*sy.second).M).first);
+    all_szs.push_back(sz.first.real());
+    all_szs_comp.push_back(anomtrans::collect_Mat_diagonal((*sz.second).M).first);
 
     auto dm_S_E_intrinsic = dm_rho0->children[anomtrans::StaticDMDerivedBy::P_inv_DE];
     auto dm_S_E_extrinsic = dm_n_E->children[anomtrans::StaticDMDerivedBy::P_inv_Kod];
 
-    PetscScalar js_sz_vy_intrinsic = anomtrans::calculate_spin_current_ev(kmb, spin_op, v_op,
-        dm_S_E_intrinsic->rho.M, ret_Mat).at(2).at(1).first;
-    all_js_sz_vys_intrinsic.push_back(js_sz_vy_intrinsic.real());
+    auto spin_current_intrinsic = anomtrans::calculate_spin_current_ev(kmb, spin_op, v_op,
+        dm_S_E_intrinsic->rho.M, true);
+    auto& js_sx_vx_intrinsic = spin_current_intrinsic.at(0).at(0);
+    auto& js_sx_vy_intrinsic = spin_current_intrinsic.at(0).at(1);
+    auto& js_sy_vx_intrinsic = spin_current_intrinsic.at(1).at(0);
+    auto& js_sy_vy_intrinsic = spin_current_intrinsic.at(1).at(1);
+    auto& js_sz_vx_intrinsic = spin_current_intrinsic.at(2).at(0);
+    auto& js_sz_vy_intrinsic = spin_current_intrinsic.at(2).at(1);
+    all_js_sx_vxs_intrinsic.push_back(js_sx_vx_intrinsic.first.real());
+    all_js_sx_vxs_intrinsic_comp.push_back(anomtrans::collect_Mat_diagonal((*js_sx_vx_intrinsic.second).M).first);
+    all_js_sx_vys_intrinsic.push_back(js_sx_vy_intrinsic.first.real());
+    all_js_sx_vys_intrinsic_comp.push_back(anomtrans::collect_Mat_diagonal((*js_sx_vy_intrinsic.second).M).first);
+    all_js_sy_vxs_intrinsic.push_back(js_sy_vx_intrinsic.first.real());
+    all_js_sy_vxs_intrinsic_comp.push_back(anomtrans::collect_Mat_diagonal((*js_sy_vx_intrinsic.second).M).first);
+    all_js_sy_vys_intrinsic.push_back(js_sy_vy_intrinsic.first.real());
+    all_js_sy_vys_intrinsic_comp.push_back(anomtrans::collect_Mat_diagonal((*js_sy_vy_intrinsic.second).M).first);
+    all_js_sz_vxs_intrinsic.push_back(js_sz_vx_intrinsic.first.real());
+    all_js_sz_vxs_intrinsic_comp.push_back(anomtrans::collect_Mat_diagonal((*js_sz_vx_intrinsic.second).M).first);
+    all_js_sz_vys_intrinsic.push_back(js_sz_vy_intrinsic.first.real());
+    all_js_sz_vys_intrinsic_comp.push_back(anomtrans::collect_Mat_diagonal((*js_sz_vy_intrinsic.second).M).first);
 
-    PetscScalar js_sz_vy_extrinsic = anomtrans::calculate_spin_current_ev(kmb, spin_op, v_op,
-        dm_S_E_extrinsic->rho.M, ret_Mat).at(2).at(1).first;
-    all_js_sz_vys_extrinsic.push_back(js_sz_vy_extrinsic.real());
+    auto spin_current_extrinsic = anomtrans::calculate_spin_current_ev(kmb, spin_op, v_op,
+        dm_S_E_extrinsic->rho.M, true);
+    auto& js_sx_vx_extrinsic = spin_current_extrinsic.at(0).at(0);
+    auto& js_sx_vy_extrinsic = spin_current_extrinsic.at(0).at(1);
+    auto& js_sy_vx_extrinsic = spin_current_extrinsic.at(1).at(0);
+    auto& js_sy_vy_extrinsic = spin_current_extrinsic.at(1).at(1);
+    auto& js_sz_vx_extrinsic = spin_current_extrinsic.at(2).at(0);
+    auto& js_sz_vy_extrinsic = spin_current_extrinsic.at(2).at(1);
+    all_js_sx_vxs_extrinsic.push_back(js_sx_vx_extrinsic.first.real());
+    all_js_sx_vxs_extrinsic_comp.push_back(anomtrans::collect_Mat_diagonal((*js_sx_vx_extrinsic.second).M).first);
+    all_js_sx_vys_extrinsic.push_back(js_sx_vy_extrinsic.first.real());
+    all_js_sx_vys_extrinsic_comp.push_back(anomtrans::collect_Mat_diagonal((*js_sx_vy_extrinsic.second).M).first);
+    all_js_sy_vxs_extrinsic.push_back(js_sy_vx_extrinsic.first.real());
+    all_js_sy_vxs_extrinsic_comp.push_back(anomtrans::collect_Mat_diagonal((*js_sy_vx_extrinsic.second).M).first);
+    all_js_sy_vys_extrinsic.push_back(js_sy_vy_extrinsic.first.real());
+    all_js_sy_vys_extrinsic_comp.push_back(anomtrans::collect_Mat_diagonal((*js_sy_vy_extrinsic.second).M).first);
+    all_js_sz_vxs_extrinsic.push_back(js_sz_vx_extrinsic.first.real());
+    all_js_sz_vxs_extrinsic_comp.push_back(anomtrans::collect_Mat_diagonal((*js_sz_vx_extrinsic.second).M).first);
+    all_js_sz_vys_extrinsic.push_back(js_sz_vy_extrinsic.first.real());
+    all_js_sz_vys_extrinsic_comp.push_back(anomtrans::collect_Mat_diagonal((*js_sz_vy_extrinsic.second).M).first);
 
     auto collected_S_E_pm_int = anomtrans::split_scalars(anomtrans::collect_band_elem(kmb,
           dm_S_E_intrinsic->rho.M, 0, 1));
@@ -390,6 +468,21 @@ TEST( Rashba_electric, Rashba_electric ) {
       {"Ekm", collected_Ekm},
       {"rho0", all_rho0},
       {"n_E", all_n_E},
+      {"s_x", all_sxs_comp},
+      {"s_y", all_sys_comp},
+      {"s_z", all_szs_comp},
+      {"js_sx_vx_intrinsic", all_js_sx_vxs_intrinsic_comp},
+      {"js_sx_vy_intrinsic", all_js_sx_vys_intrinsic_comp},
+      {"js_sy_vx_intrinsic", all_js_sy_vxs_intrinsic_comp},
+      {"js_sy_vy_intrinsic", all_js_sy_vys_intrinsic_comp},
+      {"js_sz_vx_intrinsic", all_js_sz_vxs_intrinsic_comp},
+      {"js_sz_vy_intrinsic", all_js_sz_vys_intrinsic_comp},
+      {"js_sx_vx_extrinsic", all_js_sx_vxs_extrinsic_comp},
+      {"js_sx_vy_extrinsic", all_js_sx_vys_extrinsic_comp},
+      {"js_sy_vx_extrinsic", all_js_sy_vxs_extrinsic_comp},
+      {"js_sy_vy_extrinsic", all_js_sy_vys_extrinsic_comp},
+      {"js_sz_vx_extrinsic", all_js_sz_vxs_extrinsic_comp},
+      {"js_sz_vy_extrinsic", all_js_sz_vys_extrinsic_comp},
       {"_oneband_S_E_pm_real", all_S_E_pm_real},
       {"_oneband_S_E_pm_imag", all_S_E_pm_imag},
       {"_oneband_S_E_pm_int_real", all_S_E_pm_int_real},
