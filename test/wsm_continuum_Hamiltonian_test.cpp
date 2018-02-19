@@ -342,9 +342,9 @@ TEST( WsmContinuumNodeHamiltonian, wsm_continuum_cme_node ) {
   std::array<unsigned int, k_dim> Nk = {64, 64, 64};
   anomtrans::kVals<k_dim> k_min = {-0.5, -0.5, -0.5};
   anomtrans::kVals<k_dim> k_max = {0.5, 0.5, 0.5};
-  double mu_factor = 0.45;
-  unsigned int num_mus = 2;
-  double beta = 256.0;
+  double mu_factor = 0.4;
+  unsigned int num_mus = 40;
+  double beta = 64.0;
   */
   // Parameters for regression test.
   std::array<unsigned int, k_dim> Nk = {4, 4, 4};
@@ -405,6 +405,8 @@ TEST( WsmContinuumNodeHamiltonian, wsm_continuum_cme_node ) {
 
   std::vector<std::vector<PetscReal>> all_rho0;
   std::vector<std::vector<PetscReal>> all_xi_B;
+  std::vector<std::vector<PetscReal>> all_current_S_B_comp;
+  std::vector<std::vector<PetscReal>> all_current_xi_B_comp;
   std::vector<PetscReal> all_current_S_B;
   std::vector<PetscReal> all_current_xi_B;
   for (auto mu : mus) {
@@ -428,14 +430,13 @@ TEST( WsmContinuumNodeHamiltonian, wsm_continuum_cme_node ) {
 
     // Have obtained linear response to magnetic field. Can calculate this
     // part of the longitudinal conductivity.
-    bool ret_Mat = false;
-    PetscScalar current_S_B = anomtrans::calculate_current_ev(kmb, v_op, dm_S_B->rho.M,
-        ret_Mat).at(2).first;
-    all_current_S_B.push_back(current_S_B.real());
+    auto current_S_B = anomtrans::calculate_current_ev(kmb, v_op, dm_S_B->rho.M, true);
+    all_current_S_B.push_back(current_S_B.at(2).first.real());
+    all_current_S_B_comp.push_back(anomtrans::collect_Mat_diagonal((*current_S_B.at(2).second).M).first);
 
-    PetscScalar current_xi_B = anomtrans::calculate_current_ev(kmb, v_op, dm_xi_B->rho.M,
-        ret_Mat).at(2).first;
-    all_current_xi_B.push_back(current_xi_B.real());
+    auto current_xi_B = anomtrans::calculate_current_ev(kmb, v_op, dm_xi_B->rho.M, true);
+    all_current_xi_B.push_back(current_xi_B.at(2).first.real());
+    all_current_xi_B_comp.push_back(anomtrans::collect_Mat_diagonal((*current_xi_B.at(2).second).M).first);
   }
 
   auto collected_Ekm = anomtrans::split_scalars(anomtrans::collect_contents(Ekm.v)).first;
@@ -458,6 +459,8 @@ TEST( WsmContinuumNodeHamiltonian, wsm_continuum_cme_node ) {
       {"Ekm", collected_Ekm},
       {"rho0", all_rho0},
       {"xi_B", all_xi_B},
+      {"current_S_B_comp", all_current_S_B_comp},
+      {"current_xi_B_comp", all_current_xi_B_comp},
       {"_series_current_S_B", all_current_S_B},
       {"_series_current_xi_B", all_current_xi_B},
     };
