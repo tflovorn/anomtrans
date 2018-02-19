@@ -8,10 +8,24 @@ from pyanomtrans.grid_basis import kmBasis, km_at
 from pyanomtrans.plot_2d_bz import extract_sorted_data, make_k_list, plot_2d_bz_slice
 
 def list_to_array(kmb, vals):
-    arr = np.zeros([kmb.Nk[0], kmb.Nk[1], kmb.Nbands])
+    dim = len(kmb.Nk)
+    shape = [kmb.Nk[d] for d in range(dim)]
+    shape.append(kmb.Nbands)
+
+    arr = np.zeros(shape)
     for ikm, v in enumerate(vals):
         k, m = kmb.decompose(ikm)
-        arr[k[0], k[1], m] = v
+
+        # TODO - is there a general way to write this?
+        # arr[...] doesn't take a list.
+        if dim == 1:
+            arr[k[0], m] = v
+        elif dim == 2:
+            arr[k[0], k[1], m] = v
+        elif dim == 3:
+            arr[k[0], k[1], k[2], m] = v
+        else:
+            raise ValueError("unimplemented dim")
 
     return arr
 
@@ -52,25 +66,27 @@ def _main():
     assert(len(Nk) == 2)
     assert(Nbands == 2)
 
-    titles = [r'$\langle s_x / E_x \rangle$', r'$\langle \sigma^{s_z, int}_{xx} \rangle$',
-              r'$\langle \sigma^{s_z, ext}_{xx} \rangle$',
-              r'$\langle s_y / E_x \rangle$', r'$\langle \sigma^{s_z, int}_{xy} \rangle$',
-              r'$\langle \sigma^{s_z, ext}_{xy} \rangle$']
+    titles = [r'$\langle s_x \rangle / E_x$', r'$\sigma^{s_z, int}_{xx}$',
+              r'$\sigma^{s_z, ext}_{xx}$',
+              r'$\langle s_y \rangle / E_x$', r'$\sigma^{s_z, int}_{xy}$',
+              r'$\sigma^{s_z, ext}_{xy}$']
     titles_units = [r'$\hbar$', r'$e$', r'$e$',
                     r'$\hbar$', r'$e$', r'$e$']
 
     for key, title, title_units in zip(keys, titles, titles_units):
         for mu_index, val_list in enumerate(sorted_data[key]):
-            min_val, max_val = min(val_list), max(val_list)
+            val_arr = list_to_array(kmb, val_list)
+            val_band_sum = np.sum(val_arr, axis=2)
+
+            min_val, max_val = np.amin(val_band_sum), np.amax(val_band_sum)
             max_abs = max([abs(min_val), abs(max_val)])
             scale_power = math.floor(math.log10(max_abs))
             scale = 10.0**scale_power
+            val_band_sum /= scale
 
             title_scale_part = r"$\times 10^{" + str(-int(scale_power)) + r"}$"
-            full_title = "{} {} {}".format(title, title_scale_part, title_units)
+            full_title = "{} [{} {}]".format(title, title_scale_part, title_units)
 
-            val_arr = list_to_array(kmb, val_list) / scale
-            val_band_sum = np.sum(val_arr, axis=2)
             val_band_sum_list = array_to_list(kmb_oneband, val_band_sum, band_index=False)
 
             plot_prefix = "{}_{}_band_sum_mu_{}".format(args.prefix, key, str(mu_index))
