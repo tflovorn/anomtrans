@@ -8,7 +8,7 @@ from pyanomtrans.grid_basis import kmBasis
 
 VERBOSE = False
 
-def plot_2d_bz_slice(plot_path, title, all_k0s, all_k1s, all_vals):
+def plot_2d_bz_slice(plot_path, title, all_k0s, all_k1s, all_vals, xlabel=None, ylabel=None):
     xs_set, ys_set = set(), set()
     for x, y in zip(all_k0s, all_k1s):
         xs_set.add(x)
@@ -28,7 +28,7 @@ def plot_2d_bz_slice(plot_path, title, all_k0s, all_k1s, all_vals):
     plt.colorbar()
 
     if title is not None:
-        plt.title(title)
+        plt.title(title, fontsize='large')
 
     xmin, xmax = plt.xlim()
     ymin, ymax = plt.ylim()
@@ -38,13 +38,21 @@ def plot_2d_bz_slice(plot_path, title, all_k0s, all_k1s, all_vals):
     k0_tick_vals = np.linspace(min(xs_set), max(xs_set), num_k0_ticks)
     k0_tick_labels = ["{:.1f}".format(x) for x in k0_tick_vals]
     plt.xticks(k0_tick_locs, k0_tick_labels)
-    plt.xlabel("$k_0$")
+
+    if xlabel is None:
+        plt.xlabel("$k_0$", fontsize='large')
+    else:
+        plt.xlabel(xlabel, fontsize='large')
 
     k1_tick_locs = np.linspace(ymin, ymax, num_k1_ticks)
     k1_tick_vals = np.linspace(min(ys_set), max(ys_set), num_k1_ticks)
     k1_tick_labels = ["{:.1f}".format(x) for x in k1_tick_vals]
     plt.yticks(k1_tick_locs, k1_tick_labels)
-    plt.ylabel("$k_1$")
+
+    if ylabel is None:
+        plt.ylabel("$k_1$", fontsize='large')
+    else:
+        plt.ylabel(ylabel, fontsize='large')
 
     plt.savefig("{}.png".format(plot_path), bbox_inches='tight', dpi=500)
     plt.clf()

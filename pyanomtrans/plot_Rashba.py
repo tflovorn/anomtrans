@@ -58,8 +58,14 @@ def plot_bz(prefix, fdata):
               r'$\sigma^{s_z, ext}_{xx}$',
               r'$\langle s_y \rangle / E_x$', r'$\sigma^{s_z, int}_{xy}$',
               r'$\sigma^{s_z, ext}_{xy}$']
-    titles_units = [r'$\hbar$', r'$e$', r'$e$',
-                    r'$\hbar$', r'$e$', r'$e$']
+    titles_units = [r'$\hbar \left(\frac{2\pi}{a}\right)^{-2}$',
+                    r'$e \left(\frac{2\pi}{a}\right)^{-2}$',
+                    r'$e \left(\frac{2\pi}{a}\right)^{-2}$',
+                    r'$\hbar \left(\frac{2\pi}{a}\right)^{-2}$',
+                    r'$e \left(\frac{2\pi}{a}\right)^{-2}$',
+                    r'$e \left(\frac{2\pi}{a}\right)^{-2}$']
+    xlabel = r"$k_x$ [$2\pi / a$]"
+    ylabel = r"$k_y$ [$2\pi / a$]"
 
     for key, title, title_units in zip(keys, titles, titles_units):
         for mu_index, val_list in enumerate(sorted_data[key]):
@@ -88,11 +94,8 @@ def plot_bz(prefix, fdata):
 
             plot_prefix = "{}_{}_band_sum_mu_{}".format(prefix, key, str(mu_index))
 
-            # TODO: kx, ky labels. Units [2pi/a]. Include in title units
-            # (have divided out this factor kxy_area). Consider recentering
-            # on (0, 0) taking periodic image.
-            # TODO: increase font size on titles.
-            plot_2d_bz_slice(plot_prefix, full_title, all_k0s, all_k1s, val_band_sum_list)
+            plot_2d_bz_slice(plot_prefix, full_title, all_k0s, all_k1s, val_band_sum_list,
+                    xlabel=xlabel, ylabel=ylabel)
 
 def _main():
     parser = argparse.ArgumentParser("Plot data on the 2D Brillouin zone, or slices of the 3D zone",

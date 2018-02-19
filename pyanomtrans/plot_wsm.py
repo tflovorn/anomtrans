@@ -23,8 +23,10 @@ def plot_bz(prefix, fdata):
 
     titles = [r'$\int dk_z \, \langle j^S_{z,+} \rangle / B_z$',
               r'$\int dk_z \, \langle j^{\xi}_{z,+} \rangle / B_z$']
-    titles_units = [r'$e^2 \Delta \left(\frac{\hbar v_F}{\Delta}\right)^2$',
-                    r'$e^2 \Delta \left(\frac{\hbar v_F}{\Delta}\right)^2$']
+    titles_units = [r'$e^2 \Delta \left(\frac{\Delta}{\hbar v_F}\right)^{-2}$',
+                    r'$e^2 \Delta \left(\frac{\Delta}{\hbar v_F}\right)^{-2}$']
+    xlabel = r"$k_x$ [$\frac{\Delta}{\hbar v_F}$]"
+    ylabel = r"$k_y$ [$\frac{\Delta}{\hbar v_F}$]"
 
     for key, title, title_units in zip(keys, titles, titles_units):
         for mu_index, val_list in enumerate(sorted_data[key]):
@@ -54,12 +56,9 @@ def plot_bz(prefix, fdata):
             val_band_sum_list = array_to_list(kmb_2d_oneband, val_kz_avg_band_sum, band_index=False)
 
             plot_prefix = "{}_{}_band_sum_mu_{}".format(prefix, key, str(mu_index))
-            # TODO: label kx, ky [\Delta / \hbar v_F]
-            # TODO: increase font size on titles.
-            plot_2d_bz_slice(plot_prefix, full_title, all_k0s, all_k1s, val_band_sum_list)
 
-            total = np.sum(val_arr)
-            print("key = {}, mu_index = {}, total = {}".format(key, mu_index, total))
+            plot_2d_bz_slice(plot_prefix, full_title, all_k0s, all_k1s, val_band_sum_list,
+                    xlabel=xlabel, ylabel=ylabel)
 
 def _main():
     parser = argparse.ArgumentParser("Plot WSM CME node data averaged over kz and summed over bands",
