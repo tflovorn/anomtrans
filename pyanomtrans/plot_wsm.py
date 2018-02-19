@@ -38,8 +38,11 @@ def plot_bz(prefix, fdata):
             scale = 10.0**scale_power
             val_kz_avg_band_sum /= scale
 
-            title_scale_part = r"$\times 10^{" + str(-int(scale_power)) + r"}$"
-            full_title = "{} [{} {}]".format(title, title_scale_part, title_units)
+            if scale_power != 0:
+                title_scale_part = r"$\times 10^{" + str(int(scale_power)) + r"}$"
+                full_title = "{} [{} {}]".format(title, title_scale_part, title_units)
+            else:
+                full_title = "{} [{}]".format(title, title_units)
 
             val_band_sum_list = array_to_list(kmb_2d_oneband, val_kz_avg_band_sum, band_index=False)
 
