@@ -40,19 +40,7 @@ def array_to_list(kmb, arr, band_index=True):
 
     return ls
 
-def _main():
-    parser = argparse.ArgumentParser("Plot data on the 2D Brillouin zone, or slices of the 3D zone",
-            formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument("prefix", type=str,
-            help="Prefix for file giving plot data: should be in the form prefix.json")
-    parser.add_argument("in_dir", type=str,
-            help="Directory containing file giving plot data")
-    args = parser.parse_args()
-
-    fpath = os.path.join(args.in_dir, "{}.json".format(args.prefix))
-    with open(fpath, 'r') as fp:
-        fdata = json.load(fp)
-
+def plot_bz(prefix, fdata):
     keys = ['s_x', 'js_sz_vx_intrinsic', 'js_sz_vx_extrinsic',
             's_y', 'js_sz_vy_intrinsic', 'js_sz_vy_extrinsic']
 
@@ -89,9 +77,24 @@ def _main():
 
             val_band_sum_list = array_to_list(kmb_oneband, val_band_sum, band_index=False)
 
-            plot_prefix = "{}_{}_band_sum_mu_{}".format(args.prefix, key, str(mu_index))
+            plot_prefix = "{}_{}_band_sum_mu_{}".format(prefix, key, str(mu_index))
             plot_2d_bz_slice(plot_prefix, full_title, all_k0s, all_k1s, val_band_sum_list)
             # TODO: increase font size on titles.
+
+def _main():
+    parser = argparse.ArgumentParser("Plot data on the 2D Brillouin zone, or slices of the 3D zone",
+            formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument("prefix", type=str,
+            help="Prefix for file giving plot data: should be in the form prefix.json")
+    parser.add_argument("in_dir", type=str,
+            help="Directory containing file giving plot data")
+    args = parser.parse_args()
+
+    fpath = os.path.join(args.in_dir, "{}.json".format(args.prefix))
+    with open(fpath, 'r') as fp:
+        fdata = json.load(fp)
+
+    plot_bz(args.prefix, fdata)
 
 if __name__ == '__main__':
     _main()
