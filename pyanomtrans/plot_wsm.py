@@ -60,6 +60,74 @@ def plot_bz(prefix, fdata):
             plot_2d_bz_slice(plot_prefix, full_title, all_k0s, all_k1s, val_band_sum_list,
                     xlabel=xlabel, ylabel=ylabel)
 
+def plot_series(prefix, fdata):
+    mus = fdata['mus']
+
+    #chiralities = fdata['chirality']
+    chiralities = [1] * len(mus)
+    assert(all([c == chiralities[0] for c in chiralities]))
+
+    #current_Ss = fdata['_series_current_S_B']
+    current_Ss = list(map(lambda x: x / (2*math.pi)**3, fdata['_series_current_S_B']))
+    #current_xis = fdata['_series_current_xi_B']
+    current_xis = list(map(lambda x: x / (2*math.pi)**3, fdata['_series_current_xi_B']))
+
+    mu_extra = 10
+    interpolate_mus = []
+    interpolate_chiralities = []
+    for mu_index, mu in enumerate(mus[:-1]):
+        if mu_index == len(mus) - 2:
+            endpoint = True
+        else:
+            endpoint = False
+
+        mu_next = mus[mu_index + 1]
+
+        interpolate_mus.extend(np.linspace(mu, mu_next, mu_extra, endpoint=endpoint))
+        interpolate_chiralities.extend([chiralities[0]] * mu_extra)
+
+    current_S_expecteds = [(2/(3 * 4 * math.pi**2)) * chirality * mu
+            for chirality, mu in zip(interpolate_chiralities, interpolate_mus)]
+
+    S_title = r'$\langle j^S_z(\tilde{\mu}_{\nu}) \rangle / B_z$ [$e^2 \Delta$]'
+    plt.title(S_title, fontsize='large')
+
+    S_xlabel = r'$\tilde{\mu}_{\nu}$ [$\Delta$]'
+    plt.xlabel(S_xlabel, fontsize='large')
+
+    plt.plot(interpolate_mus, current_S_expecteds, 'g-')
+    plt.plot(mus, current_Ss, 'k.')
+
+    S_plot_path = "{}_j_S".format(prefix)
+    plt.savefig("{}.png".format(S_plot_path), bbox_inches='tight', dpi=500)
+    plt.clf()
+
+    assert(len(mus) % 2 == 0)
+    # j^{\xi}(\mu) - j^{\xi}(-\mu) = j^S(\mu)
+    current_xi_mu_diffs = []
+
+    for mu_index, mu in enumerate(mus):
+        mu_minus_index = len(mus) - mu_index - 1
+        mu_minus = mus[mu_minus_index]
+        eps = 1e-9
+        assert(abs(mu + mu_minus) < eps)
+
+        xi_diff = current_xis[mu_index] - current_xis[mu_minus_index]
+        current_xi_mu_diffs.append(xi_diff)
+
+    xi_title = r'$\left[\langle j^{\xi}_z(\tilde{\mu}_{\nu}) \rangle - \langle j^{\xi}_z(-\tilde{\mu}_{\nu}) \rangle\right] / B_z$ [$e^2 \Delta$]'
+    plt.title(xi_title, fontsize='large')
+
+    xi_xlabel = S_xlabel
+    plt.xlabel(xi_xlabel, fontsize='large')
+
+    plt.plot(interpolate_mus, current_S_expecteds, 'g-')
+    plt.plot(mus, current_xi_mu_diffs, 'k.')
+
+    xi_plot_path = "{}_j_xi_diff".format(prefix)
+    plt.savefig("{}.png".format(xi_plot_path), bbox_inches='tight', dpi=500)
+    plt.clf()
+
 def _main():
     parser = argparse.ArgumentParser("Plot WSM CME node data averaged over kz and summed over bands",
             formatter_class=argparse.ArgumentDefaultsHelpFormatter)
@@ -73,7 +141,8 @@ def _main():
     with open(fpath, 'r') as fp:
         fdata = json.load(fp)
 
-    plot_bz(args.prefix, fdata)
+    #plot_bz(args.prefix, fdata)
+    plot_series(args.prefix, fdata)
 
 if __name__ == '__main__':
     _main()
