@@ -6,7 +6,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from pyanomtrans.grid_basis import kmBasis
 from pyanomtrans.plot_2d_bz import extract_sorted_data, make_k_list, plot_2d_bz_slice
-from pyanomtrans.plot_Rashba import list_to_array, array_to_list
+from pyanomtrans.plot_Rashba import list_to_array, array_to_list, get_interpolated_mus
 
 def plot_bz(prefix, fdata):
     keys = ['current_S_B_comp', 'current_xi_B_comp']
@@ -67,25 +67,16 @@ def plot_series(prefix, fdata):
     chiralities = [1] * len(mus)
     assert(all([c == chiralities[0] for c in chiralities]))
 
+    interp_per_point = 10
+    interpolated_mus = get_interpolated_mus(mus, interp_per_point)
+    interpolated_chiralities = [chiralities[0]] * len(interpolated_mus)
+
     current_Ss = fdata['_series_current_S_B']
     current_xis = fdata['_series_current_xi_B']
 
-    mu_extra = 10
-    interpolate_mus = []
-    interpolate_chiralities = []
-    for mu_index, mu in enumerate(mus[:-1]):
-        if mu_index == len(mus) - 2:
-            endpoint = True
-        else:
-            endpoint = False
-
-        mu_next = mus[mu_index + 1]
-
-        interpolate_mus.extend(np.linspace(mu, mu_next, mu_extra, endpoint=endpoint))
-        interpolate_chiralities.extend([chiralities[0]] * mu_extra)
-
+    # j_z^S
     current_S_expecteds = [(2/(3 * 4 * math.pi**2)) * chirality * mu
-            for chirality, mu in zip(interpolate_chiralities, interpolate_mus)]
+            for chirality, mu in zip(interpolated_chiralities, interpolated_mus)]
 
     S_title = r'$\langle j^S_z(\tilde{\mu}_{\nu}) \rangle / B_z$ [$e^2 \Delta$]'
     plt.title(S_title, fontsize='large')
@@ -93,15 +84,17 @@ def plot_series(prefix, fdata):
     S_xlabel = r'$\tilde{\mu}_{\nu}$ [$\Delta$]'
     plt.xlabel(S_xlabel, fontsize='large')
 
-    plt.plot(interpolate_mus, current_S_expecteds, 'g-')
-    plt.plot(mus, current_Ss, 'k.')
+    plt.axhline(0.0, color='k')
+
+    plt.plot(mus, current_Ss, 'ko')
+    plt.plot(interpolated_mus, current_S_expecteds, 'g-')
 
     S_plot_path = "{}_j_S".format(prefix)
     plt.savefig("{}.png".format(S_plot_path), bbox_inches='tight', dpi=500)
     plt.clf()
 
+    # j_z^{\xi}(\mu) - j_z^{\xi}(-\mu) = j_z^S(\mu)
     assert(len(mus) % 2 == 0)
-    # j^{\xi}(\mu) - j^{\xi}(-\mu) = j^S(\mu)
     current_xi_mu_diffs = []
 
     for mu_index, mu in enumerate(mus):
@@ -119,8 +112,10 @@ def plot_series(prefix, fdata):
     xi_xlabel = S_xlabel
     plt.xlabel(xi_xlabel, fontsize='large')
 
-    plt.plot(interpolate_mus, current_S_expecteds, 'g-')
-    plt.plot(mus, current_xi_mu_diffs, 'k.')
+    plt.axhline(0.0, color='k')
+
+    plt.plot(mus, current_xi_mu_diffs, 'ko')
+    plt.plot(interpolated_mus, current_S_expecteds, 'g-')
 
     xi_plot_path = "{}_j_xi_diff".format(prefix)
     plt.savefig("{}.png".format(xi_plot_path), bbox_inches='tight', dpi=500)

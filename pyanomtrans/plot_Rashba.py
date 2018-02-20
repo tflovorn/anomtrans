@@ -58,10 +58,10 @@ def plot_bz(prefix, fdata):
               r'$\sigma^{s_z, ext}_{xx}$',
               r'$\langle s_y \rangle / E_x$', r'$\sigma^{s_z, int}_{xy}$',
               r'$\sigma^{s_z, ext}_{xy}$']
-    titles_units = [r'$\hbar \left(\frac{2\pi}{a}\right)^{-2}$',
+    titles_units = [r'$n_i^{-1} e \hbar \left(\frac{2\pi}{a}\right)^{-2}$',
                     r'$e \left(\frac{2\pi}{a}\right)^{-2}$',
                     r'$e \left(\frac{2\pi}{a}\right)^{-2}$',
-                    r'$\hbar \left(\frac{2\pi}{a}\right)^{-2}$',
+                    r'$n_i^{-1} e \hbar \left(\frac{2\pi}{a}\right)^{-2}$',
                     r'$e \left(\frac{2\pi}{a}\right)^{-2}$',
                     r'$e \left(\frac{2\pi}{a}\right)^{-2}$']
     xlabel = r"$k_x$ [$2\pi / a$]"
@@ -97,6 +97,93 @@ def plot_bz(prefix, fdata):
             plot_2d_bz_slice(plot_prefix, full_title, all_k0s, all_k1s, val_band_sum_list,
                     xlabel=xlabel, ylabel=ylabel)
 
+def get_interpolated_mus(mus, interp_per_point):
+    mu_extra = 10
+    interpolated_mus = []
+    for mu_index, mu in enumerate(mus[:-1]):
+        if mu_index == len(mus) - 2:
+            endpoint = True
+        else:
+            endpoint = False
+
+        mu_next = mus[mu_index + 1]
+
+        interpolated_mus.extend(np.linspace(mu, mu_next, mu_extra, endpoint=endpoint))
+
+    return interpolated_mus
+
+def plot_series(prefix, fdata):
+    Emin, Emax = min(fdata['Ekm']), max(fdata['Ekm'])
+    a = fdata['a']
+    t = fdata['t']
+    tr = fdata['tr']
+    U0 = fdata['U0']
+
+    # Skip first and last points, since these are at energy bounds and have FS only
+    # due to finite temperature.
+    eps = 1e-9
+    assert(abs(fdata['mus'][0] - Emin) < eps)
+    assert(abs(fdata['mus'][-1] - Emax) < eps)
+    mus = fdata['mus'][1:-1]
+
+    # Interpolated mus over small region at low mu.
+    # Analytic results are in this regime.
+    interp_per_point = 10
+    interpolated_mus_full = get_interpolated_mus(fdata['mus'], interp_per_point)
+    interpolated_mus_left = interpolated_mus_full[:len(interpolated_mus_full)//10]
+
+    sys = fdata['_series_sy'][1:-1]
+    js_sz_vy_ints = fdata['_series_js_sz_vy_intrinsic'][1:-1]
+    js_sz_vy_exts = fdata['_series_js_sz_vy_extrinsic'][1:-1]
+
+    # <s_y>
+    sy_expected = -a * tr / (math.pi * U0**2)
+    sy_expected_line = [sy_expected] * len(interpolated_mus_left)
+
+    sy_title = r'$\langle s_y \rangle / E_x$ [$n_i^{-1} e \hbar$]'
+    plt.title(sy_title, fontsize='large')
+
+    sy_xlabel = r'$\mu$ [$t$]'
+    plt.xlabel(sy_xlabel, fontsize='large')
+    plt.xlim(Emin, Emax)
+
+    plt.axhline(0.0, color='k')
+
+    plt.plot(mus, sys, 'ko')
+    plt.plot(interpolated_mus_left, sy_expected_line, 'g-')
+
+    sy_plot_path = "{}_sy".format(prefix)
+    plt.savefig("{}.png".format(sy_plot_path), bbox_inches='tight', dpi=500)
+    plt.clf()
+
+    # <j_{s_z, v_y}>
+    js_sz_vy_total = [intrinsic + extrinsic for intrinsic, extrinsic in zip(js_sz_vy_ints, js_sz_vy_exts)]
+    js_sz_vy_int_expected = 1 / (8 * math.pi)
+    js_sz_vy_ext_expected = -1 / (8 * math.pi)
+    js_sz_vy_int_expected_line = [js_sz_vy_int_expected] * len(interpolated_mus_left)
+    js_sz_vy_ext_expected_line = [js_sz_vy_ext_expected] * len(interpolated_mus_left)
+
+    js_title = r'$\sigma^{s_z}_{xy}$ [$e$]'
+    plt.title(js_title, fontsize='large')
+
+    js_xlabel = sy_xlabel
+    plt.xlabel(js_xlabel, fontsize='large')
+    plt.xlim(Emin, Emax)
+
+    plt.axhline(0.0, color='k')
+
+    plt.plot(mus, js_sz_vy_ints, 'bo', label="Int.")
+    plt.plot(mus, js_sz_vy_exts, 'ro', label="Ext.")
+    plt.plot(mus, js_sz_vy_total, 'ko', label="Total")
+    plt.plot(interpolated_mus_left, js_sz_vy_int_expected_line, 'c-')
+    plt.plot(interpolated_mus_left, js_sz_vy_ext_expected_line, 'm-')
+
+    plt.legend(loc=(0.75, 0.6), fontsize='large')
+
+    js_plot_path = "{}_js".format(prefix)
+    plt.savefig("{}.png".format(js_plot_path), bbox_inches='tight', dpi=500)
+    plt.clf()
+
 def _main():
     parser = argparse.ArgumentParser("Plot data on the 2D Brillouin zone, or slices of the 3D zone",
             formatter_class=argparse.ArgumentDefaultsHelpFormatter)
@@ -110,7 +197,8 @@ def _main():
     with open(fpath, 'r') as fp:
         fdata = json.load(fp)
 
-    plot_bz(args.prefix, fdata)
+    #plot_bz(args.prefix, fdata)
+    plot_series(args.prefix, fdata)
 
 if __name__ == '__main__':
     _main()

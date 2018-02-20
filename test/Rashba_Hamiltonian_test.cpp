@@ -199,8 +199,9 @@ TEST( Rashba_electric, Rashba_electric ) {
 
   anomtrans::Rashba_Hamiltonian H(t, tr, kmb);
 
-  std::array<double, k_dim> a1 = {1.0, 0.0};
-  std::array<double, k_dim> a2 = {0.0, 1.0};
+  PetscReal a = 1.0;
+  std::array<double, k_dim> a1 = {a, 0.0};
+  std::array<double, k_dim> a2 = {0.0, a};
   anomtrans::DimMatrix<k_dim> D = {a1, a2};
 
   PetscReal max_energy_difference = anomtrans::find_max_energy_difference(kmb, H);
@@ -215,11 +216,12 @@ TEST( Rashba_electric, Rashba_electric ) {
     PetscPrintf(PETSC_COMM_WORLD, "Warning: sigma < sigma_min: sigma = %e ; sigma_min = %e\n", sigma, sigma_min);
   }
 
-  // U0 = how far can bands be driven from their average energy?
+  // U0 ~ how far can bands be driven from their average energy?
+  // Because n_i is scale out, U0 also includes units ~ (distance)^d: cell size a useful scale?
   // For the disorder form used, this quantity scales out of K: the distribution
   // of rho^(1) over k's has no dependence on it; is acts as an overall scale.
   // (TODO - sure this is correct?)
-  double U0 = 1.0*t;
+  double U0 = 1.0*t*a;
 
   std::array<double, k_dim> Ehat = {1.0, 0.0};
 
@@ -463,6 +465,10 @@ TEST( Rashba_electric, Rashba_electric ) {
 
     json j_out = {
       {"mus", mus},
+      {"a", a},
+      {"t", t},
+      {"tr", tr},
+      {"U0", U0},
       {"k_comps", all_k_comps},
       {"ms", all_ms},
       {"Ekm", collected_Ekm},
