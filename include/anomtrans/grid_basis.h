@@ -11,6 +11,7 @@
 #include <petscksp.h>
 #include "util/vec.h"
 #include "util/mat.h"
+#include "util/constants.h"
 
 namespace anomtrans {
 
@@ -313,6 +314,27 @@ public:
     return fac;
   }
 
+  /** @brief In periodic k-space sampling (full Brillouin zone), we calculate observable
+   *         contributions per unit cell,
+   *         `<O>/N_{cell} = 1/N_k \sum_k <O_k>`.
+   *         The total value is calculated by directly summing contributions at each k-point.
+   *
+   *         In non-periodic k-space sampling (portion `S` of the Brillouin zone), we calculate
+   *         observable contributions per volume,
+   *         `<O_S>/V = 1/(\Omega N_k) \sum_{k \in S} <O_k> = 1/(2 \pi)^d \int_S d^{d}k <O_k>`;
+   *         the additional factor of `1/(2 \pi)^d` must be included to properly account for
+   *         the change in normalization from per-unit-cell to per-volume.
+   *         Integration may be performed by summing contributions at each k-point using the
+   *         midpoint rule.
+   */
+  double k_normalization_factor() const {
+    if (periodic) {
+      return 1.0;
+    } else {
+      return 1.0 / std::pow(2.0 * pi, dim);
+    }
+  }
+
   /** @brief Given a composite (ik, m) index `ikm_comps` and the number of k-points
    *         in each direction `Nk`, return the corresponding (k, m) value (where
    *         k is a point in reciprocal lattice coordinates).
@@ -514,14 +536,12 @@ OneResult Mat_product_trace_normalized(const kmBasis<k_dim> &kmb, std::array<Mat
 
   auto result = Mat_product_trace(xs, ret_Mat);
 
-  // TODO - for non-periodic kmb, factor of 1/(2pi)^(k_dim) is part of the metric.
-  // (For periodic kmb, this factor is incorporated in the transformation to
-  // reciprocal lattice coordinates.)
+  double k_factor = kmb.k_normalization_factor() * kmb.k_sample_point_volume();
 
-  result.first = kmb.k_sample_point_volume() * result.first;
+  result.first = k_factor * result.first;
 
   if (ret_Mat) {
-    PetscErrorCode ierr = MatScale((*result.second).M, kmb.k_sample_point_volume());CHKERRXX(ierr);
+    PetscErrorCode ierr = MatScale((*result.second).M, k_factor);CHKERRXX(ierr);
   }
 
   return result;

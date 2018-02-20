@@ -67,10 +67,8 @@ def plot_series(prefix, fdata):
     chiralities = [1] * len(mus)
     assert(all([c == chiralities[0] for c in chiralities]))
 
-    #current_Ss = fdata['_series_current_S_B']
-    current_Ss = list(map(lambda x: x / (2*math.pi)**3, fdata['_series_current_S_B']))
-    #current_xis = fdata['_series_current_xi_B']
-    current_xis = list(map(lambda x: x / (2*math.pi)**3, fdata['_series_current_xi_B']))
+    current_Ss = fdata['_series_current_S_B']
+    current_xis = fdata['_series_current_xi_B']
 
     mu_extra = 10
     interpolate_mus = []
