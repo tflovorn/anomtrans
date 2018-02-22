@@ -40,6 +40,23 @@ def array_to_list(kmb, arr, band_index=True):
 
     return ls
 
+def shifted_sample(kmb, s0, s1, O):
+    '''Given `O[n0, n1]` representing a periodic observable on the k-space
+    given by `kmb`, return an `Os[n0, n1]` with its origin shifted by `(s0, s1)`.
+    Also return the lists `all_k0s`, `all_k1s` giving the k-point values in the
+    shifted space, in `ikm` order.
+    '''
+    Os = np.zeros(O.shape)
+    all_k0s, all_k1s = [], []
+    for n0 in range(kmb.Nk[0]):
+        for n1 in range(kmb.Nk[1]):
+            Os[n0, n1] = O[(n0 + s0) % kmb.Nk[0], (n1 + s1) % kmb.Nk[1]]
+            ks, _ = kmb.km_at(([n0 + s0, n1 + s1], 0))
+            all_k0s.append(ks[0])
+            all_k1s.append(ks[1])
+
+    return Os, all_k0s, all_k1s
+
 def plot_bz(prefix, fdata):
     keys = ['s_x', 'js_sz_vx_intrinsic', 'js_sz_vx_extrinsic',
             's_y', 'js_sz_vy_intrinsic', 'js_sz_vy_extrinsic']
@@ -78,11 +95,15 @@ def plot_bz(prefix, fdata):
             kxy_area = kmb.k_step(0) * kmb.k_step(1)
             val_band_sum = np.sum(val_arr, axis=2) / kxy_area
 
-            min_val, max_val = np.amin(val_band_sum), np.amax(val_band_sum)
+            # Shift origin by (-1/2, -1/2) so that we cover area [-1/2, 1/2) x [-1/2, 1/2).
+            s0, s1 = -(kmb.Nk[0] // 2), -(kmb.Nk[1] // 2)
+            val_band_sum_shifted, all_k0s, all_k1s = shifted_sample(kmb, s0, s1, val_band_sum)
+
+            min_val, max_val = np.amin(val_band_sum_shifted), np.amax(val_band_sum_shifted)
             max_abs = max([abs(min_val), abs(max_val)])
             scale_power = math.floor(math.log10(max_abs))
             scale = 10.0**scale_power
-            val_band_sum /= scale
+            val_band_sum_shifted /= scale
 
             if scale_power != 0:
                 title_scale_part = r"$\times 10^{" + str(int(scale_power)) + r"}$"
@@ -90,7 +111,7 @@ def plot_bz(prefix, fdata):
             else:
                 full_title = "{} [{}]".format(title, title_units)
 
-            val_band_sum_list = array_to_list(kmb_oneband, val_band_sum, band_index=False)
+            val_band_sum_list = array_to_list(kmb_oneband, val_band_sum_shifted, band_index=False)
 
             plot_prefix = "{}_{}_band_sum_mu_{}".format(prefix, key, str(mu_index))
 
@@ -150,7 +171,7 @@ def plot_series(prefix, fdata):
     plt.axhline(0.0, color='k')
 
     plt.plot(mus, sys, 'ko')
-    plt.plot(interpolated_mus_left, sy_expected_line, 'g-')
+    plt.plot(interpolated_mus_left, sy_expected_line, 'g-', linewidth=3)
 
     sy_plot_path = "{}_sy".format(prefix)
     plt.savefig("{}.png".format(sy_plot_path), bbox_inches='tight', dpi=500)
@@ -175,8 +196,8 @@ def plot_series(prefix, fdata):
     plt.plot(mus, js_sz_vy_ints, 'bo', label="Int.")
     plt.plot(mus, js_sz_vy_exts, 'ro', label="Ext.")
     plt.plot(mus, js_sz_vy_total, 'ko', label="Total")
-    plt.plot(interpolated_mus_left, js_sz_vy_int_expected_line, 'c-')
-    plt.plot(interpolated_mus_left, js_sz_vy_ext_expected_line, 'm-')
+    plt.plot(interpolated_mus_left, js_sz_vy_int_expected_line, 'c-', linewidth=3)
+    plt.plot(interpolated_mus_left, js_sz_vy_ext_expected_line, 'm-', linewidth=3)
 
     plt.legend(loc=(0.75, 0.6), fontsize='large')
 
@@ -197,7 +218,7 @@ def _main():
     with open(fpath, 'r') as fp:
         fdata = json.load(fp)
 
-    #plot_bz(args.prefix, fdata)
+    plot_bz(args.prefix, fdata)
     plot_series(args.prefix, fdata)
 
 if __name__ == '__main__':
