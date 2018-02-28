@@ -1,6 +1,6 @@
 # Overview
 
-A numerical implementation of the density matrix formulation of quantum transport, including inter-band coherence and scattering from multiple Fermi surface sheets.
+A library providing a numerical implementation of the density matrix formulation of quantum transport, including inter-band coherence and scattering from multiple Fermi surface sheets.
 
 The formalism implemented here is presented in:
 
@@ -20,13 +20,18 @@ Additionally the following tests are expected to be correct, but have not been f
 * The anomalous Hall conductivity of the Rashba model with exchange field calculated by the `Rashba_magnetized_electric` test in `test/Rashba_magnetic_Hamiltonian_test.cpp` yields the expected cancellation of the intrinsic and extrinsic contributions, but the absolute value of these contributions has not been checked.
 * The anomalous Hall conductivity of the Weyl semimetal calculated by the `wsm_continuum_ahe` test in `test/wsm_continuum_Hamiltonian_test.cpp` appears to converge toward the correct result as the k-point density and sampling volume are increased, but this convergence has not been fully checked.
 
-This software is distributed under the MIT license to allow maximum freedom of use. However we ask that any publication making use of this software or derivative software acknowledge use of this repository and provide a link to it (after the numerical paper is available, we will ask that such papers cite that paper).
+This software is distributed under the MIT license to allow maximum freedom of use. However we ask that any publication making use of this software or derivative software acknowledge use of this repository and provide a link to it (after the numerical paper is available, we will ask that such publications cite that paper). This software is in active development, and while we are confident in the cases which have been validated as noted above, we make no general guarantee of correctness. We invite users or potential users of this software to contact us via email at [tflovorn@austin.utexas.edu](mailto:tflovorn@austin.utexas.edu) to help ensure that their needs are well-met, or to file issues in this repository with specific bug reports or feature suggestions.
 
 # Local setup and usage
 
 These instructions are based on a fresh Linux Mint 18.1 installation. They should work for any Debian-based distribution.
 
 ## Dependencies
+
+Get Google Test submodule:
+
+    git submodule init
+    git submodule update
 
 Get g++, gfortran, CMake, OpenMPI, valgrind, boost, doxygen, matplotlib, scipy:
 
