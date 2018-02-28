@@ -133,9 +133,6 @@ Add module dependencies to `~/.bashrc` just under "PLACE MODULE COMMANDS HERE an
 
 Replace `petsc/3.7-cxxcomplexdebug` with `petsc/3.7-cxxcomplex` for release mode.
 
-Note that the boost/1.59 module on Lonestar5 does not include boost::mpi.
-`module help boost` references a boost-mpi module, but this does not exist.
-
 Also add to `~/.bashrc` just under "PLACE Environment Variables including PATH here.":
 
     export PATH=$HOME/bin:$PATH
