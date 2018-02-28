@@ -1,12 +1,115 @@
 # Overview
 
-A numerical implementation of a novel framework for calculation of reponse coefficients, including inter-band coherence and inter-valley scattering effects.
+A numerical implementation of the density matrix formulation of quantum transport, including inter-band coherence and scattering from multiple Fermi surface sheets.
 
 The formalism implemented here is presented in:
 
 [Culcer, Sekine, and MacDonald, Phys. Rev. B 96, 035106 (2017)](https://journals.aps.org/prb/abstract/10.1103/PhysRevB.96.035106)
 
-[Sekine, Culcer, and MacDonald, arXiv:1706.01200](https://arxiv.org/abs/1706.01200)
+[Sekine, Culcer, and MacDonald, Phys. Rev. B 96, 235134 (2017)](https://journals.aps.org/prb/abstract/10.1103/PhysRevB.96.235134)
+
+A paper discussing the numerical implementation provided by this repository is in preparation.
+
+Regression and unit tests providing examples of the use of this software are given in the `test` directory. The following tests have been validated against analytic results (using the "result plots" parameter sets in the test files):
+
+* The spin accumulation and spin Hall conductivity for the Rashba model calculated by the `Rashba_electric` test in `test/Rashba_Hamiltonian_test.cpp`.
+* The chiral magnetic effect current for a single Weyl node calculated by the `wsm_continuum_cme_node` test in `test/wsm_continuum_Hamiltonian_test.cpp`.
+
+Additionally the following tests are expected to be correct, but have not been fully validated:
+
+* The anomalous Hall conductivity of the Rashba model with exchange field calculated by the `Rashba_magnetized_electric` test in `test/Rashba_magnetic_Hamiltonian_test.cpp` yields the expected cancellation of the intrinsic and extrinsic contributions, but the absolute value of these contributions has not been checked.
+* The anomalous Hall conductivity of the Weyl semimetal calculated by the `wsm_continuum_ahe` test in `test/wsm_continuum_Hamiltonian_test.cpp` appears to converge toward the correct result as the k-point density and sampling volume are increased, but this convergence has not been fully checked.
+
+This software is distributed under the MIT license to allow maximum freedom of use. However we ask that any publication making use of this software or derivative software acknowledge use of this repository and provide a link to it (after the numerical paper is available, we will ask that such papers cite that paper).
+
+# Local setup and usage
+
+These instructions are based on a fresh Linux Mint 18.1 installation. They should work for any Debian-based distribution.
+
+## Dependencies
+
+Get g++, gfortran, CMake, OpenMPI, valgrind, boost, doxygen, matplotlib, scipy:
+
+    sudo apt-get install g++ gfortran cmake libopenmpi-dev openmpi-bin valgrind libboost-all-dev doxygen graphviz python-matplotlib python-tk python3-matplotlib python3-tk python3-setuptools python3-scipy libubsan0 lib64ubsan0 curl
+
+Note that the Boost package is Boost 1.58.
+
+PETSc 3.8 is not available from the package manager. We'll need to build it. [(download page)](https://www.mcs.anl.gov/petsc/download/index.html) [(install instructions)](https://www.mcs.anl.gov/petsc/documentation/installation.html)
+
+    cd ~
+    git clone -b maint https://bitbucket.org/petsc/petsc petsc
+    ./configure PETSC_ARCH=arch-linux2-cxx-complex-debug --with-cc=mpicc --with-cxx=mpicxx --with-fc=mpif90 --download-fblaslapack --with-clanguage=cxx --with-scalar-type=complex
+    make PETSC_DIR=$HOME/petsc PETSC_ARCH=arch-linux2-cxx-complex-debug all
+
+Test PETSc:
+
+    make PETSC_DIR=$HOME/petsc PETSC_ARCH=arch-linux2-cxx-complex-debug test
+    make PETSC_DIR=$HOME/petsc PETSC_ARCH=arch-linux2-cxx-complex-debug streams
+
+anomtrans regression test data is stored in [Git LFS](https://github.com/git-lfs/git-lfs/releases). Install this:
+
+    cd ~
+    curl -L -o git-lfs-linux-amd64-2.3.4.tar.gz https://github.com/git-lfs/git-lfs/releases/download/v2.3.4/git-lfs-linux-amd64-2.3.4.tar.gz
+    tar -xvzf git-lfs-linux-amd64-2.3.4.tar.gz
+    cd git-lfs-2.3.4
+    PREFIX=$HOME ./install.sh
+
+Add git lfs location to the PATH. In `~/.bashrc`:
+
+    export PATH=$HOME/bin:$PATH
+
+If this repository was cloned before Git LFS was installed, the test data will not have been fetched. To remedy this, run the following in the `anomtrans` directory:
+
+    git lfs fetch
+
+## Setup
+
+Install pyanomtrans:
+
+    cd ~/anomtrans
+    python3 setup.py develop --user
+
+## Usage
+
+To build documentation:
+
+    doxygen
+
+To build and run tests (should be done from the anomtrans root directory):
+
+    ./build_test_local
+    cd Obj_test
+    ctest -V
+
+To generate plots from tests:
+
+    cd pyanomtrans
+    python3 plot_Rashba.py "Rashba_Hamiltonian_test_out" "../Obj_test/src"
+    python3 plot_wsm.py "wsm_continuum_cme_test_out" "../Obj_test/src"
+    python3 plot_series.py (other test output file here) "../Obj_test/src"   
+    python3 plot_2d_bz.py (other test output file here) "../Obj_test/src"
+
+## Building in release mode
+
+Build PETSc with:
+
+    cd ~/petsc
+    ./configure PETSC_ARCH=arch-linux2-cxx-complex-opt --with-cc=mpicc --with-cxx=mpicxx --with-fc=mpif90 --download-fblaslapack --with-clanguage=cxx --with-scalar-type=complex --with-debugging=0 COPTFLAGS='-O3 -march=native -mtune=native' CXXOPTFLAGS='-O3 -march=native -mtune=native' FOPTFLAGS='-O3 -march=native -mtune=native'
+    make PETSC_DIR=$HOME/petsc PETSC_ARCH=arch-linux2-cxx-complex-opt all
+
+Test PETSc:
+
+    make PETSC_DIR=$HOME/petsc PETSC_ARCH=arch-linux2-cxx-complex-opt test
+    make PETSC_DIR=$HOME/petsc PETSC_ARCH=arch-linux2-cxx-complex-opt streams
+
+Build and run tests:
+
+    cd ~/anomtrans
+    ./build_release_local
+    cd Obj
+    ctest -V
+
+TODO - MKL BLAS/LAPACK support?
 
 # Installation and usage on Lonestar5
 
@@ -43,6 +146,10 @@ anomtrans regression test data is stored in [Git LFS](https://github.com/git-lfs
     cd git-lfs-2.3.4
     PREFIX=$HOME ./install.sh
 
+If this repository was cloned before Git LFS was installed, the test data will not have been fetched. To remedy this, run the following in the `anomtrans` directory:
+
+    git lfs fetch
+
 ## Usage
 
 To build documentation:
@@ -70,86 +177,6 @@ To build and test in release mode:
     ctest -V
     exit
 
-# Local setup and usage from a fresh Mint 18.1 MATE install
-
-## Dependencies
-
-Get g++, gfortran, CMake, OpenMPI, valgrind, boost, doxygen, matplotlib, scipy:
-
-    sudo apt-get install g++ gfortran cmake libopenmpi-dev openmpi-bin valgrind libboost-all-dev doxygen graphviz python-matplotlib python-tk python3-matplotlib python3-tk python3-setuptools python3-scipy libubsan0 lib64ubsan0 curl
-
-Note that the Boost package is Boost 1.58.
-
-PETSc 3.8 is not available from the package manager. We'll need to build it. [(download page)](https://www.mcs.anl.gov/petsc/download/index.html) [(install instructions)](https://www.mcs.anl.gov/petsc/documentation/installation.html)
-
-    cd ~
-    git clone -b maint https://bitbucket.org/petsc/petsc petsc
-    ./configure PETSC_ARCH=arch-linux2-cxx-complex-debug --with-cc=mpicc --with-cxx=mpicxx --with-fc=mpif90 --download-fblaslapack --with-clanguage=cxx --with-scalar-type=complex
-    make PETSC_DIR=$HOME/petsc PETSC_ARCH=arch-linux2-cxx-complex-debug all
-
-Test PETSc:
-
-    make PETSC_DIR=$HOME/petsc PETSC_ARCH=arch-linux2-cxx-complex-debug test
-    make PETSC_DIR=$HOME/petsc PETSC_ARCH=arch-linux2-cxx-complex-debug streams
-
-anomtrans regression test data is stored in [Git LFS](https://github.com/git-lfs/git-lfs/releases). Install this:
-
-    cd ~
-    curl -L -o git-lfs-linux-amd64-2.3.4.tar.gz https://github.com/git-lfs/git-lfs/releases/download/v2.3.4/git-lfs-linux-amd64-2.3.4.tar.gz
-    tar -xvzf git-lfs-linux-amd64-2.3.4.tar.gz
-    cd git-lfs-2.3.4
-    PREFIX=$HOME ./install.sh
-
-Add git lfs location to the PATH. In `~/.bashrc`:
-
-    export PATH=$HOME/bin:$PATH
-
-## Setup
-
-Install pyanomtrans:
-
-    cd ~/anomtrans
-    python3 setup.py develop --user
-
-## Usage
-
-To build documentation:
-
-    doxygen
-
-To build and run tests (should be done from the anomtrans root directory):
-
-    ./build_test_local
-    cd Obj_test
-    ctest -V
-
-To generate plots from tests:
-
-    cd pyanomtrans
-    python3 plot_2d_bz.py "derivative_test_out" "../Obj_test/src"
-
-## Building in release mode
-
-Build PETSc with:
-
-    cd ~/petsc
-    ./configure PETSC_ARCH=arch-linux2-cxx-complex-opt --with-cc=mpicc --with-cxx=mpicxx --with-fc=mpif90 --download-fblaslapack --with-clanguage=cxx --with-scalar-type=complex --with-debugging=0 COPTFLAGS='-O3 -march=native -mtune=native' CXXOPTFLAGS='-O3 -march=native -mtune=native' FOPTFLAGS='-O3 -march=native -mtune=native'
-    make PETSC_DIR=$HOME/petsc PETSC_ARCH=arch-linux2-cxx-complex-opt all
-
-Test PETSc:
-
-    make PETSC_DIR=$HOME/petsc PETSC_ARCH=arch-linux2-cxx-complex-opt test
-    make PETSC_DIR=$HOME/petsc PETSC_ARCH=arch-linux2-cxx-complex-opt streams
-
-Build and run tests:
-
-    cd ~/anomtrans
-    ./build_release_local
-    cd Obj
-    ctest -V
-
-TODO - MKL BLAS/LAPACK support?
-
 # Development Notes
 
 Exceptions thrown by `anomtrans` functions are intended to be a 'panic' type of error.
@@ -171,3 +198,7 @@ Whitespace conventions of the code are satisfied by the following `~/.vimrc`:
 
     au BufRead,BufNewFile *.cpp,*.h,CMakeLists.txt set tabstop=2
     au BufRead,BufNewFile *.cpp,*.h,CMakeLists.txt set shiftwidth=2
+
+# Acknowledgements
+
+This implementation has been developed at the University of Texas at Austin with support from the Department of Energy, Office of Basic Energy Sciences, under Contract No. DE-FG02-ER45958, and from the Welch foundation, under Grant No. TBF1473.
