@@ -6,7 +6,11 @@
 # Fixed path in the repository for regression test data.
 # Discussion of accessing paths relative to a script is found at:
 # http://mywiki.wooledge.org/BashFAQ/028
-export ANOMTRANS_TEST_DATA_DIR="${PWD}/test_regression_data"
+if [[ $ANOMTRANS_DIR ]]; then
+  export ANOMTRANS_TEST_DATA_DIR="${ANOMTRANS_DIR}/test_regression_data"
+else
+  export ANOMTRANS_TEST_DATA_DIR="${PWD}/test_regression_data"
+fi
 export ANOMTRANS_TEST_OMP_NUM_THREADS="1"
 
 export ANOMTRANS_TEST_MPI_CMD="mpiexec"
@@ -14,7 +18,9 @@ export ANOMTRANS_TEST_MPI_NUMPROCS_PREFIX="-np"
 export ANOMTRANS_TEST_MPI_NUMPROCS="4"
 export ANOMTRANS_TEST_AFFINITY=""
 
-export PETSC_DIR="$HOME/petsc"
+if [[ ! $PETSC_DIR ]]; then
+  export PETSC_DIR="$HOME/petsc"
+fi
 export PETSC_ARCH="arch-linux2-cxx-complex-debug"
 export PETSC_LIB="$PETSC_DIR/$PETSC_ARCH/lib"
 export BOOST_INC="/usr/include"
