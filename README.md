@@ -26,12 +26,7 @@ This software is distributed under the MIT license to allow maximum freedom of u
 
 These instructions are based on a fresh Linux Mint 18.1 installation. They should work for any Debian-based distribution.
 
-## Dependencies
-
-Get Google Test submodule:
-
-    git submodule init
-    git submodule update
+## Dependencies and Setup
 
 Get g++, gfortran, CMake, OpenMPI, valgrind, boost, doxygen, matplotlib, scipy:
 
@@ -43,33 +38,39 @@ PETSc 3.8 is not available from the package manager. We'll need to build it. [(d
 
     cd ~
     git clone -b maint https://bitbucket.org/petsc/petsc petsc
+    cd ~/petsc
     ./configure PETSC_ARCH=arch-linux2-cxx-complex-debug --with-cc=mpicc --with-cxx=mpicxx --with-fc=mpif90 --download-fblaslapack --with-clanguage=cxx --with-scalar-type=complex
     make PETSC_DIR=$HOME/petsc PETSC_ARCH=arch-linux2-cxx-complex-debug all
-
-Test PETSc:
-
     make PETSC_DIR=$HOME/petsc PETSC_ARCH=arch-linux2-cxx-complex-debug test
     make PETSC_DIR=$HOME/petsc PETSC_ARCH=arch-linux2-cxx-complex-debug streams
 
-anomtrans regression test data is stored in [Git LFS](https://github.com/git-lfs/git-lfs/releases). Install this:
+`anomtrans` regression test data is stored in [Git LFS](https://github.com/git-lfs/git-lfs/releases). Install this:
 
     cd ~
     curl -L -o git-lfs-linux-amd64-2.3.4.tar.gz https://github.com/git-lfs/git-lfs/releases/download/v2.3.4/git-lfs-linux-amd64-2.3.4.tar.gz
     tar -xvzf git-lfs-linux-amd64-2.3.4.tar.gz
     cd git-lfs-2.3.4
     PREFIX=$HOME ./install.sh
+    export PATH=$HOME/bin:$PATH
 
-Add git lfs location to the PATH. In `~/.bashrc`:
+To keep `git lfs` accessible, add its location to your default PATH. In the file `~/.bashrc`, add:
 
     export PATH=$HOME/bin:$PATH
 
-If this repository was cloned before Git LFS was installed, the test data will not have been fetched. To remedy this, run the following in the `anomtrans` directory:
+With Git LFS installed, we can now clone the `anomtrans` repository and get the test data.
 
-    git lfs fetch
+    cd ~
+    git clone https://github.com/tflovorn/anomtrans.git
 
-## Setup
+(If this repository was cloned before Git LFS was installed, the test data will not have been fetched. To remedy this, run `git lfs fetch` in the `anomtrans` directory.)
 
-Install pyanomtrans:
+Get Google Test submodule:
+
+    cd ~/anomtrans
+    git submodule init
+    git submodule update
+
+To allow for generation of result plots, install pyanomtrans:
 
     cd ~/anomtrans
     python3 setup.py develop --user
@@ -78,17 +79,19 @@ Install pyanomtrans:
 
 To build documentation:
 
+    cd ~/anomtrans
     doxygen
 
 To build and run tests (should be done from the anomtrans root directory):
 
+    cd ~/anomtrans
     ./build_test_local
     cd Obj_test
     ctest -V
 
 To generate plots from tests:
 
-    cd pyanomtrans
+    cd ~/anomtrans/pyanomtrans
     python3 plot_Rashba.py "Rashba_Hamiltonian_test_out" "../Obj_test/src"
     python3 plot_wsm.py "wsm_continuum_cme_test_out" "../Obj_test/src"
     python3 plot_series.py (other test output file here) "../Obj_test/src"   
@@ -101,9 +104,6 @@ Build PETSc with:
     cd ~/petsc
     ./configure PETSC_ARCH=arch-linux2-cxx-complex-opt --with-cc=mpicc --with-cxx=mpicxx --with-fc=mpif90 --download-fblaslapack --with-clanguage=cxx --with-scalar-type=complex --with-debugging=0 COPTFLAGS='-O3 -march=native -mtune=native' CXXOPTFLAGS='-O3 -march=native -mtune=native' FOPTFLAGS='-O3 -march=native -mtune=native'
     make PETSC_DIR=$HOME/petsc PETSC_ARCH=arch-linux2-cxx-complex-opt all
-
-Test PETSc:
-
     make PETSC_DIR=$HOME/petsc PETSC_ARCH=arch-linux2-cxx-complex-opt test
     make PETSC_DIR=$HOME/petsc PETSC_ARCH=arch-linux2-cxx-complex-opt streams
 
@@ -119,11 +119,6 @@ TODO - MKL BLAS/LAPACK support?
 # Installation and usage on Lonestar5
 
 ## Dependencies
-
-Get Google Test:
-
-    git submodule init
-    git submodule update
 
 Assumes the intel/16.0.1 module is loaded on Lonestar5.
 
@@ -147,10 +142,20 @@ anomtrans regression test data is stored in [Git LFS](https://github.com/git-lfs
     tar -xvzf git-lfs-linux-amd64-2.3.4.tar.gz
     cd git-lfs-2.3.4
     PREFIX=$HOME ./install.sh
+    export PATH=$HOME/bin:$PATH
 
-If this repository was cloned before Git LFS was installed, the test data will not have been fetched. To remedy this, run the following in the `anomtrans` directory:
+With Git LFS installed, we can now clone the `anomtrans` repository and get the test data.
 
-    git lfs fetch
+    cd ~
+    git clone https://github.com/tflovorn/anomtrans.git
+
+(If this repository was cloned before Git LFS was installed, the test data will not have been fetched. To remedy this, run `git lfs fetch` in the `anomtrans` directory.)
+
+Get Google Test submodule:
+
+    cd ~/anomtrans
+    git submodule init
+    git submodule update
 
 ## Usage
 
