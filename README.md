@@ -1,4 +1,4 @@
-# Overview
+# anomtrans [![Build Status](https://travis-ci.org/tflovorn/anomtrans.svg?branch=master)](https://travis-ci.org/tflovorn/anomtrans)
 
 A library providing a numerical implementation of the density matrix formulation of quantum transport, including inter-band coherence and scattering from multiple Fermi surface sheets.
 
