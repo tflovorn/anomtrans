@@ -1,0 +1,14 @@
+dist: trusty
+sudo: false
+
+language: cpp
+
+services:
+    - docker
+
+before_script:
+    - docker pull tflovorn/anomtrans:base_0044676f13
+
+script:
+    - docker build --cache-from tflovorn/anomtrans:base_0044676f13 -t tflovorn/anomtrans:test_travis_${TRAVIS_BUILD_NUMBER} .
+    - docker run tflovorn/anomtrans:test_travis_${TRAVIS_BUILD_NUMBER}

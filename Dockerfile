@@ -1,11 +1,10 @@
-FROM ubuntu:latest
+FROM ubuntu:xenial as anomtrans_base
 
 MAINTAINER Tim Lovorn, tflovorn@gmail.com
 
-RUN apt-get update
-
 # Install package dependencies for PETSc.
-RUN apt-get install -y \
+RUN apt-get update && \
+    apt-get install -y \
     g++ \
     gfortran \
     cmake \
@@ -29,13 +28,15 @@ ENV PETSC_DIR=/petsc
 # Install package dependencies for anomtrans.
 # TODO - can we avoid installing all of Boost here, picking only select packages?
 #     Documentation is not obvious about how all the pieces are divided up.
-RUN apt-get install -y \
+RUN apt-get update && \
+    apt-get install -y \
     libboost-all-dev \
     libubsan0
 
 # Build anomtrans.
 # TODO - is it possible to re-copy and re-build anomtrans when we do `docker run`,
 #     in order to rebuild only what is necessary?
+FROM anomtrans_base
 COPY . /anomtrans
 
 WORKDIR /anomtrans
