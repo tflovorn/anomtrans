@@ -541,33 +541,32 @@ TEST( WsmContinuumMu5Hamiltonian, wsm_continuum_cme_mu5 ) {
   double k0 = std::sqrt(std::pow(b, 2.0) - 1.0);
 
   // Parameters for result plots.
-  // Choose even number of k-points along (kx, ky) to avoid (kx, ky) = (0, 0),
-  // so that when kz = +/- k0, we still avoid the Weyl node.
-  // Choose kz bounds and sampling such that we sample symmetrically around each Weyl node.
   /*
-  std::array<unsigned int, k_dim> Nk = {20, 20, 21};
+  std::array<unsigned int, k_dim> Nk = {64, 64, 64};
   anomtrans::kVals<k_dim> k_min = {-10.0 * k0, -10.0 * k0, -10.0 * k0};
   anomtrans::kVals<k_dim> k_max = {10.0 * k0, 10.0 * k0, 10.0 * k0};
-  double mu5 = 0.05;
+  double mu5_min = -0.05;
+  double mu5_max = 0.05;
+  unsigned int num_mu5s = 10;
   double mu_factor = 0.49;
-  unsigned int num_mus = 2;
-  double beta = 8.0;
+  double beta = 2.0;
   double berry_broadening = 1e-4;
   */
   // Parameters for regression test.
   std::array<unsigned int, k_dim> Nk = {4, 4, 4};
   anomtrans::kVals<k_dim> k_min = {-2.0 * k0, -2.0 * k0, -2.0 * k0};
   anomtrans::kVals<k_dim> k_max = {2.0 * k0, 2.0 * k0, 2.0 * k0};
-  double mu5 = 0.005;
+  double mu5_min = -0.005;
+  double mu5_max = 0.005;
+  unsigned int num_mu5s = 1;
   double mu_factor = 0.45;
-  unsigned int num_mus = 1;
   double beta = 1.0;
   double berry_broadening = 1e-4;
 
+  std::array<double, k_dim> Bhat = {0.0, 0.0, 1.0};
+
   unsigned int Nbands = 4;
   anomtrans::kmBasis<k_dim> kmb(Nk, Nbands, k_min, k_max);
-
-  anomtrans::WsmContinuumMu5Hamiltonian H(b, mu5, kmb);
 
   // Choose D = 2pi * \delta_{i, j}: Cartesian and reciprocal lattice
   // coordinates are equivalent. Appropriate for continuum model
@@ -578,43 +577,51 @@ TEST( WsmContinuumMu5Hamiltonian, wsm_continuum_cme_mu5 ) {
   std::array<double, k_dim> a3 = {0.0, 0.0, pi2};
   anomtrans::DimMatrix<k_dim> D = {a1, a2, a3};
 
-  PetscReal max_energy_difference = anomtrans::find_max_energy_difference(kmb, H);
-  double beta_max = anomtrans::get_beta_max(max_energy_difference);
+  const unsigned int deriv_approx_order = 2;
+  anomtrans::DerivStencil<1> stencil(anomtrans::DerivApproxType::central, deriv_approx_order);
+  auto d_dk_Cart = anomtrans::make_d_dk_Cartesian(D, kmb, stencil);
+
+  anomtrans::WsmContinuumMu5Hamiltonian H_no_mu5(b, 0.0, kmb);
+
+  PetscReal max_energy_difference_no_mu5 = anomtrans::find_max_energy_difference(kmb, H_no_mu5);
+  double beta_max = anomtrans::get_beta_max(max_energy_difference_no_mu5);
 
   if (beta > beta_max) {
     PetscPrintf(PETSC_COMM_WORLD, "Warning: beta > beta_max: beta = %e ; beta_max = %e\n", beta, beta_max);
   }
 
-  std::array<double, k_dim> Bhat = {0.0, 0.0, 1.0};
-
-  auto Ekm = anomtrans::get_energies(kmb, H);
-
-  auto v_op = anomtrans::calculate_velocity(kmb, H);
+  auto Ekm_no_mu5 = anomtrans::get_energies(kmb, H_no_mu5);
 
   PetscInt Ekm_min_index, Ekm_max_index;
   PetscReal Ekm_min, Ekm_max;
-  PetscErrorCode ierr = VecMin(Ekm.v, &Ekm_min_index, &Ekm_min);CHKERRXX(ierr);
-  ierr = VecMax(Ekm.v, &Ekm_max_index, &Ekm_max);CHKERRXX(ierr);
+  PetscErrorCode ierr = VecMin(Ekm_no_mu5.v, &Ekm_min_index, &Ekm_min);CHKERRXX(ierr);
+  ierr = VecMax(Ekm_no_mu5.v, &Ekm_max_index, &Ekm_max);CHKERRXX(ierr);
 
-  const unsigned int deriv_approx_order = 2;
-  anomtrans::DerivStencil<1> stencil(anomtrans::DerivApproxType::central, deriv_approx_order);
-  auto d_dk_Cart = anomtrans::make_d_dk_Cartesian(D, kmb, stencil);
+  double mu = (1 - mu_factor) * Ekm_min + mu_factor * Ekm_max;
 
-  auto DH0_cross_Bhat = anomtrans::make_DH0_cross_Bhat(kmb, H, Bhat);
+  auto mu5s = anomtrans::linspace(mu5_min, mu5_max, num_mu5s);
 
-  auto R = anomtrans::make_berry_connection(kmb, H, berry_broadening);
-  auto Omega = anomtrans::make_berry_curvature(kmb, H, berry_broadening);
-  auto Bhat_dot_Omega = anomtrans::Vec_from_sum_const(anomtrans::make_complex_array(Bhat), Omega);
-
-  double mu_min = (1 - mu_factor) * Ekm_min + mu_factor * Ekm_max;
-  double mu_max = mu_factor * Ekm_min + (1 - mu_factor) * Ekm_max;
-  auto mus = anomtrans::linspace(mu_min, mu_max, num_mus);
+  // mu5 addition should be a small change to overall energy window, to avoid changing required beta and mu.
+  // To check this, we make assumptions about the signs of mu5_(min, max) and Ekm_(min, max).
+  ASSERT_TRUE( mu5_min < 0.0 && mu5_max > 0.0 && Ekm_min < 0.0 && Ekm_max > 0.0 );
+  ASSERT_TRUE( mu5_min / Ekm_min < 0.1 && mu5_max / Ekm_max < 0.1);
 
   std::vector<std::vector<PetscReal>> all_rho0;
   std::vector<std::vector<PetscReal>> all_xi_B;
   std::vector<PetscReal> all_current_S_B;
   std::vector<PetscReal> all_current_xi_B;
-  for (auto mu : mus) {
+  for (auto mu5 : mu5s) {
+    anomtrans::WsmContinuumMu5Hamiltonian H(b, mu5, kmb);
+
+    auto Ekm = anomtrans::get_energies(kmb, H);
+    auto v_op = anomtrans::calculate_velocity(kmb, H);
+
+    auto DH0_cross_Bhat = anomtrans::make_DH0_cross_Bhat(kmb, H, Bhat);
+
+    auto R = anomtrans::make_berry_connection(kmb, H, berry_broadening);
+    auto Omega = anomtrans::make_berry_curvature(kmb, H, berry_broadening);
+    auto Bhat_dot_Omega = anomtrans::Vec_from_sum_const(anomtrans::make_complex_array(Bhat), Omega);
+
     auto dm_rho0 = anomtrans::make_eq_node<anomtrans::StaticDMGraphNode>(Ekm.v, beta, mu);
     auto rho0_km = anomtrans::make_Vec_with_structure(Ekm.v);
     ierr = MatGetDiagonal(dm_rho0->rho.M, rho0_km.v);CHKERRXX(ierr);
@@ -645,8 +652,6 @@ TEST( WsmContinuumMu5Hamiltonian, wsm_continuum_cme_mu5 ) {
     all_current_xi_B.push_back(current_xi_B.real());
   }
 
-  auto collected_Ekm = anomtrans::split_scalars(anomtrans::collect_contents(Ekm.v)).first;
-
   if (rank == 0) {
     // Write out the collected data.
     std::vector<anomtrans::kComps<k_dim>> all_k_comps;
@@ -659,10 +664,10 @@ TEST( WsmContinuumMu5Hamiltonian, wsm_continuum_cme_mu5 ) {
     }
 
     json j_out = {
-      {"mus", mus},
+      {"mu", mu},
+      {"mu5s", mu5s},
       {"k_comps", all_k_comps},
       {"ms", all_ms},
-      {"Ekm", collected_Ekm},
       {"rho0", all_rho0},
       {"xi_B", all_xi_B},
       {"_series_current_S_B", all_current_S_B},
@@ -707,10 +712,6 @@ TEST( WsmContinuumMu5Hamiltonian, wsm_continuum_cme_mu5 ) {
         j_known["ms"].get<std::vector<unsigned int>>(), -1.0, -1.0) );
 
     auto macheps = std::numeric_limits<PetscReal>::epsilon();
-    ASSERT_TRUE( anomtrans::check_equal_within(j_out["Ekm"].get<std::vector<PetscReal>>(),
-        j_known["Ekm"].get<std::vector<PetscReal>>(),
-        100.0*macheps, 10.0*macheps) );
-
     ASSERT_TRUE( anomtrans::check_equal_within(j_out["_series_current_S_B"].get<std::vector<PetscReal>>(),
         j_known["_series_current_S_B"].get<std::vector<PetscReal>>(),
         100.0*macheps, 100.0*macheps) );

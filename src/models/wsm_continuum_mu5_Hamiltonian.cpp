@@ -46,7 +46,7 @@ std::array<Eigen::Matrix4cd, 3> WsmContinuumMu5Hamiltonian::get_tau_matrices() {
 Eigen::Matrix4cd WsmContinuumMu5Hamiltonian::H(kVals<3> k) const {
   Eigen::Matrix4cd H = tau_matrices.at(2) * (k.at(0) * sigma_matrices.at(0)
       + k.at(1) * sigma_matrices.at(1) + k.at(2) * sigma_matrices.at(2))
-      + tau_matrices.at(0) + b * sigma_matrices.at(2) + mu5 * tau_matrices.at(2);
+      + tau_matrices.at(0) + b * sigma_matrices.at(2) - mu5 * tau_matrices.at(2);
 
   return H;
 }
