@@ -86,7 +86,7 @@ std::array<OwnedVec, 3> make_berry_curvature(const kmBasis<k_dim> &kmb, const Ha
       kmComps<k_dim> kmp = std::make_tuple(std::get<0>(km), mp);
 
       double ediff = H.energy(km) - H.energy(kmp);
-      double denom = std::pow(ediff, 2.0) + std::pow(broadening, 2.0);
+      double denom = std::pow(ediff, 4.0) + std::pow(broadening, 4.0);
 
       auto grad = H.gradient(km, mp);
       auto grad_star = H.gradient(kmp, m);
@@ -100,7 +100,7 @@ std::array<OwnedVec, 3> make_berry_curvature(const kmBasis<k_dim> &kmb, const Ha
               10.0*std::numeric_limits<PetscReal>::epsilon(),
               10.0*std::numeric_limits<PetscReal>::epsilon()));
 
-        PetscScalar num = std::complex<double>(0.0, 1.0) * grad_cross.at(dc);
+        PetscScalar num = std::complex<double>(0.0, 1.0) * std::pow(ediff, 2.0) * grad_cross.at(dc);
         // TODO prefer Kahan sum here?
         // Error ~ Nbands.
         local_vals.at(dc).at(local_row - begin) += num / denom;
