@@ -14,7 +14,6 @@ list(APPEND SOURCES
   observables/energy.cpp
   observables/spin.cpp
   observables/rho0.cpp
-  disorder/collision.cpp
   dyn_dm_graph.cpp
   fermi_surface.cpp
 )
